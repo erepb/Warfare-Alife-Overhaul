@@ -37,6 +37,99 @@
 level_timers = {}
 level_information = {}
 
+-- Level admission -------------------------------------------------------------
+--
+-- Warfare reasons about levels through two static tables it does not own:
+-- level_targets.level_links (topology) and global_position.level_offsets
+-- (coordinates). Both stop at level 34. level_information, by contrast, is
+-- discovered at runtime from whatever smarts SIMBOARD reports, so a level added by
+-- an add-on lands in it, gets bootstrapped,
+-- owned and driven -- and then kills the process on the first lookup into a static
+-- table that has never heard of it.
+--
+-- A level is admitted only when both static tables know it. Everything else is kept
+-- out of warfare entirely, rather than nil-guarded at each of the ten use sites. The
+-- predicate is data-driven on purpose: an add-on that supplies its own level_links
+-- and level_offsets entries is admitted with no change here.
+--
+-- active_levels is deliberately not part of the test. It is the aggregation roster
+-- for update() below, not an eligibility list -- level 34 (y04_pole) has links and
+-- offsets but no active_levels entry, and works today.
+local level_supported = {}
+local level_support_logged = {}
+
+local function level_name_for(level_id)
+	local ok, name = pcall(function() return alife():level_name(level_id) end)
+	return (ok and name) or "unknown"
+end
+
+function is_level_supported(level_id)
+	-- A nil level_id means the object's game vertex resolves to no level at all (seen
+	-- on squads carrying an out-of-range m_game_vertex_id). Nothing warfare does with
+	-- such an object is meaningful, so it is excluded like any other.
+	if (level_id == nil) then
+		if not (level_support_logged["nil"]) then
+			level_support_logged["nil"] = true
+			warfare_log.warn("is_level_supported: nil level_id, object excluded from warfare (reported once)")
+		end
+		return false
+	end
+
+	local cached = level_supported[level_id]
+	if (cached ~= nil) then
+		return cached
+	end
+
+	local has_links = (level_targets.level_links[level_id] ~= nil)
+	local has_offsets = (global_position.level_offsets[level_id] ~= nil)
+	local supported = has_links and has_offsets
+	level_supported[level_id] = supported
+
+	if not (supported) and not (level_support_logged[level_id]) then
+		level_support_logged[level_id] = true
+		warfare_log.warn("level %s (%s) excluded from warfare: level_links=%s level_offsets=%s (reported once)",
+			tostring(level_id), level_name_for(level_id),
+			has_links and "ok" or "missing", has_offsets and "ok" or "missing")
+	end
+
+	return supported
+end
+
+-- Resolves and caches smart.level_id as a side effect, so callers past this point
+-- can rely on it being set.
+function is_smart_supported(smart)
+	if not (smart) then
+		return false
+	end
+	if not (smart.level_id) then
+		smart.level_id = game_graph():vertex(smart.m_game_vertex_id):level_id()
+	end
+	return is_level_supported(smart.level_id)
+end
+
+-- Squads change level, so nothing is cached on the object here.
+function is_squad_supported(squad)
+	if not (squad) then
+		return false
+	end
+	return is_level_supported(game_graph():vertex(squad.m_game_vertex_id):level_id())
+end
+
+-- Drop-in replacement for pairs(SIMBOARD.smarts_by_names) that yields only smarts on
+-- admitted levels, so the callers that walk every smart (level_information setup,
+-- new-game seeding, spawn-timer stagger) keep their loop shape and pick up the filter
+-- in a single line.
+function supported_smarts()
+	local nxt, tbl, key = pairs(SIMBOARD.smarts_by_names)
+	return function()
+		local smart
+		repeat
+			key, smart = nxt(tbl, key)
+		until (key == nil) or is_smart_supported(smart)
+		return key, smart
+	end
+end
+
 function update()
 	warfare_log.trace("warfare_levels.update: tick start")
 	for i,lvl in pairs(level_targets.active_levels) do

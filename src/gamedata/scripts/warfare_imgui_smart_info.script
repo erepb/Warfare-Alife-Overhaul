@@ -867,11 +867,13 @@ function render()
                         total_enemy_power = total_enemy_power + 
                                           sim_offline_combat.calculate_squad_power(squad)
                         num_enemy_squads = num_enemy_squads + 1
-                        enemy_distance_sum = enemy_distance_sum + 
-                                           warfare.distance_to_xz_sqr(
-                                               global_position.from(smart), 
-                                               global_position.from(squad)
-                                           )
+
+                        local smart_pos = global_position.from(smart)
+                        local squad_pos = global_position.from(squad)
+                        if (smart_pos and squad_pos) then
+                            enemy_distance_sum = enemy_distance_sum +
+                                               warfare.distance_to_xz_sqr(smart_pos, squad_pos)
+                        end
                         squad_factions[squad_faction] = true
                     -- Count allied squads
                     elseif squad_faction == faction_owner then

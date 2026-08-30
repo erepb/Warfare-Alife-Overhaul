@@ -306,7 +306,7 @@ function calculate_distance_combat_multiplier(pos, community)
     local smart_pos
 
     -- Iterate through all smart terrains to find smarts of the specified type owned by the same faction
-    for name,smart in pairs(SIMBOARD.smarts_by_names) do
+    for name,smart in warfare_levels.supported_smarts() do
         props = smart and smart.props
         if props then
             smart_pos = (smart.owning_faction == community) and global_position.from(smart)

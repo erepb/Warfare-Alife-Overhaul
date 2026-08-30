@@ -232,7 +232,14 @@ end
 function render()
     -- Add smarts-related UI elements here
     local level = game_graph():vertex(alife():actor().m_game_vertex_id):level_id()
-    local currentLevelSmartIds = warfare_levels.level_information[level].smarts
+    local level_info = warfare_levels.level_information[level]
+
+    if not (level_info) then
+        ImGui.Text("Warfare does not manage this level.")
+        return
+    end
+
+    local currentLevelSmartIds = level_info.smarts
     
     -- Collect smart objects
     local smarts = {}

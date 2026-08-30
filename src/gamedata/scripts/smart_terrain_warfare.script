@@ -697,9 +697,8 @@ function smart_terrain_on_update(smart)
     local curr_time = warfare.get_time()
     smart.last_respawn_update = curr_time
 
-    -- check if level_id is set, if not set it.
-    if not (smart.level_id) then
-        smart.level_id = game_graph():vertex(smart.m_game_vertex_id):level_id()
+    if not (warfare_levels.is_smart_supported(smart)) then
+        return
     end
 
     if not (smart.first_update) then
@@ -2584,7 +2583,12 @@ function process_invasion_defense(smart)
             if is_factions_enemies(faction,defending_faction) and (faction ~= "monster") and (squad.current_action == 0) then
                 total_enemy_power = total_enemy_power + sim_offline_combat.calculate_squad_power(squad)                -- sum up squad powers
                 num_enemy_squads = num_enemy_squads + 1
-                enemy_distance = enemy_distance + warfare.distance_to_xz_sqr(global_position.from(smart), global_position.from(squad))
+
+                local smart_pos = global_position.from(smart)
+                local squad_pos = global_position.from(squad)
+                if (smart_pos and squad_pos) then
+                    enemy_distance = enemy_distance + warfare.distance_to_xz_sqr(smart_pos, squad_pos)
+                end
             -- count allied squads at point (or in transit) and their squad powers
             elseif (faction == defending_faction) then
                 total_allied_power = total_allied_power + sim_offline_combat.calculate_squad_power(squad)
