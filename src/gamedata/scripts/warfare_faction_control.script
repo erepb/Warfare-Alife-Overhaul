@@ -139,9 +139,7 @@ local function map_spot_menu_add_property(ui,id,lvl)
         
         if (f == "none") then
             if (smart_terrain_warfare.manual_point == nil) then
-                -- only show capture for bases/territories, not resource-only points
-                local is_capturable = obj.props and (obj.props.base > 0 or obj.props.territory > 0)
-                if is_capturable then
+                if smart_terrain_warfare.can_player_capture(obj, warfare.actor_faction) then
                     local dist = warfare.distance_to_xz_sqr(obj.position, alife():actor().position)
                     local max_dist = warfare_options.options.auto_capture_max_distance
                     if (dist <= max_dist * max_dist) then

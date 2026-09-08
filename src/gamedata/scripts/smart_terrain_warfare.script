@@ -813,6 +813,111 @@ function get_night_activity_flag(smart)
     end
 end
 
+function is_capturable_type(smart)
+    if not (smart and smart.props) then
+        return false
+    end
+    return (smart.props.base > 0) or (smart.props.resource > 0)
+end
+
+
+function holds_nonbase_smarts(faction)
+    return (faction ~= "stalker") and (faction ~= "ecolog")
+end
+
+
+-- Reason a capture order is refused, or nil. Ownership and distance are not tested here.
+function player_capture_denial(smart, faction)
+    if not (is_capturable_type(smart)) then
+        return "st_wrfr_cap_deny_type"
+    end
+    if (smart.props.base < 1) and not (holds_nonbase_smarts(faction)) then
+        return "st_wrfr_cap_deny_faction"
+    end
+    return nil
+end
+
+
+-- Full gate for every scan: unowned and not refused.
+function can_player_capture(smart, faction)
+    if not (smart) then
+        return false
+    end
+    if ((smart.owning_faction or "none") ~= "none") then
+        return false
+    end
+    return player_capture_denial(smart, faction) == nil
+end
+
+
+function report_capture_denial(smart, reason_id)
+    local name = translate_smart_name(smart:name()) or smart:name()
+    actor_menu.set_msg(1, strformat(game.translate_string(reason_id), tostring(name)), 4)
+    warfare_log.info("capture refused smart=%s reason=%s", smart:name(), reason_id)
+end
+
+
+function begin_capture(target)
+    local closest_base
+    local targeting_squad
+
+    -- check for ally squads already targeting, cancel capture if already targeting
+    local squads = SIMBOARD.smarts[target.id] and SIMBOARD.smarts[target.id].squads
+    for sid,_ in pairs(squads or {}) do
+        local squad = resolve_roster_squad(target.id, sid)
+        local faction = squad and squad:get_squad_community()
+        if (faction == warfare.actor_faction) and (not warfare.ignore[squad:section_name()]) then
+            targeting_squad = squad.id
+        end
+    end
+
+    -- check for nearby bases in the vicinity
+    if not targeting_squad then
+        local lvl = game_graph():vertex(target.m_game_vertex_id):level_id()
+        local smartCollection = {}
+        local currentLevelSmarts = warfare_levels.level_information[lvl]
+            and warfare_levels.level_information[lvl].smarts or {}
+
+        for i=1,#currentLevelSmarts do
+            local other = currentLevelSmarts[i] and alife_object(currentLevelSmarts[i])
+            -- add any allied base to list
+            if other and other.owning_faction and (other.owning_faction == warfare.actor_faction) and other.props and (other.props.base > 0) then
+                smartCollection[#smartCollection+1] = { fetch_smart_distance(target, other), other.id }
+            end
+        end
+
+        -- did not find an on-level base, search linked levels
+        if not (#smartCollection > 0) then
+            for linked_lvl,_ in pairs(level_targets.level_links[lvl] or {}) do
+                local smarts = warfare_levels.level_information[linked_lvl]
+                    and warfare_levels.level_information[linked_lvl].smarts or {}
+
+                for i=1,#smarts do
+                    local other = smarts[i] and alife_object(smarts[i])
+                    if other and other.owning_faction and (other.owning_faction == warfare.actor_faction) and other.props and (other.props.base > 0) then
+                        smartCollection[#smartCollection+1] = { fetch_smart_distance(target, other), other.id }
+                    end
+                end
+            end
+        end
+
+        if (#smartCollection > 0) then
+            table.sort(smartCollection, function(a, b)
+                return math.abs(a[1]) < math.abs(b[1])
+            end)
+
+            closest_base = smartCollection[1][2]        -- found a base, use that
+        end
+    end
+
+    -- store autocapture info, will be used to give messages even if invalid
+    manual_point = { target.id, warfare.get_time(), closest_base, targeting_squad, 1 }
+    warfare_log.info("begin_capture: started smart=%s closest_base=%s targeting_squad=%s",
+        target:name(), tostring(closest_base), tostring(targeting_squad))
+    local warfareName = translate_smart_name(target:name()) or target:name()
+    actor_menu.set_msg(1, strformat(str_wrfr[1], tostring(warfareName)), 3)
+end
+
 
 function process_manual_capture(smart)
 
@@ -841,10 +946,31 @@ function process_manual_capture(smart)
     warfare_log.trace("process_manual_capture: smart=%s manual_point=%s",
         smart:name(), tostring(manual_point and manual_point[1]))
 
-    -- STEP 1: when PDA is active on empty smart, check validity for capture, any nearby bases to send a squad, and pass the info to STEP 2
-    -- if not already autocapturing and autocapture is enabled, begin the autocapture process
+    -- STEP 1: two ways in -- a map-menu order names its own smart, proximity autocapture scans.
     local manual_check = manual_point and manual_point[5]        -- if there is no flag integer on the manual capture, need to make one
-    if (manual_check == nil) and ( (warfare_options.options.enable_auto_capture == true) or (manual_point and (manual_point[1] == smart.id)) ) then        -- proceed if no manual_point data and autocapture is enabled, or if existing manual_point data lacks flag
+
+    if (manual_check == nil) and manual_point and (manual_point[1] == smart.id) then
+        -- No PDA check: the order comes from the PDA map, and active_item() is not a proxy for it.
+        local reason = player_capture_denial(smart, warfare.actor_faction)
+        local dist = warfare.distance_to_xz_sqr(smart.position, alife():actor().position)
+
+        if (reason) then
+            report_capture_denial(smart, reason)
+            manual_point = nil
+        elseif ((smart.owning_faction or "none") ~= "none") then
+            -- taken between the order and this tick; drop it without a message
+            warfare_log.debug("process_manual_capture: order dropped, smart=%s now held by %s",
+                smart:name(), tostring(smart.owning_faction))
+            manual_point = nil
+        elseif (dist > math.pow(warfare_options.options.auto_capture_max_distance, 2)) then
+            report_capture_denial(smart, "st_wrfr_cap_deny_range")
+            manual_point = nil
+        else
+            begin_capture(smart)
+        end
+
+    elseif (manual_point == nil) and warfare_options.options.enable_auto_capture then
+        -- Proximity autocapture: look for an eligible smart near the actor on this level.
         local lvl = game_graph():vertex(smart.m_game_vertex_id):level_id()
 
         if (lvl == get_player_level_id() and warfare_levels.level_information[lvl]) then
@@ -854,82 +980,21 @@ function process_manual_capture(smart)
 
             if (obj_pda and sfind(obj_pda:section(),"device_pda") and obj_pda:condition() >= obj_pda:power_critical()) then
                 for i,sm in pairs(warfare_levels.level_information[lvl].smarts) do
-                    local smart = sm and alife_object(sm)
+                    local other = sm and alife_object(sm)
+                    -- Missing owner reads as unowned; settle it before testing.
+                    if (other) and not (other.owning_faction) then
+                        check_owner(other)
+                    end
                     -- valuable unowned smarts on level are checked
-                    if (smart and smart.props and (smart.props.base > 0 or smart.props.territory > 0) and smart.owning_faction == "none") then
-                        local dist = warfare.distance_to_xz_sqr(smart.position, alife():actor().position)
+                    if (other and can_player_capture(other, warfare.actor_faction)) then
+                        local dist = warfare.distance_to_xz_sqr(other.position, alife():actor().position)
                         -- within capture distance
                         if (dist <= math.pow(warfare_options.options.auto_capture_max_distance, 2)) then
-                            local closest_base
-                            local targeting_squad
-
-                            -- check for ally squads already targeting, cancel capture if already targeting
-                            local squads = SIMBOARD.smarts[smart.id].squads                            -- get info of all squads targeting location
-                            for sid,_ in pairs(squads) do
-                                local squad = resolve_roster_squad(smart.id, sid)
-                                local faction = squad and squad:get_squad_community()                            -- get faction of squads
-                                if (faction == warfare.actor_faction) and (not warfare.ignore[squad:section_name()]) then
-                                    -- squad already targeting
-                                    targeting_squad = squad.id
-                                end
-                            end
-
-                            -- check for nearby bases in the vicinity
-                            local smartCollection = {}
-                            if not targeting_squad then
-                                local linked = level_targets.level_links[lvl]
-                                local currentLevelSmarts = warfare_levels.level_information[lvl].smarts
-
-                                for i=1,#currentLevelSmarts do
-                                    local other = currentLevelSmarts[i] and alife_object(currentLevelSmarts[i])
-                                    -- add any allied base to list
-                                    if other and other.owning_faction and (other.owning_faction == warfare.actor_faction) and other.props and (other.props.base > 0) then
-                                        local distance = fetch_smart_distance(smart,other)
-                                        smartCollection[#smartCollection+1] = { distance, other.id }
-                                    end
-                                end
-
-                                -- did not find an on-level base, search linked levels
-                                if not (#smartCollection > 0) then
-                                    for lvl,_ in pairs(linked) do
-                                        local smarts = warfare_levels.level_information[lvl].smarts
-
-                                        for i=1,#smarts do
-                                            local other = smarts[i] and alife_object(smarts[i])
-                                            -- add any allied base to list
-                                            if other and other.owning_faction and (other.owning_faction == warfare.actor_faction) and other.props and (other.props.base > 0) then
-                                                local distance = fetch_smart_distance(smart,other)
-                                                smartCollection[#smartCollection+1] = { distance, other.id }
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-
-                            if (#smartCollection > 0) then
-                                table.sort(smartCollection, function(a, b)
-                                    return math.abs(a[1]) < math.abs(b[1])
-                                end)
-
-                                closest_base = smartCollection[1][2]        -- found a base, use that
-                            end
-
-                            -- store autocapture info, will be used to give messages even if invalid
-                            manual_point = { smart.id, warfare.get_time(), closest_base, targeting_squad, 1 }
-                            warfare_log.info("process_manual_capture: autocapture started smart=%s closest_base=%s targeting_squad=%s",
-                                smart:name(), tostring(closest_base), tostring(targeting_squad))
-                            local warfareName = translate_smart_name(smart:name())    or smart:name()
-                            actor_menu.set_msg(1, strformat(str_wrfr[1], tostring(warfareName)), 3)
+                            begin_capture(other)
                             break
                         end
                     end
                 end
-
-                local manual_check2 = manual_point and manual_point[5]
-                if not manual_check2 then
-                    manual_point = nil        -- actor has attempted a manual capture beyond the capture distance - kill the attempt
-                end
-
             end
         end
 
@@ -1073,12 +1138,15 @@ function process_manual_capture_old(smart)
     if (manual_point == nil) and (warfare_options.options.enable_auto_capture) then
         if (lvl == get_player_level_id() and warfare_levels.level_information[lvl]) then
             for i,sm in pairs(warfare_levels.level_information[lvl].smarts) do
-                local smart = sm and alife_object(sm)
-                if (smart and smart.props and (smart.props.base > 0 or smart.props.resource > 0) and smart.owning_faction == "none") then
-                    local dist = warfare.distance_to_xz_sqr(smart.position, alife():actor().position)
+                local other = sm and alife_object(sm)
+                if (other) and not (other.owning_faction) then
+                    check_owner(other)
+                end
+                if (other and can_player_capture(other, warfare.actor_faction)) then
+                    local dist = warfare.distance_to_xz_sqr(other.position, alife():actor().position)
                     if (dist <= math.pow(warfare_options.options.auto_capture_max_distance, 2)) then
-                        manual_point = { smart.id, warfare.get_time(), }
-                        local warfareName = translate_smart_name(smart:name())    or smart:name()
+                        manual_point = { other.id, warfare.get_time(), }
+                        local warfareName = translate_smart_name(other:name())    or other:name()
                         actor_menu.set_msg(1, strformat(str_wrfr[1], tostring(warfareName)), 3)
                         break
                     end
@@ -1092,6 +1160,14 @@ function process_manual_capture_old(smart)
             if (smart.owning_faction ~= "none") then
                 manual_point = nil
                 process_manual_capture(smart)
+                return
+            end
+
+            -- A map-menu order arrives as a bare { id, time }, unvalidated.
+            local reason = player_capture_denial(smart, warfare.actor_faction)
+            if (reason) then
+                report_capture_denial(smart, reason)
+                manual_point = nil
                 return
             end
 

@@ -478,4 +478,14 @@
 	<string id="ui_mm_alife_warfare_general_overflow_distance_cost_desc">
 		<text>How many priority points a relocating squad pays for every 100 units it travels. Overflow scoring is additive, so this converts distance into the same units as the base, resource and territory weights: a destination is dropped once the travel cost exceeds what it is worth. That makes each target's effective travel radius equal to its total priority divided by this value, so raise it to keep squads local and lower it to let them roam. Default: 5</text>
 	</string>
+	<!-- Capture refusals (map menu / autocapture) -->
+	<string id="st_wrfr_cap_deny_type">
+		<text>%s cannot be taken - only bases and resource points can be held.</text>
+	</string>
+	<string id="st_wrfr_cap_deny_faction">
+		<text>%s will not be held by our faction.</text>
+	</string>
+	<string id="st_wrfr_cap_deny_range">
+		<text>%s is too far away to organise a capture.</text>
+	</string>
 </string_table>
