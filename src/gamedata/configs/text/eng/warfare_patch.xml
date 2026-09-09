@@ -488,4 +488,55 @@
 	<string id="st_wrfr_cap_deny_range">
 		<text>%s is too far away to organise a capture.</text>
 	</string>
+	<string id="ui_mm_alife_warfare_sec_world">
+		<text>World &amp; New Game</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_capture">
+		<text>Capture</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_map">
+		<text>Map &amp; Visibility</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_economy">
+		<text>Economy &amp; Rewards</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_mutants">
+		<text>Mutants</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_combat">
+		<text>Offline Combat</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_timing">
+		<text>Spawn &amp; Invasion Timing</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_world_events">
+		<text>Emissions &amp; Diplomacy</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_debug">
+		<text>Diagnostics</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_spawning">
+		<text>Spawning</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_expansion">
+		<text>Expansion</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_targeting">
+		<text>Targeting</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_levels">
+		<text>Level Priorities</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_patrols">
+		<text>Patrols</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_strength">
+		<text>Strength</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_survival">
+		<text>Survival</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_hidden">
+		<text>Hidden:</text>
+	</string>
 </string_table>

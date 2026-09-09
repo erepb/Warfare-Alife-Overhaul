@@ -483,4 +483,55 @@
 	<string id="st_wrfr_cap_deny_range">
 		<text>%s слишком далеко, чтобы организовать захват.</text>
 	</string>
+	<string id="ui_mm_alife_warfare_sec_world">
+		<text>Мир и новая игра</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_capture">
+		<text>Захват</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_map">
+		<text>Карта и видимость</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_economy">
+		<text>Экономика и награды</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_mutants">
+		<text>Мутанты</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_combat">
+		<text>Оффлайн бои</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_timing">
+		<text>Тайминг спавна и вторжений</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_world_events">
+		<text>Выбросы и дипломатия</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_debug">
+		<text>Диагностика</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_spawning">
+		<text>Спавн</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_expansion">
+		<text>Экспансия</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_targeting">
+		<text>Выбор целей</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_levels">
+		<text>Приоритеты локаций</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_patrols">
+		<text>Патрули</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_strength">
+		<text>Сила</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_faction_survival">
+		<text>Выживание</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_hidden">
+		<text>Скрыто:</text>
+	</string>
 </string_table>

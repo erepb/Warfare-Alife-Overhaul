@@ -377,7 +377,9 @@ local function apply_preset(self, slug)
 
         local v = ui_options.get_opt_table(id)
         if v and v.type then
-            local to_hide = v.precondition and (not ui_options.exec(unpack(v.precondition)))
+            -- Collapsed (wf_collapsible) rows still take the preset; only real preconditions skip.
+            local to_hide = (not v.wf_collapsible)
+                and v.precondition and (not ui_options.exec(unpack(v.precondition)))
             if not to_hide then
                 if v.val == 1 then
                     value = (value == "true") and true or false

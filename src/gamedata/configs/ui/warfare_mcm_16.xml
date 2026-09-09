@@ -1,0 +1,17 @@
+<w>
+	<!-- Section header button inside a 36-high option row. No texture: only the text draws. -->
+	<sec_btn x="10" y="5" width="563" height="30">
+		<text font="letterica16" align="c" vert_align="c"/>
+		<text_color>
+			<e r="200" g="200" b="200"/>
+			<h r="228" g="236" b="226"/>
+			<t r="200" g="200" b="200"/>
+			<d r="96"  g="104" b="96"/>
+		</text_color>
+	</sec_btn>
+
+	<!-- Rule on each side of the title, same art as elements:line. x and width set from Lua. -->
+	<sec_rule x="0" y="12" width="563" height="16" stretch="1">
+		<texture>ui_inGame2_opt_slider_bar_back</texture>
+	</sec_rule>
+</w>

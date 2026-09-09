@@ -1,0 +1,269 @@
+-- MCM presentation hooks for the warfare options tree: track value formats, hint tooltips, collapsible section headers.
+
+local TIME_UNITS = { time_d = 1, time_dh = 2, time_dhm = 3, time_dhms = 4 }
+
+local function update_ctrl_text(ctrl, fmt, value)
+    if not fmt then
+        return
+    end
+    if fmt == "percent" then
+        ctrl:SetText(string.format("%s%%", value))
+        return
+    end
+    if fmt == "meters" then
+        ctrl:SetText(string.format("%sm", value))
+        return
+    end
+    local max_i = TIME_UNITS[fmt]
+    if not max_i then
+        return
+    end
+    local v = (tonumber(value) or 0) * 6
+    local all = { { math.floor(v / 86400), "d" }, { math.floor((v % 86400) / 3600), "h" }, { math.floor((v % 3600) / 60), "m" }, { math.floor(v % 60), "s" } }
+    local parts = {}
+    for i = 1, max_i do
+        if all[i][1] ~= 0 or #parts > 0 then
+            parts[#parts + 1] = all[i][1] .. all[i][2]
+        end
+    end
+    ctrl:SetText(#parts > 0 and table.concat(parts, " ") or "0" .. all[max_i][2])
+end
+
+local ui_options_UIOptions_callback_track = ui_options.UIOptions.Callback_Track
+function ui_options.UIOptions.Callback_Track(self, ctrl, path, opt, v, value)
+    ui_options_UIOptions_callback_track(self, ctrl, path, opt, v, value)
+    warfare_log.trace("modxml_warfare_ui.Callback_Track: path=%s opt=%s value=%s", tostring(path), tostring(opt), tostring(value))
+    update_ctrl_text(ctrl, v.fmt, value)
+end
+
+local ui_options_UIOptions_register_track = ui_options.UIOptions.Register_Track
+function ui_options.UIOptions.Register_Track(self, xml, handler, path, opt, v, flags)
+    local h = ui_options_UIOptions_register_track(self, xml, handler, path, opt, v, flags)
+    local track = self._Track[ui_options.cc(path, opt)]
+    update_ctrl_text(track.txt, v.fmt, track.value)
+    return h
+end
+
+local function cap_id(id)
+    return (string.gsub(id, "/", "_"))
+end
+
+local function row_label(path, row)
+    return game.translate_string("ui_mm_" .. (row.hint or cap_id(ui_options.cc(path, row.id))))
+end
+
+-- Hint tooltips: resolve "ui_mm_<hint>_desc" at registration and serve it on hover (vanilla only matches by option path).
+local cap_desc = {}
+
+local ui_options_UIOptions_register_cap = ui_options.UIOptions.Register_Cap
+function ui_options.UIOptions.Register_Cap(self, xml, handler, id, hint)
+    local h = ui_options_UIOptions_register_cap(self, xml, handler, id, hint)
+    if hint then
+        local str = "ui_mm_" .. hint .. "_desc"
+        local desc = game.translate_string(str)
+        if desc ~= str then
+            cap_desc[cap_id(id)] = desc
+        end
+    end
+    return h
+end
+
+-- Keyed by bare section id, shared by every page and all 13 faction groups: prefix ids per page.
+local section_open_state = {}
+
+local function section_is_open(section_id)
+    return section_open_state[section_id] == true
+end
+
+local pending_rebuild
+
+local function toggle_section(section_id, dlg)
+    section_open_state[section_id] = not section_is_open(section_id)
+    warfare_log.trace("modxml_warfare_ui.toggle_section: %s -> %s",
+        tostring(section_id), tostring(section_open_state[section_id]))
+    local scroll = dlg.scroll_opt
+    pending_rebuild = { pos = scroll and scroll:GetCurrentScrollPos() or 0 }
+end
+
+-- Runs from Update, not the click: Reset_opt frees the clicked header, so it must not rebuild inline.
+local function apply_pending_rebuild(dlg)
+    local p = pending_rebuild
+    pending_rebuild = nil
+    if not (dlg.last_curr_tree and dlg.last_path) then
+        return
+    end
+    dlg:Reset_opt(dlg.last_curr_tree, dlg.last_path)
+    dlg:UpdatePending()
+    local scroll = dlg.scroll_opt
+    -- Clear() scrolls to top; geometry is stale until RecalcNow (modded-exe API, hence pcall).
+    if scroll and p.pos > 0 then
+        local ok = pcall(function()
+            scroll:RecalcNow()
+            scroll:SetScrollPos(p.pos)
+        end)
+        if not ok then
+            warfare_log.warn("modxml_warfare_ui.apply_pending_rebuild: scroll restore unavailable")
+        end
+    end
+end
+
+local ui_options_UIOptions_update = ui_options.UIOptions.Update
+function ui_options.UIOptions.Update(self)
+    if pending_rebuild then
+        apply_pending_rebuild(self)
+    end
+    ui_options_UIOptions_update(self)
+    if self.hint_locked then
+        return
+    end
+    for id, ctrl in pairs(self._Cap) do
+        local desc = cap_desc[id]
+        if desc and ctrl:IsCursorOverWindow() then
+            self.hint_wnd:Update(desc)
+            return
+        end
+    end
+end
+
+-- { {id=, featured={ids}, rows={...}}, ... } -> header, featured rows, then rows gated by precondition.
+function build_sections(sections, leading_rows)
+    local out = {}
+
+    for i = 1, #(leading_rows or {}) do
+        out[#out + 1] = leading_rows[i]
+    end
+
+    for i = 1, #sections do
+        local sec = sections[i]
+        local hidden = {}
+
+        out[#out + 1] = {
+            id = "sec_" .. sec.id,
+            type = "button",
+            hint = "alife_warfare_sec_" .. sec.id,
+            wf_section = sec.id,
+            wf_hidden = hidden,
+            -- Closure, not { fn, id }: Callback_Button's non-final unpack drops extra args.
+            functor_ui = { function(dlg) toggle_section(sec.id, dlg) end },
+        }
+
+        local by_id = {}
+        for k = 1, #sec.rows do
+            by_id[sec.rows[k].id] = sec.rows[k]
+        end
+        for j = 1, #(sec.featured or {}) do
+            local row = by_id[sec.featured[j]]
+            if not row then
+                error("modxml_warfare_ui.build_sections: featured option '" .. tostring(sec.featured[j])
+                    .. "' is not in section '" .. tostring(sec.id) .. "'")
+            end
+            by_id[row.id] = nil
+            out[#out + 1] = row
+        end
+
+        for j = 1, #sec.rows do
+            local row = sec.rows[j]
+            if by_id[row.id] then
+                if row.precondition then
+                    error("modxml_warfare_ui.build_sections: row '" .. tostring(row.id) .. "' already has a precondition")
+                end
+                row.precondition = { section_is_open, sec.id }
+                row.wf_collapsible = true
+                hidden[#hidden + 1] = row
+                out[#out + 1] = row
+            end
+        end
+    end
+
+    return out
+end
+
+-- Section header "[+] Label (N)" from warfare_mcm.xml. Reset_opt adds 10 to the returned height.
+local SECTION_H = 26
+local RULE_MIN_W = 24
+local GAP = 7
+local TOOLTIP_MAX_ROWS = 12
+
+local mcm_xml
+local function get_mcm_xml()
+    if not mcm_xml then
+        mcm_xml = CScriptXmlInit()
+        mcm_xml:ParseFile("warfare_mcm.xml")
+    end
+    return mcm_xml
+end
+
+-- GetTextWidth is a modded-exe export; fallback ~7 units per glyph (cp1251: 1 byte = 1 glyph).
+local function text_width(wnd, text)
+    local ok, w = pcall(function() return wnd:GetTextWidth() end)
+    if ok and w and w > 0 then
+        return w
+    end
+    return 7 * string.len(text)
+end
+
+local function hidden_tooltip(path, rows)
+    local lines = { game.translate_string("ui_mm_alife_warfare_sec_hidden") .. " " .. #rows }
+    for i = 1, math.min(#rows, TOOLTIP_MAX_ROWS) do
+        lines[#lines + 1] = row_label(path, rows[i])
+    end
+    if #rows > TOOLTIP_MAX_ROWS then
+        lines[#lines + 1] = "..."
+    end
+    -- CUILine::ProcessNewLines splits on the two-char sequence "\\n", not on a real newline.
+    return table.concat(lines, "\\n")
+end
+
+local function place_rules(wxml, handler, x0, x1, half)
+    local mid = (x0 + x1) / 2
+    local sides = { { x0, mid - half }, { mid + half, x1 } }
+    for i = 1, #sides do
+        local sx0, sx1 = sides[i][1], sides[i][2]
+        if sx1 - sx0 >= RULE_MIN_W then
+            local rule = wxml:InitStatic("sec_rule", handler)
+            rule:SetWndPos(vector2():set(sx0, rule:GetWndPos().y))
+            rule:SetWndSize(vector2():set(sx1 - sx0, rule:GetHeight()))
+        end
+    end
+end
+
+local ui_options_UIOptions_register_button = ui_options.UIOptions.Register_Button
+function ui_options.UIOptions.Register_Button(self, xml, handler, path, opt, v, flags)
+    if not (v.wf_section) then
+        return ui_options_UIOptions_register_button(self, xml, handler, path, opt, v, flags)
+    end
+
+    local wxml = get_mcm_xml()
+    local open = section_is_open(v.wf_section)
+    local id_cap = cap_id(ui_options.cc(path, opt))
+    local hidden = v.wf_hidden
+
+    -- Measure the collapsed form in both states so the stretched rules do not move on toggle.
+    local label = row_label(path, v)
+    if #hidden > 0 then
+        label = label .. " (" .. #hidden .. ")"
+    end
+    local closed = "[+] " .. label
+    local btn = wxml:Init3tButton("sec_btn", handler)
+    btn:TextControl():SetText(closed)
+    local half = text_width(btn, closed) / 2 + GAP
+    if open then
+        btn:TextControl():SetText("[-] " .. label)
+    end
+
+    local x0 = btn:GetWndPos().x
+    local x1 = x0 + btn:GetWidth()
+    place_rules(wxml, handler, x0, x1, half)
+
+    -- Tooltip via the caption path: _Cap for hover detection, cap_desc for the text.
+    self._Cap[id_cap] = btn
+    cap_desc[id_cap] = ((not open) and #hidden > 0) and hidden_tooltip(path, hidden) or nil
+
+    local id_ctrl = self:Stacker(path, opt, v)
+    self:Register(btn, id_ctrl)
+    self:AddCallback(id_ctrl, ui_events.BUTTON_CLICKED, function()
+        self:Callback_Button(btn, path, opt, v)
+    end, self)
+
+    return SECTION_H
+end
