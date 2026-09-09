@@ -344,7 +344,7 @@
 		<text>When enabled, a base only looks for targets on its own level and on levels directly connected to it. When disabled it considers locations anywhere in the Zone, which reaches distant fronts but spreads the faction thin.</text>
 	</string>
 	<string id="ui_mm_alife_warfare_faction_ignore_empty_targets_desc">
-		<text>When enabled, this faction's bases will not target unowned locations, so it only expands by taking ground off another faction. Locations it abandons stay empty until someone else claims them. Squad relocation is unaffected: overflowing bases can still move squads to empty ground.</text>
+		<text>When enabled, this faction only expands by taking bases off another faction and will not claim unowned ones. Bases it abandons stay empty until someone else claims them. Squad relocation is unaffected: overflowing bases can still move squads to empty ground.</text>
 	</string>
 
 	<string id="ui_mm_alife_warfare_faction_min_resurgence_wait_time_desc">

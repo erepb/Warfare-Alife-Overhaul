@@ -2040,24 +2040,18 @@ function process_targets(smart)
             for i=1,#targets do
                 if not (smart.target_smarts[targets[i][2]]) then
                     local target_delta = target_smart_count - invading_faction_props.min_smart_targets_per_base
+                    local other = alife_object(targets[i][2])
+                    local enemy_faction = other and other.owning_faction or "none"    -- hostile or empty
                     if (target_delta < 0) then
-                        local other = alife_object(targets[i][2])
-                        local enemy_faction = other.owning_faction or "none"
-                        if other.props and other.props.base > 0 then    -- only bases can be targeted
-                            target_smart_count = target_smart_count + 1
-                            smart.target_smarts[targets[i][2]] = true
-                            ceasefire_check[targets[i][2]] = enemy_faction        -- target is hostile or empty
-                        end
+                        target_smart_count = target_smart_count + 1
+                        smart.target_smarts[targets[i][2]] = true
+                        ceasefire_check[targets[i][2]] = enemy_faction
                     elseif (target_smart_count < invading_faction_props.max_smart_targets_per_base) and (math.random(100) <= (aggression / (target_delta + 1))) then
                         -- after getting minimum amount of targets, add more targets based on aggression. Subsequent bases beyond the minimum are more difficult to add
-                        local other = alife_object(targets[i][2])
-                        local enemy_faction = other.owning_faction or "none"
-                        if other.props and other.props.base > 0 then
-                            target_smart_count = target_smart_count + 1
-                            smart.target_smarts[targets[i][2]] = true
-                            ceasefire_check[targets[i][2]] = enemy_faction
-                            break    -- only add one extra target per update for targets beyond the minimum
-                        end
+                        target_smart_count = target_smart_count + 1
+                        smart.target_smarts[targets[i][2]] = true
+                        ceasefire_check[targets[i][2]] = enemy_faction
+                        break    -- only add one extra target per update for targets beyond the minimum
                     else
                         break    -- not adding another target just yet
                     end
@@ -2119,12 +2113,9 @@ function process_targets(smart)
                 if (target_smart_count < auto_target_count) then
                     if not (smart.target_smarts[targets[i][2]]) then
                         local other = alife_object(targets[i][2])
-                        local enemy_faction = other.owning_faction or "none"
-                        if other.props and other.props.base > 0 then
-                            target_smart_count = target_smart_count + 1
-                            smart.target_smarts[targets[i][2]] = true
-                            ceasefire_check[targets[i][2]] = enemy_faction
-                        end
+                        target_smart_count = target_smart_count + 1
+                        smart.target_smarts[targets[i][2]] = true
+                        ceasefire_check[targets[i][2]] = other.owning_faction or "none"
                     end
                 end
             end
@@ -4185,25 +4176,6 @@ function process_mutants(smart)
 
 end
 
-function get_faction_power(smart, faction)
-    local squads = SIMBOARD.smarts[smart.id].squads
-    local power = 0
-
-    for sid,_ in pairs(squads) do
-        local squad = resolve_roster_squad(smart.id, sid)
-
-        if (squad) then
-            if (squad.current_action == 1 and squad.registered_with_warfare) then
-                if (squad:get_squad_community() == faction) then
-                    power = power + sim_offline_combat.calculate_squad_power(squad)
-                end
-            end
-        end
-    end
-
-    return power
-end
-
 -- displays warfare's icon for the smart terrain
 -- controls smart terrain icons only, not squad dots
 --function smart_terrain.se_smart_terrain.show(self)
@@ -5789,28 +5761,21 @@ function get_random_patrol_count(faction)
     return random_patrol_counts[faction] or 0
 end
 
-function find_targets(smart, faction_override, overflow_squad)
-    warfare_log.trace("find_targets: smart=%s faction_override=%s overflow=%s",
-        smart:name(), tostring(faction_override), tostring(overflow_squad))
+-- Expansion targets only: every caller acts on bases, so bases are all this returns.
+function find_targets(smart)
+    warfare_log.trace("find_targets: smart=%s", smart:name())
 
     local level = smart.level_id
     local faction = smart.owning_faction or "none"
-    local d = smart.defense_power or 0
-
-    if (faction_override) then
-        faction = faction_override
-        d = get_faction_power(smart, faction)
-    end
-
-    d = d * get_max_power_mult(smart) or 1
+    local d = (smart.defense_power or 0) * get_max_power_mult(smart)
 
     if (faction == "monster") then
-        return
+        return {}
     end
 
     -- Use precalculated smart collections (built once on load)
     local smartCollection
-    if (warfare_options.options.factions[faction].linked_level_targeting) and not (overflow_squad) then
+    if (warfare_options.options.factions[faction].linked_level_targeting) then
         smartCollection = linked_smart_collection[level] or {}
     else
         smartCollection = all_smart_collection or {}
@@ -5824,7 +5789,6 @@ function find_targets(smart, faction_override, overflow_squad)
     local ff_faction_flag_priority     = ff.faction_flag_priority
     local ff_base_priority             = ff.base_priority
     local ff_resource_priority         = ff.resource_priority
-    local ff_territory_priority        = ff.territory_priority
     local ff_is_being_targeted         = ff.is_being_targeted_priority
     local ff_target_weaker             = ff.target_weaker_priority
     local ff_target_stronger           = ff.target_stronger_priority
@@ -5867,8 +5831,8 @@ function find_targets(smart, faction_override, overflow_squad)
             goto continue
         end
 
-        -- heavily de-prioritize pure lairs
-        if other_props.resource < 1 and other_props.base < 1 and other_props.territory < 1 then
+        -- only bases can be taken over: lairs, bare resource points and territory are not targets
+        if other_props.base < 1 then
             goto continue
         end
 
@@ -5877,7 +5841,7 @@ function find_targets(smart, faction_override, overflow_squad)
             goto continue
         end
 
-        -- faction opted out of land grabs: unowned locations are not valid targets
+        -- faction opted out of land grabs: unowned bases are not valid targets
         if ff_ignore_empty_targets and other_faction == "none" then
             goto continue
         end
@@ -5899,16 +5863,11 @@ function find_targets(smart, faction_override, overflow_squad)
             priority = priority + other_props[faction] * ff_faction_flag_priority
         end
 
-        if other_props.base > 0 then
-            priority = priority + other_props.base * ff_base_priority
-        end
+        priority = priority + other_props.base * ff_base_priority
 
+        -- a base can double as a resource point (e.g. mar_smart_terrain_12_2)
         if other_props.resource > 0 then
             priority = priority + other_props.resource * ff_resource_priority
-        end
-
-        if other_props.territory > 0 and other_props.resource < 1 and other_props.base < 1 and other_props.lair < 1 then
-            priority = priority + other_props.territory * ff_territory_priority
         end
 
         if other.target_smarts and other.target_smarts[smart_id] then
@@ -5936,8 +5895,8 @@ function find_targets(smart, faction_override, overflow_squad)
             priority = priority + ff_target_same_level
         end
 
-        -- slight priority boost for empty resources or bases, or resources owned by neutral loner/ecolog
-        if (other_faction == "none" or ((other_faction == "stalker" or other_faction == "ecolog") and other_props.base < 1 and not is_factions_enemies(faction, other_faction))) and (other_props.resource > 0 or other_props.base > 0) then
+        -- slight priority boost for unclaimed bases
+        if other_faction == "none" then
             priority = priority * 1.2
         end
 
@@ -5968,7 +5927,7 @@ function find_targets(smart, faction_override, overflow_squad)
             end
 
             -- greatly de-prioritize loner/ecolog bases, but not to zero
-            if not (is_factions_enemies(faction, other_faction) or other_faction == "none") and other_props.base > 0 and (other_faction == "stalker" or other_faction == "ecolog") then
+            if not (is_factions_enemies(faction, other_faction) or other_faction == "none") and (other_faction == "stalker" or other_faction == "ecolog") then
                 priority = priority / 1000
             end
 

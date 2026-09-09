@@ -47,7 +47,7 @@
         <text>Отменить запросы на отряды для этого объекта</text>
     </string>
     <string id="ui_mm_alife_warfare_faction_ignore_empty_targets">
-        <text>Игнорировать пустые цели</text>
+        <text>Игнорировать пустые базы</text>
     </string>
     <string id="st_wrfr_req_squad">
         <text>Запросить отряд на этот объект</text>
