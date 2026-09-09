@@ -296,6 +296,56 @@ local function build_curves(opts, min_multiplier)
     }
 end
 
+-- best_multiplier for faction F depends only on smarts F owns, so invalidation is per faction:
+-- a capture bumps exactly two epochs and leaves every other faction's cache valid. epoch_base
+-- only ever rises, so a faction's epoch is strictly increasing and can never repeat a value.
+local epoch_base = 0
+local owner_epoch = {}     -- [faction] = own bumps
+local owned_ids = {}       -- [faction] = { smart id, ... }
+local owned_built_at = {}  -- [faction] = epoch the list was built at
+
+local function faction_epoch(faction)
+    return epoch_base + (owner_epoch[faction] or 0)
+end
+
+-- Called from smart_terrain_warfare on every owner change: bootstrap_smart and check_owner.
+function on_smart_owner_changed(old_faction, new_faction)
+    if old_faction then
+        owner_epoch[old_faction] = (owner_epoch[old_faction] or 0) + 1
+    end
+    if new_faction then
+        owner_epoch[new_faction] = (owner_epoch[new_faction] or 0) + 1
+    end
+end
+
+-- Drops every faction's cache at once. Needed on an options change (which smarts count, and the
+-- curve shape, both move) and on load (a faction that owned smarts last session may own none now).
+function invalidate_distance_cache()
+    epoch_base = epoch_base + 1
+end
+
+-- The all-smarts scan runs once per faction epoch instead of once per call.
+local function owned_smart_ids(faction)
+    local epoch = faction_epoch(faction)
+    if owned_built_at[faction] == epoch then
+        return owned_ids[faction]
+    end
+
+    local ids = {}
+    local n = 0
+    for name,smart in warfare_levels.supported_smarts() do
+        if smart and smart.owning_faction == faction then
+            n = n + 1
+            ids[n] = smart.id
+        end
+    end
+
+    owned_ids[faction] = ids
+    owned_built_at[faction] = epoch
+    warfare_log.trace("owned_smart_ids: rebuilt faction=%s count=%s epoch=%s", tostring(faction), n, epoch)
+    return ids
+end
+
 -- Precedence chain, not independent flags: a base that also produces is scored as a base.
 local function curve_for(curves, props)
     if props.base and props.base > 0 then
@@ -331,28 +381,27 @@ function calculate_distance_combat_multiplier(pos, community)
 
     local best_multiplier = 0
 
-    -- Iterate through all smart terrains to find smarts of the specified type owned by the same faction
-    for name,smart in warfare_levels.supported_smarts() do
-        -- Ownership first: for most factions this rejects the great majority of smarts before any other read.
-        if smart and smart.owning_faction == community then
-            local props = smart.props
-            -- Smarts do not move, and from() writes the field as a side effect (nil is warned once).
-            local smart_pos = props and (smart.global_position or global_position.from(smart))
+    -- Only the smarts this faction owns, from the epoch-keyed index
+    local ids = owned_smart_ids(community)
+    for i = 1, #ids do
+        local smart = alife_object(ids[i])
+        local props = smart and smart.props
+        -- Smarts do not move, and from() writes the field as a side effect (nil is warned once).
+        local smart_pos = props and (smart.global_position or global_position.from(smart))
 
-            if smart_pos then
-                -- Calculate distance using the existing warfare system function
-                local distance = math.sqrt(math.max(1, warfare.distance_to_xz_sqr(smart_pos, pos)))
-                local curve = curve_for(curves, props)
-                local multiplier = min_multiplier
+        if smart_pos then
+            -- Calculate distance using the existing warfare system function
+            local distance = math.sqrt(math.max(1, warfare.distance_to_xz_sqr(smart_pos, pos)))
+            local curve = curve_for(curves, props)
+            local multiplier = min_multiplier
 
-                -- If squad is within max distance, calculate multiplier
-                if distance < curve.max_distance then
-                    multiplier = curve.span * math.exp(curve.k * (distance / curve.max_distance)) + min_multiplier
-                end
+            -- If squad is within max distance, calculate multiplier
+            if distance < curve.max_distance then
+                multiplier = curve.span * math.exp(curve.k * (distance / curve.max_distance)) + min_multiplier
+            end
 
-                if multiplier > best_multiplier then
-                    best_multiplier = multiplier
-                end
+            if multiplier > best_multiplier then
+                best_multiplier = multiplier
             end
         end
     end
@@ -361,17 +410,31 @@ function calculate_distance_combat_multiplier(pos, community)
     return best_multiplier > 0 and best_multiplier or 1.0
 end
 
-local function calculate_squad_distance_combat_multiplier(squad)
+-- Memoized squad path. The record lives on the squad's Lua wrapper beside global_position, so it
+-- is freed with the object: no id-keyed table, no purge hook, nothing saved.
+-- community stays in the key because calculate_npc_power passes an explicit one that need not be
+-- the squad's own.
+local function calculate_squad_distance_multiplier(squad, community)
     if not squad then
         return 1
     end
 
-    local squad_community = squad:get_squad_community()
-    if not squad_community then
+    community = community or squad:get_squad_community()
+    if not community then
         return 1
     end
 
-    return calculate_distance_combat_multiplier(global_position.from(squad), squad_community)
+    local gvid = squad.m_game_vertex_id
+    local epoch = faction_epoch(community)
+    local rec = squad.wf_power
+
+    if rec and rec.gvid == gvid and rec.community == community and rec.epoch == epoch then
+        return rec.mult
+    end
+
+    local mult = calculate_distance_combat_multiplier(global_position.from(squad), community)
+    squad.wf_power = { gvid = gvid, community = community, epoch = epoch, mult = mult }
+    return mult
 end
 
 local function coordinator()
@@ -959,7 +1022,7 @@ function calculate_npc_power(se_obj, community, squad)
 
     local mult = 1
     if squad then
-        mult = calculate_distance_combat_multiplier(global_position.from(squad), community)
+        mult = calculate_squad_distance_multiplier(squad, community)
     end
 
     return (power * (faction_power[community] or 1))* mult
@@ -987,7 +1050,7 @@ function calculate_squad_power(squad, community, raw, no_distance)
     end
 
     if not no_distance then
-        power = power * calculate_squad_distance_combat_multiplier(squad)
+        power = power * calculate_squad_distance_multiplier(squad, community)
     end
     if community == "monster" and warfare_utils.is_night() then
         power = power * (warfare_options.options.monster_night_power_multiplier or 2)
@@ -1141,6 +1204,8 @@ function on_game_start()
 
     local function on_game_load()
         warfare_log.info("sim_offline_combat.on_game_load: registering try_coordinator + save_state")
+        -- Ownership from the previous session is gone; bootstrap_smart only bumps factions that own something.
+        invalidate_distance_cache()
         RegisterScriptCallback("actor_on_update", try_coordinator)
         RegisterScriptCallback("save_state", save_state)
     end

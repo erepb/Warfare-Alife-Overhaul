@@ -678,6 +678,7 @@ function bootstrap_smart(smart)
         smart.owning_faction = "none"
         smart.last_owner = "none"
     end
+    sim_offline_combat.on_smart_owner_changed(nil, smart.owning_faction)
 
     set_max_population(smart)
     night_activity_allowed[smart.id] = 0
@@ -5238,12 +5239,22 @@ function get_max_power_mult(smart)
     return 1
 end
 
+-- The distance combat multiplier caches per faction, so every owner change has to be announced.
+-- Compared against the value on entry: the smart.last_owner test further down is not a change
+-- detector, since the smart_owners branch writes both fields to the same value.
+local function announce_owner_change(smart, was)
+    if smart.owning_faction ~= was then
+        sim_offline_combat.on_smart_owner_changed(was, smart.owning_faction)
+    end
+end
+
 function check_owner(smart)
     if not (smart) then
         return
     end
     warfare_log.trace("check_owner: smart=%s", smart:name())
 
+    local was = smart.owning_faction
 
     if not (smart.check_owner_timer) then
         smart.check_owner_timer = warfare.get_time()
@@ -5253,12 +5264,14 @@ function check_owner(smart)
         warfare_log.warn("check_owner: smart=%s missing from SIMBOARD", smart:name())
         smart.owning_faction = "none"
         patrol_timers[smart.id] = nil
+        announce_owner_change(smart, was)
         return
     end
 
     if not (SIMBOARD.smarts[smart.id].squads) then
         smart.owning_faction = "none"
         patrol_timers[smart.id] = nil
+        announce_owner_change(smart, was)
         return
     end
 
@@ -5334,6 +5347,7 @@ function check_owner(smart)
     else
         smart.owning_faction = owner
     end
+    announce_owner_change(smart, was)
 
     if (smart.last_owner ~= smart.owning_faction) then
         warfare_log.info("check_owner: ownership changed smart=%s %s -> %s",

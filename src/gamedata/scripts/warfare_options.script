@@ -308,6 +308,8 @@ function update_settings()
     end
     axr_main.config:save()
 
+    -- Curve shape and which smarts count both come from these options.
+    sim_offline_combat.invalidate_distance_cache()
 end
 
 ENABLE_MUTANT_OFFLINE_COMBAT = true
