@@ -174,7 +174,7 @@ function render()
             "Current Smart", "Relation", "Patrol Owner", "Target", "Action"
         }
         
-        for col = 0, 9 do
+        for col = 0, #column_names - 1 do
             ImGui.TableSetColumnIndex(col)
             
             local header_text = column_names[col + 1]
