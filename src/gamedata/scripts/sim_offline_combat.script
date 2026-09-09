@@ -272,6 +272,44 @@ end
 -------------------------------
 -- Distance-based combat functions
 -------------------------------
+
+-- Exponential decay curve per smart kind: y = span * e^(k * d/max_distance) + min_multiplier,
+-- reaching min_multiplier at max_distance. span and k depend only on the options, so they are
+-- built once per call instead of once per owned smart.
+local function make_curve(global_max_distance, max_mult, min_multiplier)
+    local span = max_mult - min_multiplier
+    return {
+        max_distance = global_max_distance * max_mult,
+        span = span,
+        k = math.log(0.01 / span),
+    }
+end
+
+local function build_curves(opts, min_multiplier)
+    local d = opts.distance_combat_max_distance
+    return {
+        base      = make_curve(d, opts.distance_combat_max_multiplier_base, min_multiplier),
+        resource  = make_curve(d, opts.distance_combat_max_multiplier_resource, min_multiplier),
+        territory = make_curve(d, opts.distance_combat_max_multiplier_territory, min_multiplier),
+        lair      = make_curve(d, opts.distance_combat_max_multiplier_lair, min_multiplier),
+        other     = make_curve(d, 1, min_multiplier),
+    }
+end
+
+-- Precedence chain, not independent flags: a base that also produces is scored as a base.
+local function curve_for(curves, props)
+    if props.base and props.base > 0 then
+        return curves.base
+    elseif props.resource and props.resource > 0 then
+        return curves.resource
+    elseif props.territory and props.territory > 0 then
+        return curves.territory
+    elseif props.lair and props.lair > 0 then
+        return curves.lair
+    end
+    return curves.other
+end
+
 function calculate_distance_combat_multiplier(pos, community)
     warfare_log.trace("calculate_distance_combat_multiplier: community=%s", community)
     if not _G.WARFARE then
@@ -288,62 +326,28 @@ function calculate_distance_combat_multiplier(pos, community)
         return 1.0
     end
 
-    -- Cache option lookups outside loop
-    local global_max_distance = opts.distance_combat_max_distance
     local min_multiplier = opts.distance_combat_min_multiplier
-    local mult_base = opts.distance_combat_max_multiplier_base
-    local mult_resource = opts.distance_combat_max_multiplier_resource
-    local mult_territory = opts.distance_combat_max_multiplier_territory
-    local mult_lair = opts.distance_combat_max_multiplier_lair
+    local curves = build_curves(opts, min_multiplier)
 
     local best_multiplier = 0
-    local distance = 0
-    local multiplier = 0
-    local max_mult = 0
-    local max_distance = 0
-    local distance_factor = 0
-    local props
-    local smart_pos
 
     -- Iterate through all smart terrains to find smarts of the specified type owned by the same faction
     for name,smart in warfare_levels.supported_smarts() do
-        props = smart and smart.props
-        if props then
-            smart_pos = (smart.owning_faction == community) and global_position.from(smart)
+        -- Ownership first: for most factions this rejects the great majority of smarts before any other read.
+        if smart and smart.owning_faction == community then
+            local props = smart.props
+            -- Smarts do not move, and from() writes the field as a side effect (nil is warned once).
+            local smart_pos = props and (smart.global_position or global_position.from(smart))
 
             if smart_pos then
                 -- Calculate distance using the existing warfare system function
-                distance = math.max(1, warfare.distance_to_xz_sqr(smart_pos, pos))
-                distance = math.pow(distance, 0.5)
-
-                multiplier = min_multiplier
-
-                if props.base and props.base > 0 then
-                    max_mult = mult_base
-                elseif props.resource and props.resource > 0 then
-                    max_mult = mult_resource
-                elseif props.territory and props.territory > 0 then
-                    max_mult = mult_territory
-                elseif props.lair and props.lair > 0 then
-                    max_mult = mult_lair
-                else
-                    max_mult = 1
-                end
-
-                max_distance = global_max_distance * max_mult
+                local distance = math.sqrt(math.max(1, warfare.distance_to_xz_sqr(smart_pos, pos)))
+                local curve = curve_for(curves, props)
+                local multiplier = min_multiplier
 
                 -- If squad is within max distance, calculate multiplier
-                if distance < max_distance then
-                    -- Exponential interpolation between max and min multipliers based on distance
-
-                    distance_factor = distance / max_distance
-
-                    -- Exponential decay formula: y = a * e^(-b * x) + c
-                    -- where a + c = max_mult, and c = min_multiplier
-                    -- We want the curve to reach min_multiplier at max_distance
-                    -- a = max_mult - min_multiplier
-                    -- b = -math.log(0.01 / a)
-                    multiplier = (max_mult - min_multiplier) * math.exp(math.log(0.01 / (max_mult - min_multiplier)) * distance_factor) + min_multiplier
+                if distance < curve.max_distance then
+                    multiplier = curve.span * math.exp(curve.k * (distance / curve.max_distance)) + min_multiplier
                 end
 
                 if multiplier > best_multiplier then
