@@ -393,15 +393,14 @@ function calculate_distance_combat_multiplier(pos, community)
             -- Calculate distance using the existing warfare system function
             local distance = math.sqrt(math.max(1, warfare.distance_to_xz_sqr(smart_pos, pos)))
             local curve = curve_for(curves, props)
-            local multiplier = min_multiplier
 
-            -- If squad is within max distance, calculate multiplier
+            -- Only smarts within range contribute.
             if distance < curve.max_distance then
-                multiplier = curve.span * math.exp(curve.k * (distance / curve.max_distance)) + min_multiplier
-            end
+                local multiplier = curve.span * math.exp(curve.k * (distance / curve.max_distance)) + min_multiplier
 
-            if multiplier > best_multiplier then
-                best_multiplier = multiplier
+                if multiplier > best_multiplier then
+                    best_multiplier = multiplier
+                end
             end
         end
     end
