@@ -204,8 +204,6 @@ function ui_options.init_opt_coder()
                 { id = "emission_effect", type = "list", val = 0, def = "off", content = {{"off"}, {"kill"}, {"zombify"}} },
                 { id = "purge_zone_percentage", type = "track", val = 2, def = 5, min = 0, max = 100, step = 1, fmt = "percent" },
                 { id = "territory_diplo_penalty", type = "check", val = 1, def = true },
-                { id = "zombies_act_as_faction", type = "check", val = 1, def = false },
-                { id = "disable_smart_pop_cap", type = "check", val = 1, def = false },
             } },
             { id = "debug", featured = { "log_level" }, rows = {
                 { id = "log_level", type = "list", val = 0, def = "warn", content = {{"off"}, {"error"}, {"warn"}, {"info"}, {"debug"}, {"trace"}} },

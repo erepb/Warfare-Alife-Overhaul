@@ -93,9 +93,6 @@ function update_settings()
     options.fog_of_war_distance = ui_options.get("alife/warfare/general/fog_of_war_distance")
     --xQd
     options.enemy_new_game_bonus = ui_options.get("alife/warfare/general/enemy_new_game_bonus")
-    -- DEPRECATED: its only reader was the overflow-squad deletion branch, which is gone.
-    -- Kept so existing configs and presets carrying the key keep loading.
-    options.disable_smart_pop_cap = ui_options.get("alife/warfare/general/disable_smart_pop_cap")
     --xQd
 
     options.enable_auto_capture = ui_options.get("alife/warfare/general/auto_capture")
@@ -160,7 +157,6 @@ function update_settings()
     options.advanced_squad_price = ui_options.get("alife/warfare/general/advanced_squad_price")
     options.veteran_squad_price = ui_options.get("alife/warfare/general/veteran_squad_price")
     options.heli_price = ui_options.get("alife/warfare/general/heli_price")
-    options.zombies_act_as_faction = ui_options.get("alife/warfare/general/zombies_act_as_faction")
     --    options.zombie_mode                               = ui_options.get("alife/warfare/general/zombie_mode")
     --    options.enable_offline_news                     = ui_options.get("alife/warfare/general/enable_offline_news")
     --    options.offline_news_display_percentage            = ui_options.get("alife/warfare/general/offline_news_display_percentage")
