@@ -2959,9 +2959,6 @@ function get_current_def_respawn_interval(faction)
     local max_respawn = warfare_options.options.factions[faction].max_faction_respawn
     local faction_bases = warfare_factions.faction_information[faction].base_count
     local current_respawn = warfare.lerp(min_respawn, max_respawn, base_lerp_factor(faction_bases))
-    if faction == "monolith" and has_alife_info("bar_deactivate_radar_done") then
-        current_respawn = 2 * current_respawn  -- Once the Brain Scorcher is deactivated, Monolith spawn at a much slower rate
-    end
     return current_respawn * (warfare_options.options.spawn_speed_multiplier or 1)
 end
 

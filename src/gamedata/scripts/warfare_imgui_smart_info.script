@@ -396,9 +396,6 @@ function render_faction_smart_info(smart, faction)
             ImGui.Text("  Total Bases: " .. tostring(base_count_total))
             ImGui.Text("  Lerp Factor: " .. string.format("%.3f", lerp_factor))
             ImGui.Text("  Calculated Interval: " .. format_time_remaining(calculated_respawn  * 6))
-            if faction == "monolith" and has_alife_info and has_alife_info("bar_deactivate_radar_done") then
-                ImGui.Text("  Monolith Penalty: 2x (Brain Scorcher off)")
-            end
             ImGui.Text("  Spawn Speed Multiplier: " .. string.format("%.2fx", spawn_mult))
             ImGui.Text("  Final Interval: " .. format_time_remaining(final_respawn  * 6))
         else
