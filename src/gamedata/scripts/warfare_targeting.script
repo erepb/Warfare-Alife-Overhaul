@@ -53,7 +53,7 @@ function can_garrison(other, faction)
 ]]
     local owner = other.owning_faction or "none"
     return (owner == "none") or (owner == faction)
-        or (owner == "stalker") or (owner == "ecolog")
+        or warfare_behavior.holdings_are_open(owner)
 end
 
 
@@ -294,7 +294,7 @@ function is_claim_target(smart, other, faction, ctx)
 
     local owner = other.owning_faction or "none"
     if (owner ~= "none") and (owner ~= faction) then
-        local hijackable = (owner == "stalker") or (owner == "ecolog")
+        local hijackable = warfare_behavior.holdings_are_open(owner)
         if not (hijackable or game_relations.is_factions_enemies(faction, owner)) then
             return false
         end

@@ -331,7 +331,7 @@ function squad_on_npc_death(squad, npc, killer)
                 local influence = warfare_options.options.actor_support_reward_influence
                 local goodwill_incr = round_idp(warfare_options.options.actor_support_goodwill_base + (rank * warfare_options.options.actor_support_goodwill_weight))        -- give goodwill equal to base amount plus multiplier of victim's rank
 
-                if warfare.actor_faction == "stalker" then
+                if warfare_behavior.no_central_command(warfare.actor_faction) then
                     money = 0                                -- no head honcho to give you money
                     goodwill_incr = 0.5 * goodwill_incr        -- less unified faction means less effect on relations
                 end
@@ -387,6 +387,7 @@ function sim_squad_scripted.sim_squad_scripted.show(self)
 
             local levelID = self.m_game_vertex_id and game_graph():vertex(self.m_game_vertex_id):level_id()
             local visible = false
+            local loner_fog = warfare_behavior.no_radio_net(warfare.actor_faction)
 
             if (levelID == get_player_level_id()) then
                 local dist = warfare.distance_to_xz_sqr(self.position, alife():actor().position)
@@ -408,8 +409,8 @@ function sim_squad_scripted.sim_squad_scripted.show(self)
                         local squad = squadID and alife_object(squadID)
 
                         if (squad and squad:clsid() == clsid.online_offline_group_s) then
-                            -- loner squads don't provide sight of other nearby squads
-                            if (squad:get_squad_community() == warfare.actor_faction) and (warfare.actor_faction ~= "stalker" or not warfare_options.options.loner_fog) then
+                            -- a faction without a radio net gets no sight through its own squads
+                            if (squad:get_squad_community() == warfare.actor_faction) and not loner_fog then
                                 if (warfare.distance_to_xz_sqr(squad.position, self.position) < fog_of_war_distance * fog_of_war_distance) then
                                     visible = true
                                     break

@@ -147,7 +147,6 @@ function update_settings()
     options.monster_night_power_multiplier = ui_options.get("alife/warfare/general/monster_night_power_multiplier")
 
     options.overflow_override = ui_options.get("alife/warfare/general/overflow_overrides_manual_control")
-    options.loner_fog = ui_options.get("alife/warfare/general/extra_loner_fog_of_war")
     options.territory_diplo_penalty = ui_options.get("alife/warfare/general/territory_diplo_penalty")
     options.prevent_mainbase_attacks = ui_options.get("alife/warfare/general/prevent_mainbase_attacks")
 
