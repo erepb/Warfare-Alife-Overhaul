@@ -5538,6 +5538,12 @@ local function is_scorcher_zone(lvl)
     return (lvl == 13) or (lvl == 14)   -- Radar + Red Forest
 end
 
+-- The zombied are immune for the same reason they are excluded from the registry: their movement is
+-- a simulation property, not configurable behavior.
+local function is_scorcher_immune(faction)
+    return (warfare_behavior.scorcher_travel(faction) == "exempt") or (faction == "zombied")
+end
+
 -- Returns true if the Brain Scorcher blocks travel from source_level to target_level for faction.
 -- In story mode the scorcher is active until the player disables it; in freeplay it's always off.
 local function is_scorcher_blocked(source_level, target_level, faction)
@@ -5545,8 +5551,7 @@ local function is_scorcher_blocked(source_level, target_level, faction)
         return false
     end
 
-    local scorcher_immune = (faction == "monolith") or (faction == "zombied")
-    if scorcher_immune then
+    if is_scorcher_immune(faction) then
         return false
     end
 
@@ -5555,8 +5560,8 @@ local function is_scorcher_blocked(source_level, target_level, faction)
         return true
     end
 
-    -- South <-> North blocked for non-immune, non-merc factions
-    if (faction ~= "killer") and source_level then
+    -- South <-> North blocked for non-immune factions, unless the divide is open to them (mercs)
+    if (warfare_behavior.scorcher_travel(faction) ~= "divide_open") and source_level then
         if (is_south_level(source_level) and is_north_level(target_level)) or
            (is_north_level(source_level) and is_south_level(target_level)) then
             return true
@@ -5573,8 +5578,7 @@ local function is_miracle_machine_blocked(source_level, target_level, faction)
         return false
     end
 
-    local scorcher_immune = (faction == "monolith") or (faction == "zombied")
-    if scorcher_immune or (faction == "killer") then
+    if is_scorcher_immune(faction) or warfare_behavior.ignores_miracle_machine(faction) then
         return false
     end
 
@@ -5591,8 +5595,9 @@ end
 -- source_level may be nil (e.g. during squad spawning); directional checks are skipped in that case.
 -- Covers: underground exclusion, Brain Scorcher, Miracle Machine, Monolith south restriction.
 function is_travel_allowed(source_level, target_level, faction)
-    -- Monsters and Sin are exempt from all travel restrictions
-    if (faction == "monster") or (faction == "greh") then
+    -- Monsters, and factions that ignore every barrier (Sin), travel anywhere.
+    -- Note this also lifts the underground exclusion below, which is pre-existing behavior.
+    if (faction == "monster") or warfare_behavior.ignores_all_barriers(faction) then
         return true
     end
 
@@ -5612,8 +5617,9 @@ function is_travel_allowed(source_level, target_level, faction)
         return false
     end
 
-    -- Monolith south restriction: while scorcher is active, only Army Warehouses (9) allowed south
-    if (faction == "monolith") and IsStoryMode() and (faction ~= warfare.actor_faction)
+    -- South lock: while the scorcher is active, only Army Warehouses (9) is reachable south.
+    -- Exempt when it is the actor's own faction -- that is about who is playing, not the faction.
+    if warfare_behavior.south_locked_until_scorcher_off(faction) and IsStoryMode() and (faction ~= warfare.actor_faction)
        and not has_alife_info("bar_deactivate_radar_done") then
         if is_south_level(target_level) and (target_level ~= 9) then
             return false
@@ -5842,8 +5848,8 @@ function find_targets(smart)
 
     -- Cache game state queries (constant within a single call)
     local is_story_mode       = IsStoryMode()
-    local is_monolith         = faction == "monolith"
-    local is_isg              = faction == "isg"
+    local is_south_locked     = warfare_behavior.south_locked_until_scorcher_off(faction)
+    local lab_appeal          = warfare_behavior.lab_entrance_appeal(faction)
 
     for i = 1, #smartCollection do
         local sid = smartCollection[i]
@@ -5934,14 +5940,16 @@ function find_targets(smart)
             priority = priority * 1.2
         end
 
-        -- Monolith: lower priority for southern levels while scorcher active (non-actor non-warehouses case already skipped above)
-        if is_monolith and is_story_mode and not has_alife_info("bar_deactivate_radar_done") and (other_level < 12 or other_level > 31) then
+        -- South-locked factions weight southern levels down while the scorcher is active
+        -- (the non-actor, non-warehouses case is already skipped above)
+        if is_south_locked and is_story_mode and not has_alife_info("bar_deactivate_radar_done") and (other_level < 12 or other_level > 31) then
             priority = priority * 0.8
         end
 
-        -- ISG extremely interested in targeting labs
-        if is_isg and lab_entrance_smarts[other:name()] then
-            priority = 10 * priority
+        -- Lab-entrance appeal (ISG hunt them). Gated on the multiplier so the name lookup
+        -- stays skipped for every faction that does not care.
+        if (lab_appeal ~= 1) and lab_entrance_smarts[other:name()] then
+            priority = priority * lab_appeal
         end
 
         if priority > 0 then
