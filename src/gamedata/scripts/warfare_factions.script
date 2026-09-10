@@ -257,8 +257,8 @@ function update_faction(faction)
                 local start = start_id and alife_object(start_id)
                 local target_id
 
-                -- loners/ecolog don't get sent off randomly, they get sent according to their respective loner/ecolog process functions
-                if (faction == "stalker") or (faction == "ecolog") then
+                -- independent factions don't get sent off randomly; their own dispatcher moves them
+                if warfare_behavior.is_independent(faction) then
                     target_id = start_id
                 else
                     target_id = smart_terrain_warfare.find_random_patrol_target(start, faction)

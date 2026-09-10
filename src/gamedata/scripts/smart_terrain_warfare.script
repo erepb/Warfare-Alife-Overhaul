@@ -823,7 +823,7 @@ end
 
 
 function holds_nonbase_smarts(faction)
-    return (faction ~= "stalker") and (faction ~= "ecolog")
+    return not warfare_behavior.is_independent(faction)
 end
 
 
@@ -1265,8 +1265,8 @@ function process_base_squads(smart)
     end
 
     local faction = smart.owning_faction
-    -- Loner and ecolog behavior is handled in different functions
-    if (faction == "stalker") or (faction == "ecolog") then
+    -- Independent factions run their own dispatcher instead
+    if warfare_behavior.is_independent(faction) then
         return
     end
 
@@ -1374,9 +1374,9 @@ function process_base_squads(smart)
                 end
             else
                 local squatter_faction = squad:get_squad_community()
-                if (squatter_faction ~= "stalker") and (squatter_faction ~= "ecolog") and (squatter_faction ~= "monster")
-                and (squatter_faction ~= "zombied") then
-                    -- Non loner/ecolog squads squatting on bases they don't own are moved back to their own bases.
+                if not warfare_behavior.is_independent(squatter_faction)
+                and (squatter_faction ~= "monster") and (squatter_faction ~= "zombied") then
+                    -- Squads squatting on bases they don't own are moved back to their own bases.
                     -- The zombied are exempt for the same reason they are in process_nonbase_squads: they hold no
                     -- main base, so the eviction can only ever fail and it repeats on every pass.
                     if isMorning or (warfare_utils.get_warfare_hour() > 15 and warfare_utils.get_warfare_hour() < 20) or (night_activity_allowed[smart.id] == 1) then
@@ -1548,7 +1548,8 @@ function process_nonbase_squads(smart, always_recall, keep_one)
             local faction = squad and squad:get_squad_community()
             if (squad) and (squad_is_commandable(squad) or squad.patrol_table)
             and not patrol_system_owns(squad) and not sim_squad_warfare.squad_is_settled(squad)
-            and (squad.current_action == 1) and not (faction == "stalker" or faction == "ecolog" or faction == "monster" or faction == "zombied") then
+            and (squad.current_action == 1) and not warfare_behavior.is_independent(faction)
+            and (faction ~= "monster") and (faction ~= "zombied") then
                 eligible_count = eligible_count + 1
             end
         end
@@ -1563,7 +1564,8 @@ function process_nonbase_squads(smart, always_recall, keep_one)
         local faction = squad and squad:get_squad_community()
         if (squad) and (squad_is_commandable(squad) or squad.patrol_table)
         and not patrol_system_owns(squad) and not sim_squad_warfare.squad_is_settled(squad)
-        and not (faction == "stalker" or faction == "ecolog" or faction == "monster" or faction == "zombied") then
+        and not warfare_behavior.is_independent(faction)
+        and (faction ~= "monster") and (faction ~= "zombied") then
             if squad.current_action ~= 1 then
                 -- already moving, skip
             else
@@ -3360,21 +3362,31 @@ function process_loners(smart)
 
     local squads = SIMBOARD.smarts[smart.id].squads                            -- get info of all squads at location
 
-    local base_may_send
-    if (smart.owning_faction == "stalker") then
-        base_may_send = base_can_send(smart)
-    elseif warfare_options.options.prevent_mainbase_attacks and (get_main_base_faction(smart:name()) == "stalker") then
-        base_may_send = (squad_count_defending(smart, "stalker") > 1)
-    else
-        base_may_send = true
+    -- The garrison guard depends on the squad's faction as well as the smart, and each check walks
+    -- the smart's whole roster. smart is fixed for this call, so faction alone is a sufficient key:
+    -- the table is call-local and discarded on return.
+    local base_may_send_for = {}
+    local function base_may_send(faction)
+        local allowed = base_may_send_for[faction]
+        if allowed == nil then
+            if (smart.owning_faction == faction) then
+                allowed = base_can_send(smart)
+            elseif warfare_options.options.prevent_mainbase_attacks and (get_main_base_faction(smart:name()) == faction) then
+                allowed = (squad_count_defending(smart, faction) > 1)
+            else
+                allowed = true
+            end
+            base_may_send_for[faction] = allowed
+        end
+        return allowed
     end
 
     for sid, _ in pairs(squads) do
         local squad = resolve_roster_squad(smart.id, sid)
         local faction = squad and squad:get_squad_community()                            -- get faction of squads
 
-        if faction and (faction == "stalker") and squad_is_commandable(squad, true) and (squad.current_action == 1) then
-            -- only operate on loners, exclude unique npcs
+        if faction and (warfare_behavior.dispatch_model(faction) == "loner") and squad_is_commandable(squad, true) and (squad.current_action == 1) then
+            -- only operate on loner-model squads, exclude unique npcs
             local night_chance = warfare_options.options.factions[faction].night_activity_chance
             local isNight = warfare_utils.is_night()
             local isDaylight = warfare_utils.is_daylight()
@@ -3385,7 +3397,7 @@ function process_loners(smart)
             local priority_targets = {}
 
             if (smart.props and smart.props.base > 0) and (isDaylight) and (math.random(1,10) < 9) then                                                -- updates squads at a base. Squads are assigned to resource locations during daylight hours. 10% chance that they're lazy bums and sit at base until the next update
-                if (base_may_send) then
+                if base_may_send(faction) then
                     if (math.random(1, 10) < 7) then                                                                                                    -- 70% chance of staying on-level
                         if (math.random(1,20) < 19) then                                                                                                -- 5% chance for an on-level squad to be mutant hunters, going to lairs instead
                             local level_info = warfare_levels.level_information[smart.level_id]
@@ -3400,7 +3412,7 @@ function process_loners(smart)
                                 if (other.props and other.props.resource > 0) then
                                     if (other.owning_faction == "none") then                                                                        -- target resources with no stalkers already present
                                         all_targets[#all_targets+1] = other                                                                                        -- add possible locations to list of targets
-                                    elseif (is_factions_enemies("stalker", other.owning_faction)) then
+                                    elseif (is_factions_enemies(faction, other.owning_faction)) then
                                         -- loners will attack enemy positions if they are much stronger than the enemies, chance to attack scales with the power disparity
                                         local enemy_squads = SIMBOARD.smarts[other.id].squads
                                         local enemy_power = 0
@@ -3464,7 +3476,7 @@ function process_loners(smart)
                                 if (other.props and other.props.resource > 0) then                                                                        -- only target resources
                                     if (other.owning_faction == "none") then                                                                                -- prioritize empty resources
                                         priority_targets[#priority_targets+1] = other
-                                    elseif (is_factions_enemies("stalker", other.owning_faction)) then
+                                    elseif (is_factions_enemies(faction, other.owning_faction)) then
                                         local enemy_squads = SIMBOARD.smarts[other.id].squads
                                         local enemy_power = 0
                                         local loner_power = sim_offline_combat.calculate_squad_power(squad)
@@ -3514,7 +3526,7 @@ function process_loners(smart)
                         if (other.props and other.props.resource > 0) then
                             if (other.owning_faction == "none") then
                                 all_targets[#all_targets+1] = other
-                            elseif (is_factions_enemies("stalker", other.owning_faction)) then
+                            elseif (is_factions_enemies(faction, other.owning_faction)) then
                                 local enemy_squads = SIMBOARD.smarts[other.id].squads
                                 local enemy_power = 0
                                 local loner_power = sim_offline_combat.calculate_squad_power(squad)
@@ -3555,7 +3567,7 @@ function process_loners(smart)
                             if (other.props and other.props.resource > 0) then
                                 if (other.owning_faction == "none") then
                                     priority_targets[#priority_targets+1] = other
-                                elseif (is_factions_enemies("stalker", other.owning_faction)) then
+                                elseif (is_factions_enemies(faction, other.owning_faction)) then
                                     local enemy_squads = SIMBOARD.smarts[other.id].squads
                                     local enemy_power = 0
                                     local loner_power = sim_offline_combat.calculate_squad_power(squad)
@@ -3738,7 +3750,7 @@ function process_ecolog(smart)
         local squad = resolve_roster_squad(smart.id, sid)
         local faction = squad and squad:get_squad_community() or "none"                            -- get faction of squads
 
-        if (faction == "ecolog") and squad_is_commandable(squad, true) and (squad.current_action == 1) then                                -- only operate on ecologists, exclude unique npcs
+        if (warfare_behavior.dispatch_model(faction) == "ecolog") and squad_is_commandable(squad, true) and (squad.current_action == 1) then    -- only operate on ecolog-model squads, exclude unique npcs
             local night_chance = warfare_options.options.factions[faction].night_activity_chance
             local isNight = warfare_utils.is_night()
             local isDaylight = warfare_utils.is_daylight()
@@ -3748,8 +3760,8 @@ function process_ecolog(smart)
             local all_targets = {}
 
             if (smart.props and smart.props.base > 0) and (isDaylight) and (math.random(1,10) < 9) then                                                -- updates squads at a base. Squads are assigned to resource locations during daylight hours. 10% chance that they're lazy bums and sit at base until the next update
-                local is_ecolog_mainbase = warfare_options.options.prevent_mainbase_attacks and get_main_base_faction(smart:name()) == "ecolog"
-                if ((smart.owning_faction ~= "ecolog" and not is_ecolog_mainbase) or (squad_count(smart, "ecolog") > 1)) then                -- Ecologist-owned or ecologist main bases keep their last squad to retain control
+                local is_own_mainbase = warfare_options.options.prevent_mainbase_attacks and get_main_base_faction(smart:name()) == faction
+                if ((smart.owning_faction ~= faction and not is_own_mainbase) or (squad_count(smart, faction) > 1)) then                -- own or protected main bases keep their last squad to retain control
                     if (math.random(1, 10) < 5) then                                                                                                    -- 50% chance of staying on-level
                         local level_info = warfare_levels.level_information[smart.level_id]
 
@@ -5693,7 +5705,7 @@ function find_random_patrol_target(smart, faction, sid)
 
         elseif (other.owning_faction ~= "none") and is_factions_enemies(faction, other.owning_faction) then        -- during the spawning phase, forbid hostile locations
             priority = 0
-        elseif ( (faction == "stalker") or (faction == "ecolog") ) and (other.owning_faction ~= "none") and not is_factions_enemies(faction, other.owning_faction) then        -- loners/ecolog can spawn on any neutral location
+        elseif warfare_behavior.is_independent(faction) and (other.owning_faction ~= "none") and not is_factions_enemies(faction, other.owning_faction) then        -- independent factions can spawn on any neutral location
             priority = 2
         elseif (faction == other.owning_faction) and (faction ~= "zombied") then    -- faction random patrols can spawn on their own locations
             priority = 2

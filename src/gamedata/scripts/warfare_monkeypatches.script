@@ -393,8 +393,8 @@ function faction_expansions.get_spawn_section(faction, resource, current_level)
     warfare_log.trace("get_spawn_section: faction=%s resource=%s level=%s days=%s", tostring(faction), tostring(resource), tostring(current_level), tostring(days_in_zone))
 
     if (faction ~= "monster") then
-        if (faction == "stalker") or (faction == "ecolog") then
-            -- loners and ecologists have set chances for squad skill: 7% veteran, 36% advanced, 57% novice
+        if warfare_behavior.is_independent(faction) then
+            -- independent factions have set chances for squad skill: 7% veteran, 36% advanced, 57% novice
             return faction_expansions.get_section(faction, 36, 7)
         else
             local advanced = faction_expansions.get_advanced_chance(resource)
