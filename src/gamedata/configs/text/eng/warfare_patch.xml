@@ -105,12 +105,6 @@
 	<string id="ui_mm_alife_warfare_general_overflow_overrides_manual_control_desc">
 		<text>Typically, when manual faction control is disabled, overflow squads (i.e. squads surpassing the smart terrain limit) are automatically re-assigned.  When manual faction control is enabled, overflow squads are no longer handled automatically. Toggling this setting on restores the automated handling of these squads while preserving the rest of the manual faction control functionality.</text>
 	</string>
-	<string id="ui_mm_alife_warfare_general_extra_loner_fog_of_war">
-		<text>Extra fog of war for loner players</text>
-	</string>
-	<string id="ui_mm_alife_warfare_general_extra_loner_fog_of_war_desc">
-		<text>When this setting is active, players playing as 'free stalkers' will not be able to see loner squads or outposts outside of their fog of war distance unless they use PDA v2 or PDA v3. This is similar to non-Warfare vision. If this setting is disabled, bases and squads of free stalkers will be visible even with PDA v1. This setting is only functional when fog of war is enabled.</text>
-	</string>
 	<string id="ui_mm_alife_warfare_general_distance_based_combat_multiplier">
 		<text>Distance-based combat multiplier</text>
 	</string>
@@ -538,5 +532,111 @@
 	</string>
 	<string id="ui_mm_alife_warfare_sec_hidden">
 		<text>Hidden:</text>
+	</string>
+	<!-- Faction behavior traits -->
+	<string id="ui_mm_alife_warfare_sec_faction_behavior">
+		<text>Behavior</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_dispatch_model">
+		<text>Dispatch model</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_dispatch_model_desc">
+		<text>Which routine moves this faction's squads.\nUnified: bases send squads out to expand and invade.\nLoner: squads scatter to resource points and mutant lairs by day, drift back to any friendly base at dusk, and attack only when they clearly outgun the defenders.\nEcologist: the same daily cycle, slower and strictly non-violent, preferring travel-hub bases at night.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_holdings_are_open">
+		<text>Open holdings</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_holdings_are_open_desc">
+		<text>Anyone not actively hostile can walk into the resource points and territory this faction holds and take them without a fight, however many squads are present.\nIts bases are a separate question, governed by «Displaceable at peace».</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_displaceable_at_peace">
+		<text>Displaceable at peace</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_displaceable_at_peace_desc">
+		<text>Factions at peace with this one may still send squads to occupy its bases. No fighting happens -- offline combat only ever runs between enemies -- so enough squads to outnumber the garrison simply takes the base.\nIts resource points and territory are governed separately by «Open holdings».</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_holds_ground">
+		<text>Holds ground</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_holds_ground_desc">
+		<text>Calls for reinforcements and flags its bases as under attack when an invasion arrives, and treats what it holds as worth something politically: taking its targets costs relations, and a base changing hands with it counts as a real conquest for respawn timers.\nTurned off, no help is sent, though whoever is already there still fights.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_no_central_command">
+		<text>No central command</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_no_central_command_desc">
+		<text>No leadership to answer to.\nWhen you belong to this faction, killing enemy fighters pays no money and earns only half the usual goodwill.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_no_radio_net">
+		<text>No radio net</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_no_radio_net_desc">
+		<text>No shared intelligence.\nWhen you belong to this faction and fog of war is on, your faction's squads and outposts do not reveal the map for you: you see only what lies within fog range of yourself or of an allied faction's squads, your own faction's outposts are not shown at any distance, and the attack plans of an outpost you cannot see stay hidden. PDA v2 or v3 gives sight of squads back.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_peacetime_appetite">
+		<text>Peacetime appetite</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_peacetime_appetite_desc">
+		<text>How readily this faction goes after bases held by someone it is not at war with. Never means it ignores them entirely.\nOtherwise it weighs them against everything else it could be doing, and this decides how heavily: reluctant only when one is almost next door, indifferent weighing such a base exactly as it would an enemy's.\nIt can only ever reach an owner marked Displaceable at peace.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_scorcher_travel">
+		<text>Brain Scorcher</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_scorcher_travel_desc">
+		<text>How the active Brain Scorcher restricts this faction.\nBlocked: cannot enter Radar or Red Forest, and cannot cross between north and south.\nDivide open: may cross between north and south, but still cannot enter Radar or Red Forest.\nExempt: no restriction at all.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_ignores_miracle_machine">
+		<text>Ignores Miracle Machine</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_ignores_miracle_machine_desc">
+		<text>Travels between Dead City and the south while the Miracle Machine is running.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_lab_entrance_appeal">
+		<text>Lab entrance appeal</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_lab_entrance_appeal_desc">
+		<text>Multiplier on the priority of laboratory entrance smart terrains when this faction picks targets and patrol routes.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_patrol_scope">
+		<text>Patrol scope</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_patrol_scope_desc">
+		<text>What the random patrols of this faction look for.\nAny: normal target scoring.\nLairs only: they hunt mutant dens and ignore everything else.</text>
+	</string>
+	<string id="ui_mm_lst_wf_dispatch_unified">
+		<text>Unified</text>
+	</string>
+	<string id="ui_mm_lst_wf_dispatch_loner">
+		<text>Loner</text>
+	</string>
+	<string id="ui_mm_lst_wf_dispatch_ecolog">
+		<text>Ecologist</text>
+	</string>
+	<string id="ui_mm_lst_wf_appetite_never">
+		<text>Never</text>
+	</string>
+	<string id="ui_mm_lst_wf_appetite_reluctant">
+		<text>Reluctant</text>
+	</string>
+	<string id="ui_mm_lst_wf_appetite_willing">
+		<text>Willing</text>
+	</string>
+	<string id="ui_mm_lst_wf_appetite_indifferent">
+		<text>Indifferent</text>
+	</string>
+	<string id="ui_mm_lst_wf_scorcher_blocked">
+		<text>Blocked</text>
+	</string>
+	<string id="ui_mm_lst_wf_scorcher_divide_open">
+		<text>Divide open</text>
+	</string>
+	<string id="ui_mm_lst_wf_scorcher_exempt">
+		<text>Exempt</text>
+	</string>
+	<string id="ui_mm_lst_wf_patrol_any">
+		<text>Any</text>
+	</string>
+	<string id="ui_mm_lst_wf_patrol_lairs">
+		<text>Lairs only</text>
 	</string>
 </string_table>

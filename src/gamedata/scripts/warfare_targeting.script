@@ -47,13 +47,18 @@ function can_garrison(other, faction)
     This is squad_warfare_update's `can_take`, promoted to shared truth. Every
     destination any dispatcher picks must satisfy it, which is what makes the
     recall/arrival ping-pong impossible.
-
-    Loner and ecologist holdings are included because they are hijackable: warfare
-    lets a faction walk into them rather than having to fight for them.
 ]]
     local owner = other.owning_faction or "none"
-    return (owner == "none") or (owner == faction)
-        or warfare_behavior.holdings_are_open(owner)
+    if (owner == "none") or (owner == faction) then
+        return true
+    end
+
+    local props = other.props
+    if (props ~= nil) and (props.base < 1) then
+        return warfare_behavior.holdings_are_open(owner)
+    end
+
+    return warfare_behavior.displaceable_at_peace(owner)
 end
 
 

@@ -1,4 +1,4 @@
--- kind picks the MCM control: flag -> check, choice -> list, scale -> track.
+-- kind names the MCM control (flag -> check, choice -> list, scale -> track); modxml_warfare checks every trait row against this schema at load.
 TRAITS = {
     -- loner and ecolog are two genuinely different models, not one model with two skins: different
     -- update periods, garrison guards, target rules and dusk behavior. See process_loners/process_ecolog.
@@ -9,12 +9,10 @@ TRAITS = {
     holds_ground                    = { kind = "flag",   neutral = true },
     no_central_command              = { kind = "flag",   neutral = false },
     no_radio_net                    = { kind = "flag",   neutral = false },
-    target_appeal                   = { kind = "scale",  neutral = 1.0, min = 0.001, max = 2.0 },
+    peacetime_appetite              = { kind = "choice", neutral = "reluctant", values = { "never", "reluctant", "willing", "indifferent" } },
 
     scorcher_travel                 = { kind = "choice", neutral = "zone_and_divide", values = { "zone_and_divide", "divide_open", "exempt" } },
     ignores_miracle_machine         = { kind = "flag",   neutral = false },
-    ignores_all_barriers            = { kind = "flag",   neutral = false },
-    south_locked_until_scorcher_off = { kind = "flag",   neutral = false },
 
     lab_entrance_appeal             = { kind = "scale",  neutral = 1, min = 1, max = 20 },
     patrol_scope                    = { kind = "choice", neutral = "any", values = { "any", "lairs_only" } },
@@ -27,13 +25,20 @@ TRAIT_ORDER = {
     "holds_ground",
     "no_central_command",
     "no_radio_net",
-    "target_appeal",
+    "peacetime_appetite",
     "scorcher_travel",
     "ignores_miracle_machine",
-    "ignores_all_barriers",
-    "south_locked_until_scorcher_off",
     "lab_entrance_appeal",
     "patrol_scope",
+}
+
+-- What each peacetime_appetite token multiplies a target's score by. Stored settings hold the
+-- token, so these numbers can be retuned without invalidating anyone's config.
+APPETITE = {
+    never       = 0,
+    reluctant   = 0.1,
+    willing     = 0.5,
+    indifferent = 1,
 }
 
 -- Sparse: only values that differ from the neutral one. A faction absent here is fully neutral.
@@ -45,38 +50,41 @@ LORE = {
         holds_ground          = false,
         no_central_command    = true,
         no_radio_net          = true,
-        target_appeal         = 0.001,
     },
     ecolog = {
         dispatch_model        = "ecolog",
         holdings_are_open     = true,
         displaceable_at_peace = true,
         holds_ground          = false,
-        target_appeal         = 0.001,
+        peacetime_appetite    = "never",
     },
     bandit = {
+        peacetime_appetite = "indifferent",
         no_central_command = true,
         no_radio_net       = true,
     },
     renegade = {
+        peacetime_appetite = "indifferent",
         no_central_command = true,
         no_radio_net       = true,
     },
     army = {
+        peacetime_appetite = "indifferent",
         no_central_command = true,
     },
     monolith = {
-        scorcher_travel                 = "exempt",
-        ignores_miracle_machine         = true,
-        south_locked_until_scorcher_off = true,
+        scorcher_travel         = "exempt",
+        ignores_miracle_machine = true,
     },
     killer = {
         scorcher_travel         = "divide_open",
         ignores_miracle_machine = true,
+        peacetime_appetite      = "willing",
         no_radio_net            = true,
     },
     greh = {
-        ignores_all_barriers = true,
+        scorcher_travel         = "exempt",
+        ignores_miracle_machine = true,
     },
     isg = {
         lab_entrance_appeal = 10,
@@ -177,9 +185,13 @@ function no_radio_net(faction)
     return get(faction).no_radio_net
 end
 
---- Multiplier applied to this faction's bases when scored as an at-peace target.
-function target_appeal(faction)
-    return get(faction).target_appeal
+--- How readily this faction goes after the holdings of someone it is not at war with, resolved
+--- through APPETITE to the multiplier find_targets applies. Zero drops those candidates outright.
+--- Falls back to the neutral rather than to zero, so an unrecognised stored token cannot silently
+--- switch a faction off.
+function peacetime_appetite(faction)
+    local token = get(faction).peacetime_appetite
+    return APPETITE[token] or APPETITE[NEUTRAL.peacetime_appetite]
 end
 
 --- Brain Scorcher exposure: "zone_and_divide", "divide_open" or "exempt".
@@ -189,16 +201,6 @@ end
 
 function ignores_miracle_machine(faction)
     return get(faction).ignores_miracle_machine
-end
-
---- Travels anywhere, including underground levels.
-function ignores_all_barriers(faction)
-    return get(faction).ignores_all_barriers
-end
-
---- Cannot reach south levels other than Army Warehouses while the Scorcher is active.
-function south_locked_until_scorcher_off(faction)
-    return get(faction).south_locked_until_scorcher_off
 end
 
 --- Multiplier applied to lab-entrance smarts when this faction scores targets.
@@ -223,7 +225,7 @@ function default(faction, name)
     return spec and spec.neutral
 end
 
---- Called by warfare_options.update_settings once W3 lands. Nothing calls it yet.
+--- Called by warfare_options.update_settings after the per-faction behavior block is rebuilt.
 function invalidate(faction)
     warfare_log.debug("warfare_behavior.invalidate: faction=%s", tostring(faction))
     if faction then

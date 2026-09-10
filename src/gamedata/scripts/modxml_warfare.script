@@ -24,6 +24,28 @@ function ui_options.init_opt_coder()
     table.insert(alife_general_alife_stalker_pop.content, { 2 })
 
     local options = modxml_warfare_ui.build_sections({
+        -- The behavior traits. Every row is checked against warfare_behavior.TRAITS after
+        -- build_sections. Defaults here are placeholders -- the real per-faction default is stamped
+        -- onto each faction's own copy of the row further down.
+        { id = "faction_behavior", featured = { "dispatch_model" }, rows = {
+            { id = "dispatch_model", type = "list", val = 0, def = "unified", content = {
+                { "unified", "wf_dispatch_unified" }, { "loner", "wf_dispatch_loner" }, { "ecolog", "wf_dispatch_ecolog" } } },
+            { id = "holdings_are_open", type = "check", val = 1, def = false },
+            { id = "displaceable_at_peace", type = "check", val = 1, def = false },
+            { id = "holds_ground", type = "check", val = 1, def = true },
+            { id = "no_central_command", type = "check", val = 1, def = false },
+            { id = "no_radio_net", type = "check", val = 1, def = false },
+            { id = "peacetime_appetite", type = "list", val = 0, def = "reluctant", content = {
+                { "never", "wf_appetite_never" }, { "reluctant", "wf_appetite_reluctant" },
+                { "willing", "wf_appetite_willing" }, { "indifferent", "wf_appetite_indifferent" } } },
+            { id = "scorcher_travel", type = "list", val = 0, def = "zone_and_divide", content = {
+                { "zone_and_divide", "wf_scorcher_blocked" }, { "divide_open", "wf_scorcher_divide_open" },
+                { "exempt", "wf_scorcher_exempt" } } },
+            { id = "ignores_miracle_machine", type = "check", val = 1, def = false },
+            { id = "lab_entrance_appeal", type = "track", val = 2, def = 1, min = 1, max = 20, step = 1 },
+            { id = "patrol_scope", type = "list", val = 0, def = "any", content = {
+                { "any", "wf_patrol_any" }, { "lairs_only", "wf_patrol_lairs" } } },
+        } },
         { id = "faction_spawning", featured = { "spawn_on_new_game", "min_faction_respawn" }, rows = {
             { id = "spawn_on_new_game", type = "check", val = 1, def = true },
             { id = "random_spawn_entries", type = "track", val = 2, def = 1, min = 0, max = 100, step = 1 },
@@ -124,6 +146,45 @@ function ui_options.init_opt_coder()
         end
     end
 
+    local CONTROL = { flag = "check", choice = "list", scale = "track" }
+
+    local function row_matches(row, spec)
+        if row.type ~= CONTROL[spec.kind] or row.def ~= spec.neutral then
+            return false
+        end
+        if spec.values then
+            if not row.content or #row.content ~= #spec.values then
+                return false
+            end
+            for i = 1, #spec.values do
+                if row.content[i][1] ~= spec.values[i] then
+                    return false
+                end
+            end
+        end
+        if spec.min ~= nil and (row.min ~= spec.min or row.max ~= spec.max) then
+            return false
+        end
+        return true
+    end
+
+    -- Every trait needs a row, and each trait row must carry the trait's control, default and value set,
+    -- or a faction silently keeps its lore value with no way to change it.
+    local trait_rows = {}
+    for _, row in ipairs(options) do
+        if row.val and warfare_behavior.TRAITS[row.id] then
+            trait_rows[row.id] = true
+            if not row_matches(row, warfare_behavior.TRAITS[row.id]) then
+                error("modxml_warfare: trait row '" .. row.id .. "' does not match warfare_behavior.TRAITS")
+            end
+        end
+    end
+    for _, name in ipairs(warfare_behavior.TRAIT_ORDER) do
+        if not trait_rows[name] then
+            error("modxml_warfare: behavior trait '" .. name .. "' has no MCM row")
+        end
+    end
+
     local warfare_options = ui_options.options[alife_options_index].gr[alife_warfare_options_index]
     warfare_options.presets = nil
     warfare_options.warfare_presets = true
@@ -152,7 +213,6 @@ function ui_options.init_opt_coder()
             { id = "map", featured = { "fog_of_war", "hide_unfriendly_squads" }, rows = {
                 { id = "fog_of_war", type = "check", val = 1, def = false },
                 { id = "fog_of_war_distance", type = "track", val = 2, def = 50, min = 0, max = 100, step = 1, fmt = "meters" },
-                { id = "extra_loner_fog_of_war", type = "check", val = 1, def = true },
                 { id = "hide_unfriendly_squads", type = "check", val = 1, def = true },
                 { id = "hide_smarts", type = "check", val = 1, def = false },
                 { id = "hide_underground_smarts", type = "check", val = 1, def = true },
@@ -217,6 +277,27 @@ function ui_options.init_opt_coder()
     warfare_options.gr[alife_warfare_azazel_options_index].presets = nil
     warfare_options.gr[alife_warfare_azazel_options_index].warfare_presets = true
 
+    -- Each faction needs its own `def` for the behavior traits, and ui_options.get caches `def`
+    -- into axr_main.config on first read -- so a shared row would persist one faction's lore value
+    -- for all thirteen. Only the trait rows are copied; every other row stays shared.
+    local function faction_gr(faction)
+        local gr = {}
+        for j = 1, #options do
+            local row = options[j]
+            if row.val and warfare_behavior.TRAITS[row.id] then
+                local copy = {}
+                for k, v in pairs(row) do
+                    copy[k] = v
+                end
+                copy.def = warfare_behavior.default(faction, row.id)
+                gr[j] = copy
+            else
+                gr[j] = row
+            end
+        end
+        return gr
+    end
+
     local FACTIONS = { "stalker", "bandit", "csky", "army", "freedom", "dolg", "ecolog", "killer", "monolith", "renegade", "greh", "isg", "zombied" }
     for i, faction in ipairs(FACTIONS) do
         warfare_options.gr[alife_warfare_stalker_options_index + i - 1] = {
@@ -225,7 +306,7 @@ function ui_options.init_opt_coder()
             warfare_presets = true,
             id_gr = "warfare_faction",
             apply_to_all = true,
-            gr = options,
+            gr = faction_gr(faction),
         }
     end
 

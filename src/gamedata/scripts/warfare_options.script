@@ -292,6 +292,13 @@ function update_settings()
         for _, lvl in pairs(level_targets.level_names) do
             options.factions[faction]["lvl_" .. lvl .. "_priority"] = ui_options.get("alife/warfare/" .. faction .. "/lvl_" .. lvl .. "_priority")
         end
+
+        -- Behavior traits, read as a block so warfare_behavior owns their names and defaults.
+        local behavior = {}
+        for _, name in ipairs(warfare_behavior.TRAIT_ORDER) do
+            behavior[name] = ui_options.get("alife/warfare/" .. faction .. "/" .. name)
+        end
+        options.factions[faction].behavior = behavior
     end
 
     if (options.all_out_war) then
@@ -309,6 +316,9 @@ function update_settings()
 
     -- Curve shape and which smarts count both come from these options.
     sim_offline_combat.invalidate_distance_cache()
+
+    -- Must follow the loop above: the resolver reads options.factions[f].behavior.
+    warfare_behavior.invalidate()
 end
 
 ENABLE_MUTANT_OFFLINE_COMBAT = true

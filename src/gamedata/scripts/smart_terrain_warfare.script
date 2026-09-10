@@ -5296,14 +5296,26 @@ function check_owner(smart)
 
     local squadCount, squadPowers = squad_count_defending_all(smart)
 
+    -- Two different concessions, so they gate on two different traits: an open-holdings owner gives
+    -- up its non-base points for free, a displaceable one gives up a base to whoever brings more
+    -- squads. Neither involves combat -- sim_offline_combat only ever simulates enemies. The zombied
+    -- are held to both by literal, being outside the registry.
+    local owner_zombied     = smart.owning_faction == "zombied"
+    local owner_open        = warfare_behavior.holdings_are_open(smart.owning_faction) or owner_zombied
+    local owner_displaceable = warfare_behavior.displaceable_at_peace(smart.owning_faction) or owner_zombied
+    -- nil props is treated as "not a plain point", matching the previous inline test
+    local is_nonbase = (smart.props ~= nil) and (smart.props.base < 1)
+
     -- New faction owner = who has highest squad count on the smart + smart has no owner
     local owner = "none"
     for faction,count in pairs(squadCount) do
         if (faction ~= monster) then
-            if (not warfare_behavior.holdings_are_open(faction) and faction ~= "zombied")
-            and (warfare_behavior.holdings_are_open(smart.owning_faction) or smart.owning_faction == "zombied")
-            and not is_factions_enemies(faction, smart.owning_faction) then        -- an open-holdings owner auto-loses non-base points to other neutral factions
-                if ((smart.props) and (smart.props.base < 1)) or (squadCount[smart.owning_faction] and count and squadCount[smart.owning_faction] < count) then                                                                                    -- loners/ecologist auto-lose resources/territories to other neutral factions, but bases require the faction to have more squads present
+            if (faction ~= smart.owning_faction)
+            and (not warfare_behavior.holdings_are_open(faction) and faction ~= "zombied")
+            and (owner_open or owner_displaceable)
+            and not is_factions_enemies(faction, smart.owning_faction) then
+                local outnumbered = squadCount[smart.owning_faction] and count and squadCount[smart.owning_faction] < count
+                if (owner_open and is_nonbase) or (owner_displaceable and outnumbered) then
                     owner = faction                                                                                                                                     -- relinquish control to other faction
                     break
                 end
@@ -5595,9 +5607,8 @@ end
 -- source_level may be nil (e.g. during squad spawning); directional checks are skipped in that case.
 -- Covers: underground exclusion, Brain Scorcher, Miracle Machine, Monolith south restriction.
 function is_travel_allowed(source_level, target_level, faction)
-    -- Monsters, and factions that ignore every barrier (Sin), travel anywhere.
-    -- Note this also lifts the underground exclusion below, which is pre-existing behavior.
-    if (faction == "monster") or warfare_behavior.ignores_all_barriers(faction) then
+    -- Monsters travel anywhere, underground included: that is where their lairs are.
+    if (faction == "monster") then
         return true
     end
 
@@ -5617,9 +5628,9 @@ function is_travel_allowed(source_level, target_level, faction)
         return false
     end
 
-    -- South lock: while the scorcher is active, only Army Warehouses (9) is reachable south.
+    -- Monolith south lock: while the scorcher is active, only Army Warehouses (9) is reachable south.
     -- Exempt when it is the actor's own faction -- that is about who is playing, not the faction.
-    if warfare_behavior.south_locked_until_scorcher_off(faction) and IsStoryMode() and (faction ~= warfare.actor_faction)
+    if (faction == "monolith") and IsStoryMode() and (faction ~= warfare.actor_faction)
        and not has_alife_info("bar_deactivate_radar_done") then
         if is_south_level(target_level) and (target_level ~= 9) then
             return false
@@ -5849,8 +5860,9 @@ function find_targets(smart)
 
     -- Cache game state queries (constant within a single call)
     local is_story_mode       = IsStoryMode()
-    local is_south_locked     = warfare_behavior.south_locked_until_scorcher_off(faction)
+    local is_monolith         = faction == "monolith"
     local lab_appeal          = warfare_behavior.lab_entrance_appeal(faction)
+    local appetite            = warfare_behavior.peacetime_appetite(faction)
 
     for i = 1, #smartCollection do
         local sid = smartCollection[i]
@@ -5877,8 +5889,8 @@ function find_targets(smart)
             goto continue
         end
 
-        -- non-enemy, non-empty, non-loner/ecolog targets are not valid
-        if not (is_factions_enemies(faction, other_faction) or other_faction == "none") and not warfare_behavior.displaceable_at_peace(other_faction) then
+        if not (is_factions_enemies(faction, other_faction) or other_faction == "none")
+        and (appetite <= 0 or not warfare_behavior.displaceable_at_peace(other_faction)) then
             goto continue
         end
 
@@ -5941,9 +5953,9 @@ function find_targets(smart)
             priority = priority * 1.2
         end
 
-        -- South-locked factions weight southern levels down while the scorcher is active
+        -- Monolith weights southern levels down while the scorcher is active
         -- (the non-actor, non-warehouses case is already skipped above)
-        if is_south_locked and is_story_mode and not has_alife_info("bar_deactivate_radar_done") and (other_level < 12 or other_level > 31) then
+        if is_monolith and is_story_mode and not has_alife_info("bar_deactivate_radar_done") and (other_level < 12 or other_level > 31) then
             priority = priority * 0.8
         end
 
@@ -5969,11 +5981,11 @@ function find_targets(smart)
                 end
             end
 
-            -- Scale a peacetime target by its owner's appeal (loner/ecolog bases score 1/1000, but
-            -- never zero). Only reachable for an invadable-at-peace owner: the gate above skipped
-            -- every other non-enemy, non-empty candidate. Enemies are never rescaled.
+            -- Damp a peacetime grab by how much this faction wants one. Only reachable for a
+            -- displaceable owner and a nonzero appetite: the gate above dropped everything else
+            -- that is neither an enemy nor unowned. Enemies are never rescaled.
             if not (is_factions_enemies(faction, other_faction) or other_faction == "none") then
-                priority = priority * warfare_behavior.target_appeal(other_faction)
+                priority = priority * appetite
             end
 
             local inv_dist = 1 / fetch_smart_distance_linear(smart, other)
