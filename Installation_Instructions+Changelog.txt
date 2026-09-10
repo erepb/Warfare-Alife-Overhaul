@@ -106,8 +106,8 @@ The base game scripts this addon used to overwrite - dialogs, game_relations, xr
 xr_effects, sim_squad_scripted, tasks_assault, tasks_smart_control, ui_mm_faction_select, ui_options,
 axr_task_manager, task_objects - are monkey-patched at runtime instead, from
 warfare_monkeypatches.script, warfare_monkeypatches_sim_squad.script, modxml_warfare.script,
-modxml_warfare_presets.script and modxml_warfare_ui.script. Each override falls back to the original
-function when warfare mode is off.
+modxml_warfare_presets.script, modxml_warfare_behavior_presets.script and modxml_warfare_ui.script.
+Each override falls back to the original function when warfare mode is off.
 
 
 Credits:

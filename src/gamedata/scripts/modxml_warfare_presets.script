@@ -267,27 +267,31 @@ local function warfare_leaves()
     return out
 end
 
---- Every leaf under alife/warfare, valued as the player currently sees it: the pending
---- edit if there is one, then the applied value, then the option's default.
+--- An option valued as the player currently sees it: the pending edit if there is one, then
+--- the applied value, then the option's default.
+function current_value(id, v)
+    local pending = ui_options.opt_temp
+    local value = pending and pending[id]
+    if value == nil then
+        value = axr_main.config:r_value(OPT_SECTION, id, v.val)
+    end
+    if value == nil then
+        value = (type(v.def) == "table") and ui_options.exec(unpack(v.def)) or v.def
+    end
+    return value
+end
+
+--- Every leaf under alife/warfare, valued as the player currently sees it.
 local function snapshot()
     local leaves = warfare_leaves()
     if not leaves then
         return nil
     end
 
-    local pending = ui_options.opt_temp or {}
     local values = {}
     for i = 1, #leaves do
-        local id, v = leaves[i].id, leaves[i].opt
-
-        local value = pending[id]
-        if value == nil then
-            value = axr_main.config:r_value(OPT_SECTION, id, v.val)
-        end
-        if value == nil then
-            value = (type(v.def) == "table") and ui_options.exec(unpack(v.def)) or v.def
-        end
-
+        local id = leaves[i].id
+        local value = current_value(id, leaves[i].opt)
         if value ~= nil then
             values[#values + 1] = { id = id, value = value }
         end

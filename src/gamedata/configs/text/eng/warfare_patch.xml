@@ -537,6 +537,12 @@
 	<string id="ui_mm_alife_warfare_sec_faction_behavior">
 		<text>Behavior</text>
 	</string>
+	<string id="ui_mm_alife_warfare_faction_behavior_preset">
+		<text>Behavior preset</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_behavior_preset_desc">
+		<text>Lore: this faction's own traits, as shipped.\nGeneric: every trait at its neutral value - unified dispatch, closed holdings, holds its ground, full command and radio net, no barrier exemptions, lab appeal 1, patrols anywhere.\nPicking one sets all thirteen traits below. The label reads Custom while any trait differs from the chosen preset and returns on its own once they match again.</text>
+	</string>
 	<string id="ui_mm_alife_warfare_faction_dispatch_model">
 		<text>Dispatch model</text>
 	</string>
@@ -638,5 +644,14 @@
 	</string>
 	<string id="ui_mm_lst_wf_patrol_lairs">
 		<text>Lairs only</text>
+	</string>
+	<string id="ui_mm_lst_wf_preset_lore">
+		<text>Lore</text>
+	</string>
+	<string id="ui_mm_lst_wf_preset_generic">
+		<text>Generic</text>
+	</string>
+	<string id="ui_mm_lst_wf_preset_custom">
+		<text>Custom</text>
 	</string>
 </string_table>

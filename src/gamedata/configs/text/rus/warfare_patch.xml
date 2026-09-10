@@ -532,6 +532,12 @@
 	<string id="ui_mm_alife_warfare_sec_faction_behavior">
 		<text>Поведение</text>
 	</string>
+	<string id="ui_mm_alife_warfare_faction_behavior_preset">
+		<text>Пресет поведения</text>
+	</string>
+	<string id="ui_mm_alife_warfare_faction_behavior_preset_desc">
+		<text>Лор: собственные черты этой группировки.\nОбщий: все черты в нейтральном значении — единая модель управления, закрытые владения, держит территорию, есть командование и радиосеть, барьеры действуют, привлекательность лабораторий 1, патрули где угодно.\nВыбор пресета задаёт все тринадцать черт ниже. Надпись «Своё» показывается, пока хоть одна черта отличается от выбранного пресета.</text>
+	</string>
 	<string id="ui_mm_alife_warfare_faction_dispatch_model">
 		<text>Модель отправки отрядов</text>
 	</string>
@@ -633,5 +639,14 @@
 	</string>
 	<string id="ui_mm_lst_wf_patrol_lairs">
 		<text>Только логова</text>
+	</string>
+	<string id="ui_mm_lst_wf_preset_lore">
+		<text>Лор</text>
+	</string>
+	<string id="ui_mm_lst_wf_preset_generic">
+		<text>Общий</text>
+	</string>
+	<string id="ui_mm_lst_wf_preset_custom">
+		<text>Своё</text>
 	</string>
 </string_table>

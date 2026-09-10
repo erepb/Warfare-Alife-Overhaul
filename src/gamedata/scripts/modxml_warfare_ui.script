@@ -77,15 +77,20 @@ end
 
 local pending_rebuild
 
-local function toggle_section(section_id, dlg)
-    section_open_state[section_id] = not section_is_open(section_id)
-    warfare_log.trace("modxml_warfare_ui.toggle_section: %s -> %s",
-        tostring(section_id), tostring(section_open_state[section_id]))
+-- Rebuild the current page on the next Update, keeping the scroll position. Callers that run
+-- from a control callback must use this: Reset_opt frees the control mid-callback otherwise.
+function request_rebuild(dlg)
     local scroll = dlg.scroll_opt
     pending_rebuild = { pos = scroll and scroll:GetCurrentScrollPos() or 0 }
 end
 
--- Runs from Update, not the click: Reset_opt frees the clicked header, so it must not rebuild inline.
+local function toggle_section(section_id, dlg)
+    section_open_state[section_id] = not section_is_open(section_id)
+    warfare_log.trace("modxml_warfare_ui.toggle_section: %s -> %s",
+        tostring(section_id), tostring(section_open_state[section_id]))
+    request_rebuild(dlg)
+end
+
 local function apply_pending_rebuild(dlg)
     local p = pending_rebuild
     pending_rebuild = nil

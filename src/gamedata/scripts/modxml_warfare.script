@@ -27,7 +27,10 @@ function ui_options.init_opt_coder()
         -- The behavior traits. Every row is checked against warfare_behavior.TRAITS after
         -- build_sections. Defaults here are placeholders -- the real per-faction default is stamped
         -- onto each faction's own copy of the row further down.
-        { id = "faction_behavior", featured = { "dispatch_model" }, rows = {
+        { id = "faction_behavior", featured = { "behavior_preset" }, rows = {
+            -- Stored base for the traits below; modxml_warfare_behavior_presets stamps and labels it.
+            { id = "behavior_preset", type = "list", val = 0, def = "lore", content = {
+                { "lore", "wf_preset_lore" }, { "generic", "wf_preset_generic" } } },
             { id = "dispatch_model", type = "list", val = 0, def = "unified", content = {
                 { "unified", "wf_dispatch_unified" }, { "loner", "wf_dispatch_loner" }, { "ecolog", "wf_dispatch_ecolog" } } },
             { id = "holdings_are_open", type = "check", val = 1, def = false },
