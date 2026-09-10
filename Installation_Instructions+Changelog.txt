@@ -10,14 +10,14 @@ To install via Mod Organizer:
 1. Import the WarfareALifeOverhaul.zip file into Mod Organizer
 2. Follow the installer, selecting any optionals and patches necessary. Check that your load order has WarfareALifeOverhaul overwriting any addons you selected patches for.
 3. On GAMMA, select the 'Gamma Patch' module together with the 'ZCP' and 'LTTZ' patches - GAMMA ships both of those addons. The 'Alternative New Levels Layout' patch is optional and requires the New Levels addon.
-4. Load the 'Alife Overhaul - Balanced' preset: Options > Alife > Warfare, then pick it from the preset dropdown at the top right of the screen. Balanced is the recommended one and the preset kept current with this addon's balance changes; the other 'Alife Overhaul' presets run at fixed 1x, 2x, 5x and 10x pacing. Apply a preset BEFORE starting a new game, otherwise respawn timer changes will not take place until the next respawn occurs.
+4. Load the 'Alife Overhaul - Balanced' preset: Options > Alife > Warfare, then pick it from the preset dropdown at the top right of the screen. It is the one preset this addon ships and is kept current with its balance changes. Apply a preset BEFORE starting a new game, otherwise respawn timer changes will not take place until the next respawn occurs.
 
 
 To install manually:
 1. Drop the 'gamedata' folder found inside 'src' into your Anomaly root directory (merge it with your existing 'gamedata' folder).
 2. Install any optionals desired - every folder under 'optionals' holds its own 'gamedata' folder, merged the same way.
 3. Install any patches that are needed, from the 'patches' folder, the same way. On GAMMA that means 'GAMMA Warfare Patch', 'ZCP' and 'Patch for LTTZ Directors Cut'.
-4. Load the 'Alife Overhaul - Balanced' preset: Options > Alife > Warfare, then pick it from the preset dropdown at the top right of the screen. Balanced is the recommended one and the preset kept current with this addon's balance changes; the other 'Alife Overhaul' presets run at fixed 1x, 2x, 5x and 10x pacing. Apply a preset BEFORE starting a new game, otherwise respawn timer changes will not take place until the next respawn occurs.
+4. Load the 'Alife Overhaul - Balanced' preset: Options > Alife > Warfare, then pick it from the preset dropdown at the top right of the screen. It is the one preset this addon ships and is kept current with its balance changes. Apply a preset BEFORE starting a new game, otherwise respawn timer changes will not take place until the next respawn occurs.
 
 NOTE: The fomod folder is not used if you do not use Mod Organizer, or are installing this addon manually.
 

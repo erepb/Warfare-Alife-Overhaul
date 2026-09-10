@@ -22,18 +22,6 @@
 	<string id="ui_mm_alife_warfare_command_command_max_squads_desc">
 		<text>Ranked mode only. How many squads you can hold under control once you reach the highest rank. You start with one and the cap grows with every rank you gain. Which squads you may take depends on how far they stand below you: squads two or more ranks below are unrestricted, squads one rank below fill at most half your cap, and squads of your own standing or higher will not take your orders</text>
 	</string>
-<string id="ui_mm_prst_warfare_alifeoverhaul">
-		<text>Alife Overhaul - Default (1x)</text>
-	</string>
-	<string id="ui_mm_prst_warfare_alifeoverhaul_faster">
-		<text>Alife Overhaul - Fast (2x)</text>
-	</string>
-	<string id="ui_mm_prst_warfare_alifeoverhaul_veryfast">
-		<text>Alife Overhaul - Rapid (5x)</text>
-	</string>
-	<string id="ui_mm_prst_warfare_alifeoverhaul_rapidtest">
-		<text>Alife Overhaul - Test (10x)</text>
-	</string>
 	<string id="ui_mm_prst_warfare_alifeoverhaul_balanced">
 		<text>Alife Overhaul - Balanced</text>
 	</string>
