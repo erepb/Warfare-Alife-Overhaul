@@ -5658,8 +5658,8 @@ function find_random_patrol_target(smart, faction, sid)
                 local other_faction = other.owning_faction or "none"
                 local other_level = other.level_id
 
-                -- Duty random patrols target lairs only. Other factions operate normally
-                if (faction ~= "dolg") then
+                -- Lair-only patrol scope (Duty) skips the whole scorer. Any-scope factions operate normally
+                if warfare_behavior.patrol_scope(faction) == "any" then
                     if (warfare.influence_levels[other.id] and faction == warfare.actor_faction) then
                         priority = priority + (warfare.influence_levels[other.id] * warfare_options.options.actor_influence_weight)
                     end
@@ -5706,12 +5706,13 @@ function find_random_patrol_target(smart, faction, sid)
                         priority = -1000
                     end
 
-                    -- ISG extremely interested in targeting labs
-                    if (faction == "isg") and lab_entrance_smarts[other:name()] then
-                        priority = 10 * priority
+                    -- Lab-entrance appeal (ISG hunt them)
+                    local lab_appeal = warfare_behavior.lab_entrance_appeal(faction)
+                    if (lab_appeal ~= 1) and lab_entrance_smarts[other:name()] then
+                        priority = priority * lab_appeal
                     end
 
-                -- Duty random patrol goes to lairs
+                -- Lair-only patrol scope: nothing but lairs scores
                 elseif (other.props.lair > 0) then
                     priority = 2
                 end
