@@ -7,9 +7,19 @@
 -- sits behind the untinted icon
 --
 -- Yellow = planned target | Orange = invasion prepping | Red = under attack (squads advancing)
+--
+-- Also injects the circle_stale_<faction> spots used by fog-of-war memory (the icon through
+-- hud\faded) and the player-command rings.
 
 -- icon size is 24 (see circle_<faction>_spot); outline is a touch larger to peek out as a ring
 local OUTLINE_SIZE = 30
+local ICON_SIZE = 24
+
+-- Fog-of-war memory: the faction icon through hud\faded (shipped in
+-- gamedata/shaders/<r1|r2|r3>/hud_faded.*: half-desaturated, gamma-lifted, then multiplied by
+-- the vertex colour). The tint gives it a slight cool cast so it reads as recorded, not live.
+local STALE_TINT = { 209, 230, 255 }
+local STALE_A = 230
 
 function on_xml_read()
 	warfare_log.debug("modxml_warfare_patch_map_spots.on_xml_read: registering callback")
@@ -34,10 +44,9 @@ function on_xml_read()
 			-- (zombied) resolve to the generic ui\ui_common disc and get the solid ring fallback
 			-- below instead. Falls back to the atlas id when the icon spot isn't present in this
 			-- particular map_spots file.
-			local icon_tex = {}
-			for _, faction in ipairs(factions) do
-				local name, rect = "ui_mm_faction_" .. faction, ""
-				local res = xml_obj:query("circle_" .. faction .. "_spot > texture")
+			local function spot_texture(spot, default_name, default_rect)
+				local name, rect = default_name, default_rect
+				local res = xml_obj:query(spot .. " > texture")
 				if res and res[1] then
 					local t = xml_obj:getText(res[1])
 					if t and t ~= "" then name = t end
@@ -47,6 +56,12 @@ function on_xml_read()
 							a.x, a.y or 0, a.width, a.height or a.width)
 					end
 				end
+				return name, rect
+			end
+
+			local icon_tex = {}
+			for _, faction in ipairs(factions) do
+				local name, rect = spot_texture("circle_" .. faction .. "_spot", "ui_mm_faction_" .. faction, "")
 				-- Some factions (e.g. zombied) have no real emblem and fall back to the generic
 				-- ui\ui_common disc, which is a semi-transparent "ghost" (alpha peaks ~63%): a
 				-- silhouette of it renders as a faint, half-transparent blob. For those, draw a
@@ -54,11 +69,12 @@ function on_xml_read()
 				-- frame), giving a clean opaque ring. A mod that supplies a real opaque emblem keeps
 				-- the mirrored silhouette path automatically.
 				local norm = name:lower():gsub("/", "\\")
+				local ring_name, ring_rect = name, rect
 				if norm == [[ui\ui_common]] then
-					name = [[ui\ui_warfare_outline_ring]]
-					rect = ""
+					ring_name = [[ui\ui_warfare_outline_ring]]
+					ring_rect = ""
 				end
-				icon_tex[faction] = { name = name, rect = rect }
+				icon_tex[faction] = { name = name, rect = rect, ring_name = ring_name, ring_rect = ring_rect }
 			end
 
 			-- one outline spot per (state, faction): the faction silhouette in the state colour,
@@ -68,7 +84,7 @@ function on_xml_read()
 					local it = icon_tex[faction]
 					local texture_el = string.format(
 						[[<texture shader="hud\font" r="%s" g="%s" b="%s"%s>%s</texture>]],
-						clr[1], clr[2], clr[3], it.rect, it.name)
+						clr[1], clr[2], clr[3], it.ring_rect, it.ring_name)
 
 					local outline_xml = string.format([[
 <circle_%s_%s>
@@ -87,6 +103,24 @@ function on_xml_read()
 
 					xml_obj:insertFromXMLString(outline_xml)
 				end
+			end
+
+			-- one stale spot per faction: the real icon, faded, same footprint and pointer as the
+			-- live icon since it stands alone on the smart
+			for _, faction in ipairs(factions) do
+				local it = icon_tex[faction]
+				xml_obj:insertFromXMLString(string.format([[
+<circle_stale_%s>
+	<level_map spot="circle_stale_%s_spot" pointer="quest_pointer"/>
+</circle_stale_%s>
+<circle_stale_%s_spot x="0" y="0" width="%s" height="%s" alignment="c" scale="1" scale_min="1" scale_max="1" stretch="1">
+	<texture shader="hud\faded" r="%s" g="%s" b="%s" a="%s"%s>%s</texture>
+</circle_stale_%s_spot>
+				]],
+					faction, faction, faction,
+					faction, ICON_SIZE, ICON_SIZE,
+					STALE_TINT[1], STALE_TINT[2], STALE_TINT[3], STALE_A, it.rect, it.name,
+					faction))
 			end
 
 			local command_spots = {

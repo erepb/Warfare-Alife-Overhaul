@@ -202,6 +202,7 @@ end
 smart_terrain_distances = {}                -- store distances when they get used. Save it in warfare.script to avoid lag spikes from continuously measuring distances between smart terrains
 smart_terrain_distances_linear = {}         -- sqrt of the above, cached the same way; used by the target scorers for a plain 1/r falloff
 under_attack = {}                            -- when a smart is under attack, halt squad assignment from that smart until the threat has passed or the point has changed hands
+last_seen = {}                               -- fog-of-war memory: last_seen[smart.id] = { owner = faction or "none", at = CTime } from the last time the smart was in sight. Saved in warfare.script
 
 patrol_squads = {}
 random_patrols = {}
@@ -308,6 +309,19 @@ pda_icons = {
     ["invasion_zombied"] = "circle_invasion_zombied",
     ["invasion_none"] = "circle_target",
     ["invasion_source"] = "circle_target",
+    ["stale_stalker"] = "circle_stale_stalker",
+    ["stale_bandit"] = "circle_stale_bandit",
+    ["stale_csky"] = "circle_stale_csky",
+    ["stale_army"] = "circle_stale_army",
+    ["stale_freedom"] = "circle_stale_freedom",
+    ["stale_dolg"] = "circle_stale_dolg",
+    ["stale_ecolog"] = "circle_stale_ecolog",
+    ["stale_killer"] = "circle_stale_killer",
+    ["stale_monolith"] = "circle_stale_monolith",
+    ["stale_renegade"] = "circle_stale_renegade",
+    ["stale_greh"] = "circle_stale_greh",
+    ["stale_isg"] = "circle_stale_isg",
+    ["stale_zombied"] = "circle_stale_zombied",
 }
 
 -- [1] = trader count
@@ -623,6 +637,9 @@ function refresh_strings()
     str_wrfr[21] = game.translate_string("st_wrfr_prop_launch_base")
     str_wrfr[22] = game.translate_string("st_wrfr_prop_departure")
     str_wrfr[23] = game.translate_string("st_wrfr_prop_patrol_at_cap")
+    str_wrfr[24] = game.translate_string("st_wrfr_prop_last_observed")
+    str_wrfr[25] = game.translate_string("st_wrfr_prop_intel_age")
+    str_wrfr[26] = game.translate_string("st_wrfr_prop_time_culc_day")
 end
 
 function translate_smart_name(name)
@@ -3864,6 +3881,20 @@ function process_mutants(smart)
 
 end
 
+-- icon key for a smart that is out of sight: the greyed last-observed owner when fog-of-war
+-- memory holds a record, else the plain "unknown" disc
+function stale_spot_key(smart)
+    local rec = warfare_options.options.fog_of_war_memory and last_seen[smart.id]
+    local key = rec and ("stale_" .. rec.owner)
+    return (key and pda_icons[key]) and key or "none"
+end
+
+-- true when the smart draws its live faction icon (not hidden, unknown or a stale memory)
+function spot_is_live(smart)
+    local key = smart.warfare_spot
+    return key ~= nil and key ~= "none" and key:sub(1, 6) ~= "stale_"
+end
+
 -- displays warfare's icon for the smart terrain
 -- controls smart terrain icons only, not squad dots
 --function smart_terrain.se_smart_terrain.show(self)
@@ -4010,6 +4041,13 @@ function smart_terrain.se_smart_terrain:show()
                     visible = true
                 end
 
+                -- fog-of-war memory: whatever is in sight now (by range, radio net or allies) is
+                -- what the map will remember once it drops out of sight; only real owners are
+                -- remembered, an unowned smart clears the record
+                if (visible) then
+                    last_seen[self.id] = (faction ~= "none") and { owner = faction, at = warfare.get_time() } or nil
+                end
+
                 -- 'hide underground smarts' option
                 if (warfare_names.point_names_hide[self:name()] and warfare_options.options.hide_undegraund_smarts) then
                     visible = false
@@ -4067,6 +4105,8 @@ function smart_terrain.se_smart_terrain:show()
                 -- not visible based on actor and friendly squad view distances
                     if (not self.actor_target) then
                         local info = get_unknown_info(self)
+                        -- 'unknown' disc, or the greyed last-observed owner when memory holds one
+                        local display_key = stale_spot_key(self)
 
                         -- map spot already exists: hide it or replace it depending on options
                         if (self.warfare_spot) then
@@ -4080,12 +4120,12 @@ function smart_terrain.se_smart_terrain:show()
                                 self.warfare_spot = nil
                             -- neither option is being used
                             else
-                                if (self.warfare_spot ~= "none") then
+                                if (self.warfare_spot ~= display_key) then
                                     level.map_remove_object_spot(self.id, pda_icons[self.warfare_spot])
-                                    level.map_add_object_spot(self.id, pda_icons["none"], info)
-                                    self.warfare_spot = "none"
+                                    level.map_add_object_spot(self.id, pda_icons[display_key], info)
+                                    self.warfare_spot = display_key
                                 else
-                                    level.map_change_spot_hint(self.id, pda_icons["none"], info)
+                                    level.map_change_spot_hint(self.id, pda_icons[display_key], info)
                                 end
                             end
 
@@ -4097,13 +4137,13 @@ function smart_terrain.se_smart_terrain:show()
                                 if (warfare_options.options.hide_lair_smarts) then
                                     -- smart is a valuable nonvisible terrain: add 'unknown' spot
                                     if (self.props.base + self.props.resource + self.props.territory > 0) then
-                                        level.map_add_object_spot(self.id, pda_icons["none"], info)
-                                        self.warfare_spot = "none"
+                                        level.map_add_object_spot(self.id, pda_icons[display_key], info)
+                                        self.warfare_spot = display_key
                                     end
                                 -- not using either option, so need to add 'unknown' spots to all smarts
                                 else
-                                    level.map_add_object_spot(self.id, pda_icons["none"], info)
-                                    self.warfare_spot = "none"
+                                    level.map_add_object_spot(self.id, pda_icons[display_key], info)
+                                    self.warfare_spot = display_key
                                 end
                             end
                         end
@@ -4271,7 +4311,7 @@ function smart_terrain.se_smart_terrain:show()
 
         -- reconcile this base's own under-attack outline (skipped while it is an attacker's target)
         local want_overlay = nil
-        if not self.actor_target and self.warfare_spot and self.warfare_spot ~= "none"
+        if not self.actor_target and spot_is_live(self)
            and under_attack[self.id]
            and (faction == warfare.actor_faction or not is_factions_enemies(warfare.actor_faction, faction)) then
             want_overlay = "target_" .. faction
@@ -4348,6 +4388,14 @@ local function get_smart_base_info(smart, show_owner, show_counts)
 
     if (show_owner and smart.owning_faction) then
         props = props .. " \\n" .. clr_gr .. str_wrfr[6] .. ": " .. clr_w .. game.translate_string(smart.owning_faction) .. "\\n"
+    elseif not show_owner then
+        -- out of sight: only what was last observed, never the live owner
+        local rec = warfare_options.options.fog_of_war_memory and last_seen[smart.id]
+        if rec then
+            local age = warfare.get_time_ref():diffSec(rec.at)
+            props = props .. " \\n" .. clr_gr .. str_wrfr[24] .. ": " .. clr_w .. game.translate_string(rec.owner)
+            props = props .. " \\n" .. clr_gr .. str_wrfr[25] .. ": " .. clr_y .. format_intel_age(age) .. "\\n"
+        end
     end
 
     if (show_counts) then
@@ -4367,6 +4415,15 @@ function format_real_seconds(seconds)
         local mins = round_idp(((seconds / 60) / 60 - hrs) * 60)
         return strformat(str_wrfr[13], hrs, mins)
     end
+end
+
+-- format a game-seconds age as "X days Y hrs" (>=1 day) or via format_game_minutes
+function format_intel_age(seconds)
+    local minutes = math.floor(seconds / 60)
+    if minutes >= 1440 then
+        return strformat(str_wrfr[26], math.floor(minutes / 1440), math.floor((minutes % 1440) / 60))
+    end
+    return format_game_minutes(minutes)
 end
 
 -- format a game-minutes value as "X hrs Y mins" (>=60min) or "Y mins"
@@ -4653,7 +4710,7 @@ function get_warfare_info(smart, visible)
                     local att_faction = other.owning_faction
                     local att_eligible = is_invasion_attacker_eligible(att_faction, inv[3])
                     if att_eligible then
-                        if not warfare_options.options.fog_of_war or (other.warfare_spot and other.warfare_spot ~= "none") then
+                        if not warfare_options.options.fog_of_war or spot_is_live(other) then
                             local attacker_name = translate_smart_name(other:name()) or other:name()
                             props = props .. " \\n" .. clr_b .. " \\n" .. str_wrfr[18]
                             props = props .. " \\n" .. clr_gr .. str_wrfr[21] .. ": " .. clr_w .. attacker_name .. "\\n"
@@ -4933,6 +4990,12 @@ end
 local function announce_owner_change(smart, was)
     if smart.owning_faction ~= was then
         sim_offline_combat.on_smart_owner_changed(was, smart.owning_faction)
+        -- a radio-net faction learns of its own loss from the garrison; the memory record is refreshed
+        -- without line of sight so the map does not keep claiming the smart
+        if was == warfare.actor_faction and not warfare_behavior.no_radio_net(warfare.actor_faction) then
+            local owner = smart.owning_faction
+            last_seen[smart.id] = (owner and owner ~= "none") and { owner = owner, at = warfare.get_time() } or nil
+        end
     end
 end
 

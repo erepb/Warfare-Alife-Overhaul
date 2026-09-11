@@ -1,0 +1,25 @@
+#include "common.h"
+
+// half-desaturate and gamma-lift: a washed-out "old intel" look that keeps the faction hue
+float3 fade ( float3 rgb )
+{
+	float l = dot( rgb, float3( 0.299, 0.587, 0.114 ) );
+	return pow( saturate( lerp( l.xxx, rgb, 0.5 ) ), 0.6 );
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// Pixel: faded icon with a one-screen-pixel unsharp mask (low-contrast emblems such as
+// Monolith otherwise flatten into a plain disc), then tinted by the vertex colour
+float4 main ( p_TL I ) : SV_Target
+{
+	float2 dx = ddx( I.Tex0 );
+	float2 dy = ddy( I.Tex0 );
+	float4 t  = s_base.Sample( smp_base, I.Tex0 );
+	float3 n  = ( s_base.Sample( smp_base, I.Tex0 + dx ).rgb
+	            + s_base.Sample( smp_base, I.Tex0 - dx ).rgb
+	            + s_base.Sample( smp_base, I.Tex0 + dy ).rgb
+	            + s_base.Sample( smp_base, I.Tex0 - dy ).rgb ) * 0.25;
+	float3 c  = fade( t.rgb );
+	c = saturate( c + ( c - fade( n ) ) * 3.0 );
+	return float4( c * I.Color.rgb, t.a * I.Color.a );
+}

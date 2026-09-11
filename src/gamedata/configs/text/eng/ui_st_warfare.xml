@@ -420,4 +420,13 @@
 	<string id="st_wrfr_cmd_untargeted">
 		<text>Removed %s from %s's targets</text>
 	</string>
+	<string id="st_wrfr_prop_last_observed">
+		<text>Last observed</text>
+	</string>
+	<string id="st_wrfr_prop_intel_age">
+		<text>Intel age</text>
+	</string>
+	<string id="st_wrfr_prop_time_culc_day">
+		<text>%sd + %sh</text>
+	</string>
 </string_table>

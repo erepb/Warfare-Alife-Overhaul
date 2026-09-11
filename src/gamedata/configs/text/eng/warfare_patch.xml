@@ -654,4 +654,10 @@
 	<string id="ui_mm_lst_wf_preset_custom">
 		<text>Custom</text>
 	</string>
+	<string id="ui_mm_alife_warfare_general_fog_of_war_memory">
+		<text>Fog of war: remember last observed owner</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_fog_of_war_memory_desc">
+		<text>With fog of war on, a smart terrain that drops out of sight keeps showing the owner you last observed there, drawn in grey. Its hover text names that owner and how old the observation is. Only what you or your allies actually saw is remembered; a place you have never seen stays unknown.</text>
+	</string>
 </string_table>

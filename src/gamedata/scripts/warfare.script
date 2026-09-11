@@ -346,6 +346,7 @@ function save_state(m_data)
     m_data.warfare.dispatch_next_update = smart_terrain_warfare.dispatch_next_update
     m_data.warfare.smart_terrain_distances = smart_terrain_warfare.smart_terrain_distances
     m_data.warfare.under_attack = smart_terrain_warfare.under_attack
+    m_data.warfare.last_seen = smart_terrain_warfare.last_seen
 
     for sid, _ in pairs(smart_terrain_warfare.random_patrols) do
         local squad = sid and alife_object(sid)
@@ -465,6 +466,15 @@ function load_state(m_data)
     smart_terrain_warfare.dispatch_next_update = m_data.warfare and m_data.warfare.dispatch_next_update or {}
     smart_terrain_warfare.smart_terrain_distances = m_data.warfare and m_data.warfare.smart_terrain_distances or {}
     smart_terrain_warfare.under_attack = m_data.warfare and m_data.warfare.under_attack or {}
+    smart_terrain_warfare.last_seen = m_data.warfare and m_data.warfare.last_seen or {}
+    -- heal records whose CTime came back as a closure (saves written while the seeding shared one
+    -- CTime object across records)
+    for id, rec in pairs(smart_terrain_warfare.last_seen) do
+        if type(rec) ~= "table" or type(rec.at) ~= "userdata" or type(rec.owner) ~= "string" then
+            warfare_log.warn("load_state: dropping malformed last_seen record smart=%s", tostring(id))
+            smart_terrain_warfare.last_seen[id] = nil
+        end
+    end
 
     new_surge = m_data.warfare and m_data.warfare.new_surge or true
 
@@ -966,6 +976,7 @@ function fill_start_position()
     -- owning_faction into smart_owners, so GAMMA's post-creation autosave now persists a complete
     -- ownership map instead of a mostly-empty one.
     local assigned = 0
+    local known = 0
     for id, tally in pairs(spawned_by_faction) do
         local best, best_count, best_seq
         for community, n in pairs(tally) do
@@ -983,9 +994,17 @@ function fill_start_position()
             assigned = assigned + 1
             warfare_log.debug("fill_start_position: owner smart=%s faction=%s squads=%s",
                 smart:name(), best, tostring(best_count))
+
+            -- the starting bases are common knowledge: seed fog-of-war memory so they show
+            -- their owner (greyed) from the first PDA open. One CTime per record: marshal
+            -- mis-resolves a userdata shared between tables (lmarshal.c SEEN index order)
+            if smart.props and smart.props.base > 0 then
+                smart_terrain_warfare.last_seen[id] = { owner = best, at = get_time() }
+                known = known + 1
+            end
         end
     end
-    warfare_log.info("fill_start_position: assigned ownership for %s smarts", assigned)
+    warfare_log.info("fill_start_position: assigned ownership for %s smarts, %s bases seeded as known", assigned, known)
 
     warfare_log.info("fill_start_position: complete")
 end

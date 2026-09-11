@@ -216,6 +216,7 @@ function ui_options.init_opt_coder()
             { id = "map", featured = { "fog_of_war", "hide_unfriendly_squads" }, rows = {
                 { id = "fog_of_war", type = "check", val = 1, def = false },
                 { id = "fog_of_war_distance", type = "track", val = 2, def = 50, min = 0, max = 100, step = 1, fmt = "meters" },
+                { id = "fog_of_war_memory", type = "check", val = 1, def = true },
                 { id = "hide_unfriendly_squads", type = "check", val = 1, def = true },
                 { id = "hide_smarts", type = "check", val = 1, def = false },
                 { id = "hide_underground_smarts", type = "check", val = 1, def = true },

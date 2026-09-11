@@ -343,4 +343,13 @@
 	<string id="st_wrfr_cmd_take_all"><text>Отправить всех отсюда в %s</text></string>
 	<string id="st_wrfr_cmd_untarget"><text>Убрать из целей</text></string>
 	<string id="st_wrfr_cmd_untargeted"><text>%s убран из целей %s</text></string>
+	<string id="st_wrfr_prop_last_observed">
+		<text>Последнее наблюдение</text>
+	</string>
+	<string id="st_wrfr_prop_intel_age">
+		<text>Давность сведений</text>
+	</string>
+	<string id="st_wrfr_prop_time_culc_day">
+		<text>%s д. + %s ч.</text>
+	</string>
 </string_table>

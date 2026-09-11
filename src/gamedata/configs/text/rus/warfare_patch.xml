@@ -649,4 +649,10 @@
 	<string id="ui_mm_lst_wf_preset_custom">
 		<text>Своё</text>
 	</string>
+	<string id="ui_mm_alife_warfare_general_fog_of_war_memory">
+		<text>Туман войны: помнить последнего владельца</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_fog_of_war_memory_desc">
+		<text>При включённом тумане войны точка, пропавшая из виду, продолжает показывать владельца, которого вы наблюдали там в последний раз, серым цветом. Подсказка называет этого владельца и давность сведений. Запоминается только то, что видели вы или союзники; никогда не виденное место остаётся неизвестным.</text>
+	</string>
 </string_table>

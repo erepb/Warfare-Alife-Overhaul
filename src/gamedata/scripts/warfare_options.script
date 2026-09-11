@@ -91,6 +91,7 @@ function update_settings()
     options.hide_lair_smarts = ui_options.get("alife/warfare/general/hide_lair_smarts")
     options.fog_of_war = ui_options.get("alife/warfare/general/fog_of_war")
     options.fog_of_war_distance = ui_options.get("alife/warfare/general/fog_of_war_distance")
+    options.fog_of_war_memory = ui_options.get("alife/warfare/general/fog_of_war_memory")
     --xQd
     options.enemy_new_game_bonus = ui_options.get("alife/warfare/general/enemy_new_game_bonus")
     --xQd

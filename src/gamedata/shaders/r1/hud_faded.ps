@@ -1,0 +1,17 @@
+#include "common.h"
+
+struct 	v2p
+{
+	float2 	tc0: 	TEXCOORD0;
+	float4	c0:		COLOR0;
+};
+
+// half-desaturate the base texture and gamma-lift it (washed-out "old intel" look that
+// still keeps the faction hue), then tint by the vertex colour (map spot r/g/b/a)
+float4 	main_ps_2_0	( v2p I )	: COLOR
+{
+	float4 t 	= tex2D	(s_base,I.tc0);
+	float  l	= dot	(t.rgb, float3(0.299, 0.587, 0.114));
+	float3 c	= pow	(saturate(lerp(l.xxx, t.rgb, 0.5)), 0.6);
+	return 		float4	(c * I.c0.rgb, t.a * I.c0.a);
+}
