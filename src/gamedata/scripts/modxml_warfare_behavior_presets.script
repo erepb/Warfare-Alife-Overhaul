@@ -1,20 +1,10 @@
 --[[
-
-=======================================================================================
     Per-faction behavior preset row -- alife/warfare/<faction>/behavior_preset.
 
-    The stored value is a base: "lore" (warfare_behavior's defaults for that faction) or
-    "generic" (every trait neutral). Picking one stamps the thirteen trait rows through
-    CacheValue, exactly as an LTX preset would, and rebuilds the page so the rows show it.
-
-    What the combobox *displays* is derived: while every trait on the page still holds the
-    base's value it shows the base; the moment one differs it shows "custom". "custom" is
-    never stored and is not in the list's content. CacheValue only keeps values that
-    differ from the backup, so an edit put back clears itself and the label follows.
-
-    Vanilla keeps no handle to a list's combobox, so this row registers itself.
-=======================================================================================
-
+    Stored value is the base ("lore" | "generic"); picking one stamps the trait rows through
+    CacheValue. The combobox text is derived: the base while every trait matches it, "custom"
+    otherwise. "custom" is display-only. The row registers itself because vanilla keeps no
+    handle to a list's combobox.
 --]]
 
 local ROW     = "behavior_preset"
@@ -144,7 +134,7 @@ function ui_options.UIOptions.Callback_Track(self, ctrl, path, opt, v, value)
     end
 end
 
--- "Apply to all" on the row stamps every faction, or thirteen labels would just read "custom".
+-- "Apply to all" on the row stamps every faction.
 local base_Callback_BtnAll = ui_options.UIOptions.Callback_BtnAll
 function ui_options.UIOptions.Callback_BtnAll(self, ctrl, path, opt, v, flags)
     base_Callback_BtnAll(self, ctrl, path, opt, v, flags)

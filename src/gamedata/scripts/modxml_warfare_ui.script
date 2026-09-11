@@ -112,12 +112,39 @@ local function apply_pending_rebuild(dlg)
     end
 end
 
+-- Section header labels of the current page, keyed like _Cap; orange while a row of the section is pending.
+local NORMAL = GetARGB(255, 200, 200, 200)
+local HOVER  = GetARGB(255, 228, 236, 226)
+local headers = {}
+
+local function section_dirty(path, rows)
+    local pending = ui_options.opt_temp
+    for i = 1, #rows do
+        if pending[ui_options.cc(path, rows[i].id)] ~= nil then
+            return true
+        end
+    end
+    return false
+end
+
+local function recolor(h)
+    h.cap:TextControl():SetTextColor(h.hover and HOVER or (h.dirty and ui_options.clr_o) or NORMAL)
+end
+
 local ui_options_UIOptions_update = ui_options.UIOptions.Update
 function ui_options.UIOptions.Update(self)
     if pending_rebuild then
         apply_pending_rebuild(self)
     end
     ui_options_UIOptions_update(self)
+    for id, h in pairs(headers) do
+        local btn = self._Cap[id]
+        local hover = btn and btn:IsCursorOverWindow() or false
+        if hover ~= h.hover then
+            h.hover = hover
+            recolor(h)
+        end
+    end
     if self.hint_locked then
         return
     end
@@ -148,6 +175,7 @@ function build_sections(sections, leading_rows)
             hint = "alife_warfare_sec_" .. sec.id,
             wf_section = sec.id,
             wf_hidden = hidden,
+            wf_rows = sec.rows,
             -- Closure, not { fn, id }: Callback_Button's non-final unpack drops extra args.
             functor_ui = { function(dlg) toggle_section(sec.id, dlg) end },
         }
@@ -155,6 +183,7 @@ function build_sections(sections, leading_rows)
         local by_id = {}
         for k = 1, #sec.rows do
             by_id[sec.rows[k].id] = sec.rows[k]
+            sec.rows[k].wf_section_of = sec.id
         end
         for j = 1, #(sec.featured or {}) do
             local row = by_id[sec.featured[j]]
@@ -232,6 +261,22 @@ local function place_rules(wxml, handler, x0, x1, half)
     end
 end
 
+local ui_options_UIOptions_reset_opt = ui_options.UIOptions.Reset_opt
+function ui_options.UIOptions.Reset_opt(self, curr_tree, path, flags)
+    headers = {}
+    return ui_options_UIOptions_reset_opt(self, curr_tree, path, flags)
+end
+
+local ui_options_UIOptions_cache_value = ui_options.UIOptions.CacheValue
+function ui_options.UIOptions.CacheValue(self, path, opt, value, v)
+    ui_options_UIOptions_cache_value(self, path, opt, value, v)
+    local h = v and v.wf_section_of and headers[cap_id(ui_options.cc(path, "sec_" .. v.wf_section_of))]
+    if h then
+        h.dirty = section_dirty(path, h.rows)
+        recolor(h)
+    end
+end
+
 local ui_options_UIOptions_register_button = ui_options.UIOptions.Register_Button
 function ui_options.UIOptions.Register_Button(self, xml, handler, path, opt, v, flags)
     if not (v.wf_section) then
@@ -249,16 +294,21 @@ function ui_options.UIOptions.Register_Button(self, xml, handler, path, opt, v, 
         label = label .. " (" .. #hidden .. ")"
     end
     local closed = "[+] " .. label
-    local btn = wxml:Init3tButton("sec_btn", handler)
-    btn:TextControl():SetText(closed)
-    local half = text_width(btn, closed) / 2 + GAP
+    local cap = wxml:InitStatic("sec_cap", handler)
+    cap:TextControl():SetText(closed)
+    local half = text_width(cap, closed) / 2 + GAP
     if open then
-        btn:TextControl():SetText("[-] " .. label)
+        cap:TextControl():SetText("[-] " .. label)
     end
+    local btn = wxml:Init3tButton("sec_btn", handler)
 
     local x0 = btn:GetWndPos().x
     local x1 = x0 + btn:GetWidth()
     place_rules(wxml, handler, x0, x1, half)
+
+    local h = { cap = cap, rows = v.wf_rows, dirty = section_dirty(path, v.wf_rows), hover = false }
+    headers[id_cap] = h
+    recolor(h)
 
     -- Tooltip via the caption path: _Cap for hover detection, cap_desc for the text.
     self._Cap[id_cap] = btn
