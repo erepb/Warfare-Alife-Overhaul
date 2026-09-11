@@ -167,12 +167,16 @@ spawn_mutant_timers = {}
 spawn_mutant_next_update = {}
 process_mutant_timers = {}
 process_mutant_next_update = {}
-loner_timer = {}
-loners_next_update = {}
-ecolog_timer = {}
-ecolog_next_update = {}
+dispatch_timer = {}                 -- [model][smart.id] = CTime of the last independent-dispatch tick
+dispatch_next_update = {}           -- [model][smart.id] = in-game minutes until the next tick
 night_flag_timer = {}
 night_flag_next_update = {}
+
+function dispatch_timers(model)
+    dispatch_timer[model] = dispatch_timer[model] or {}
+    dispatch_next_update[model] = dispatch_next_update[model] or {}
+    return dispatch_timer[model], dispatch_next_update[model]
+end
 
 local reported_stale_squads = {}
 
@@ -759,8 +763,9 @@ function smart_terrain_on_update(smart)
                 process_nonbase_squads(smart, true)
             end
 
-            process_loners(smart)
-            process_ecolog(smart)
+            for model, spec in pairs(DISPATCH_MODELS) do
+                process_independent(smart, model, spec)
+            end
             process_invasion_defense(smart)
         end
     elseif (smart.owning_faction == "none") then    -- location has no humans, consider spawning mutants
@@ -1489,7 +1494,7 @@ function process_nonbase_squads(smart, always_recall, keep_one)
     Recall non-patrol faction squads from non-base terrains to their nearest bases.
     Resources and territories recall at night only. Lairs recall always (faction squads should not idle there).
     Loners, ecologists, monsters and the zombied are exempt: the first two run their own
-    dispatch (process_loners / process_ecolog) and the last two have no main base in
+    dispatch (process_independent) and the last two have no main base in
     main_base_data, so recall_squad_to_base could never place them anyway and every
     attempt was a wasted search.
     If no base of this faction can take the squad, it stays where it is -- see
@@ -2726,9 +2731,11 @@ function process_invasion_defense(smart)
         return
     end
 
-    -- Loners/ecologs evacuate the point
-    loners_next_update[smart.id] = math.random(1, 10)        -- loners may stick around longer
-    ecolog_next_update[smart.id] = math.random(1, 3)        -- ecologists always leave
+    -- Independent squads evacuate the point
+    for model, spec in pairs(DISPATCH_MODELS) do
+        local _, next_update = dispatch_timers(model)
+        next_update[smart.id] = math.random(spec.evacuate[1], spec.evacuate[2])
+    end
 
     -- if reinforcements have already been requested, don't keep looking for more
     if (reinforcements_requested[smart.id] == true) then
@@ -3342,620 +3349,289 @@ function process_patrols(smart)
 end
 
 
--- Code to handle loner behavior, including targeting of locations, travel to and from those points, etc.
-function process_loners(smart)
+-- Independent dispatch: squads of a faction whose dispatch_model is "loner" or "ecolog" roam to
+-- resources by day (loners also to lairs) and fall back to a friendly base at dusk. The code is
+-- shared; DISPATCH_MODELS holds what differs between the models.
 
-    if not (loner_timer[smart.id]) then
-        loner_timer[smart.id] = warfare.get_time()
-        loners_next_update[smart.id] = math.random(30, 90)                -- time in in-game minutes. Each min is 10 seconds real time. This will function as the squad 'wait time' for now
+local function scan_level(level_id, visit)
+    local level_info = warfare_levels.level_information[level_id]
+    for _, sm in pairs(level_info.smarts) do
+        local other = sm and alife_object(sm)
+        if not (other.owning_faction) then
+            check_owner(other)
+        end
+        visit(other)
+    end
+end
+
+local function linked_levels(smart)
+    return warfare.hash_table_to_array(level_targets.level_links[smart.level_id])
+end
+
+local function scan_links(smart, visit)
+    local keys = linked_levels(smart)
+    for k = 1, #keys do
+        scan_level(keys[k].key, visit)
+    end
+end
+
+-- First non-empty bucket wins; a random member of it becomes the squad's target.
+local function pick(squad, ...)
+    for i = 1, select("#", ...) do
+        local bucket = select(i, ...)
+        if #bucket > 0 then
+            sim_squad_warfare.set_target(squad, bucket[math.random(#bucket)].id)
+            return true
+        end
+    end
+    return false
+end
+
+-- Attack roll against an enemy-held smart; the chance scales with the power gap.
+local function outguns(squad, other)
+    local own = sim_offline_combat.calculate_squad_power(squad)
+    local enemy = 0
+    for enemy_id, _ in pairs(SIMBOARD.smarts[other.id].squads) do
+        enemy = enemy + sim_offline_combat.calculate_squad_power(enemy_id and alife_object(enemy_id))
+    end
+    return own and own > enemy and (own / enemy - 1) * 100 > math.random(1, 100)
+end
+
+local function is_pure_lair(other)
+    return other.props and other.props.lair > 0 and other.props.base < 1 and other.props.resource < 1
+end
+
+local function find_resources(spec, smart, squad, faction, linked)
+    local priority, all = {}, {}
+    local function visit(other)
+        if other.props and other.props.resource > 0 then
+            local list = spec.resource_list(squad, faction, other, linked, priority, all)
+            if list then
+                list[#list + 1] = other
+            end
+        end
+    end
+    if not linked then
+        scan_level(smart.level_id, visit)
+    elseif spec.scans_every_link then
+        scan_links(smart, visit)
+    else
+        local keys = linked_levels(smart)
+        scan_level(keys[math.random(#keys)].key, visit)
+    end
+    return pick(squad, priority, all)
+end
+
+local function find_lairs(smart, squad)
+    local all = {}
+    scan_level(smart.level_id, function(other)
+        if is_pure_lair(other) and other.owning_faction == "none" then
+            all[#all + 1] = other
+        end
+    end)
+    return pick(squad, all)
+end
+
+-- Bases a squad may fall back to: empty, or non-hostile with room. Hubs with room go to priority.
+local function collect_base(faction, other, priority, bucket)
+    if not (other.props and other.props.base > 0) then
+        return
+    end
+    local owner = other.owning_faction
+    local list
+    if owner == "none" then
+        list = bucket
+    elseif not is_factions_enemies(faction, owner) and squad_count(other, owner) < other.max_population then
+        list = travel_hubs[other:name()] and priority or bucket
+    end
+    if list then
+        list[#list + 1] = other
+    end
+end
+
+local function find_bases(smart, squad, faction, linked)
+    local priority, all = {}, {}
+    local function visit(other)
+        collect_base(faction, other, priority, all)
+    end
+    if linked then
+        scan_links(smart, visit)
+    else
+        scan_level(smart.level_id, visit)
+    end
+    return pick(squad, priority, all)
+end
+
+local function find_territory(smart, squad)
+    local all = {}
+    scan_level(smart.level_id, function(other)
+        if other.props and other.props.territory > 0 then
+            all[#all + 1] = other
+        end
+    end)
+    return pick(squad, all)
+end
+
+local function is_protected_mainbase(smart, faction)
+    return warfare_options.options.prevent_mainbase_attacks and get_main_base_faction(smart:name()) == faction
+end
+
+DISPATCH_MODELS = {
+    loner = {
+        wait = { 30, 90 },                  -- in-game minutes between ticks at one smart
+        evacuate = { 1, 10 },               -- wait forced by process_invasion_defense while under attack
+        stay_roll = 7,                      -- math.random(1, 10) < stay_roll keeps the squad on-level
+        scans_every_link = true,            -- linked-level resource search covers every link, else one at random
+        hunts_lairs = true,                 -- lair sorties from a base, lair-to-lair moves by day
+        one_sortie_per_tick = true,         -- a base sends at most one squad per tick
+
+        may_leave_base = function(smart, faction)
+            if smart.owning_faction == faction then
+                return base_can_send(smart)
+            end
+            if is_protected_mainbase(smart, faction) then
+                return squad_count_defending(smart, faction) > 1
+            end
+            return true
+        end,
+
+        resource_list = function(squad, faction, other, linked, priority, all)
+            local owner = other.owning_faction
+            if owner == "none" then
+                return linked and priority or all
+            end
+            if is_factions_enemies(faction, owner) then
+                return outguns(squad, other) and all
+            end
+            if linked and other.props.base < 1 then
+                return all
+            end
+            return nil
+        end,
+
+        dusk_return = function(smart, squad, faction)
+            if math.random(1, 10) < 8 and find_bases(smart, squad, faction, false) then
+                return true
+            end
+            return find_bases(smart, squad, faction, true) or find_territory(smart, squad)
+        end,
+    },
+
+    ecolog = {
+        wait = { 60, 180 },
+        evacuate = { 1, 3 },
+        stay_roll = 5,
+        scans_every_link = false,
+        hunts_lairs = false,
+        one_sortie_per_tick = false,
+
+        may_leave_base = function(smart, faction)
+            local own = smart.owning_faction == faction or is_protected_mainbase(smart, faction)
+            return not own or squad_count(smart, faction) > 1
+        end,
+
+        resource_list = function(squad, faction, other, linked, priority, all)
+            local owner = other.owning_faction
+            if owner == "none" or not is_factions_enemies(faction, owner) then
+                return all
+            end
+            return nil
+        end,
+
+        -- Linked levels are searched only when no on-level hub has room.
+        dusk_return = function(smart, squad, faction)
+            local priority, on, off = {}, {}, {}
+            scan_level(smart.level_id, function(other)
+                collect_base(faction, other, priority, on)
+            end)
+            if #priority == 0 then
+                scan_links(smart, function(other)
+                    collect_base(faction, other, priority, off)
+                end)
+            end
+            return pick(squad, priority, on, off) or find_territory(smart, squad)
+        end,
+    },
+}
+
+function process_independent(smart, model, spec)
+    local timer, next_update = dispatch_timers(model)
+
+    if not (timer[smart.id]) then
+        timer[smart.id] = warfare.get_time()
+        next_update[smart.id] = math.random(spec.wait[1], spec.wait[2])
         return
     end
 
-    if (warfare.get_time_ref():diffSec(loner_timer[smart.id]) >= loners_next_update[smart.id]*6) and not currently_surge then
-        loner_timer[smart.id] = warfare_utils.add_time(loner_timer[smart.id], loners_next_update[smart.id]*6)
-        loners_next_update[smart.id] = math.random(30, 90)
+    if (warfare.get_time_ref():diffSec(timer[smart.id]) >= next_update[smart.id] * 6) and not currently_surge then
+        timer[smart.id] = warfare_utils.add_time(timer[smart.id], next_update[smart.id] * 6)
+        next_update[smart.id] = math.random(spec.wait[1], spec.wait[2])
     else
         return
     end
-    warfare_log.trace("process_loners: smart=%s faction=%s", smart:name(), tostring(smart.owning_faction))
+    warfare_log.trace("process_independent: model=%s smart=%s faction=%s", model, smart:name(), tostring(smart.owning_faction))
 
-    local squads = SIMBOARD.smarts[smart.id].squads                            -- get info of all squads at location
+    local props = smart.props
+    local at_base = props and props.base > 0
+    local at_resource = props and ((props.resource > 0 and props.base < 1) or props.territory > 0)
+    local isNight = warfare_utils.is_night()
+    local isDaylight = warfare_utils.is_daylight()
+    local isSunset = warfare_utils.is_sunset()
 
-    -- The garrison guard depends on the squad's faction as well as the smart, and each check walks
-    -- the smart's whole roster. smart is fixed for this call, so faction alone is a sufficient key:
-    -- the table is call-local and discarded on return.
-    local base_may_send_for = {}
-    local function base_may_send(faction)
-        local allowed = base_may_send_for[faction]
+    -- Per faction for this call; cleared after a dispatch, which changes the counts the guard reads.
+    local may_send_for = {}
+    local function may_leave_base(faction)
+        local allowed = may_send_for[faction]
         if allowed == nil then
-            if (smart.owning_faction == faction) then
-                allowed = base_can_send(smart)
-            elseif warfare_options.options.prevent_mainbase_attacks and (get_main_base_faction(smart:name()) == faction) then
-                allowed = (squad_count_defending(smart, faction) > 1)
-            else
-                allowed = true
-            end
-            base_may_send_for[faction] = allowed
+            allowed = spec.may_leave_base(smart, faction)
+            may_send_for[faction] = allowed
         end
         return allowed
     end
 
-    for sid, _ in pairs(squads) do
+    for sid, _ in pairs(SIMBOARD.smarts[smart.id].squads) do
         local squad = resolve_roster_squad(smart.id, sid)
-        local faction = squad and squad:get_squad_community()                            -- get faction of squads
+        local faction = squad and squad:get_squad_community()
 
-        if faction and (warfare_behavior.dispatch_model(faction) == "loner") and squad_is_commandable(squad, true) and (squad.current_action == 1) then
-            -- only operate on loner-model squads, exclude unique npcs
+        if faction and (warfare_behavior.dispatch_model(faction) == model) and squad_is_commandable(squad, true) and (squad.current_action == 1) then
             local night_chance = warfare_options.options.factions[faction].night_activity_chance
-            local isNight = warfare_utils.is_night()
-            local isDaylight = warfare_utils.is_daylight()
-            local isSunset = warfare_utils.is_sunset()
-
             local target_set = false
-            local all_targets = {}
-            local priority_targets = {}
 
-            if (smart.props and smart.props.base > 0) and (isDaylight) and (math.random(1,10) < 9) then                                                -- updates squads at a base. Squads are assigned to resource locations during daylight hours. 10% chance that they're lazy bums and sit at base until the next update
-                if base_may_send(faction) then
-                    if (math.random(1, 10) < 7) then                                                                                                    -- 70% chance of staying on-level
-                        if (math.random(1,20) < 19) then                                                                                                -- 5% chance for an on-level squad to be mutant hunters, going to lairs instead
-                            local level_info = warfare_levels.level_information[smart.level_id]
-
-                            for i,sm in pairs(level_info.smarts) do                                                                                            -- loop over all on-level smart terrains
-                                local other = sm and alife_object(sm)
-
-                                if not (other.owning_faction) then
-                                    check_owner(other)
-                                end
-
-                                if (other.props and other.props.resource > 0) then
-                                    if (other.owning_faction == "none") then                                                                        -- target resources with no stalkers already present
-                                        all_targets[#all_targets+1] = other                                                                                        -- add possible locations to list of targets
-                                    elseif (is_factions_enemies(faction, other.owning_faction)) then
-                                        -- loners will attack enemy positions if they are much stronger than the enemies, chance to attack scales with the power disparity
-                                        local enemy_squads = SIMBOARD.smarts[other.id].squads
-                                        local enemy_power = 0
-                                        local loner_power = sim_offline_combat.calculate_squad_power(squad)
-                                        for enemy_id,_ in pairs(enemy_squads) do
-                                            local enemy_squad = enemy_id and alife_object(enemy_id)
-                                            enemy_power = enemy_power + sim_offline_combat.calculate_squad_power(enemy_squad)
-                                        end
-                                        local attack_chance = (loner_power / enemy_power - 1) * 100
-                                        if (loner_power) and (loner_power > enemy_power) and (attack_chance > math.random(1,100)) then
-                                            all_targets[#all_targets+1] = other
-                                        end
-                                    end
-                                end
-                            end
-
-                            if (#all_targets > 0) then
-                                local target = all_targets[math.random(#all_targets)]                                                                    -- pick a random target from the list
-                                sim_squad_warfare.set_target(squad, target.id)
-                                target_set = true
-                            end
+            -- By day a base sends squads out to resources; 10% sit this tick out.
+            if at_base and isDaylight and (math.random(1, 10) < 9) then
+                if may_leave_base(faction) then
+                    if (math.random(1, 10) < spec.stay_roll) then
+                        if spec.hunts_lairs and (math.random(1, 20) >= 19) then
+                            target_set = find_lairs(smart, squad)
                         else
-                            local level_info = warfare_levels.level_information[smart.level_id]
-
-                            for i,sm in pairs(level_info.smarts) do                                                                                            -- loop over all on-level smart terrains
-                                local other = sm and alife_object(sm)
-
-                                if not (other.owning_faction) then
-                                    check_owner(other)
-                                end
-
-                                if (other.props and other.props.lair > 0 and other.props.base < 1 and other.props.resource < 1) and (other.owning_faction == "none") then                -- target pure lairs with no stalkers already present
-                                    all_targets[#all_targets+1] = other
-                                end
-                            end
-
-                            if (#all_targets > 0) then
-                                local target = all_targets[math.random(#all_targets)]
-                                sim_squad_warfare.set_target(squad, target.id)
-                                target_set = true
-                            end
+                            target_set = find_resources(spec, smart, squad, faction, false)
                         end
                     end
-
-                    -- choosing to move off-level, or no empty resources found on-level. Go to a linked-level and find a resource
-                    if (target_set == false) then
-                        local linked = level_targets.level_links[smart.level_id]
-                        local keys = warfare.hash_table_to_array(linked)
-
-                        for k = 1,#keys do
-                            local chosen = keys[k].key
-                            local level_info = warfare_levels.level_information[chosen]
-
-                            for i,sm in pairs(level_info.smarts) do                                                                                -- loop over all linked-level's smart terrains
-                                local other = sm and alife_object(sm)
-
-                                if not (other.owning_faction) then
-                                    check_owner(other)
-                                end
-
-                                if (other.props and other.props.resource > 0) then                                                                        -- only target resources
-                                    if (other.owning_faction == "none") then                                                                                -- prioritize empty resources
-                                        priority_targets[#priority_targets+1] = other
-                                    elseif (is_factions_enemies(faction, other.owning_faction)) then
-                                        local enemy_squads = SIMBOARD.smarts[other.id].squads
-                                        local enemy_power = 0
-                                        local loner_power = sim_offline_combat.calculate_squad_power(squad)
-                                        for enemy_id,_ in pairs(enemy_squads) do
-                                            local enemy_squad = enemy_id and alife_object(enemy_id)
-                                            enemy_power = enemy_power + sim_offline_combat.calculate_squad_power(enemy_squad)
-                                        end
-                                        local attack_chance = (loner_power / enemy_power - 1) * 100
-                                        if (loner_power) and (loner_power > enemy_power) and (attack_chance > math.random(1,100)) then
-                                            all_targets[#all_targets+1] = other
-                                        end
-                                    elseif (other.props.base < 1) then                                                                                        -- if owned by neutral faction, only look at pure resources
-                                        all_targets[#all_targets+1] = other
-                                    end
-                                end
-                            end
-                        end
-
-                        if (#priority_targets > 0) then
-                            local target = priority_targets[math.random(#priority_targets)]
-                            sim_squad_warfare.set_target(squad, target.id)
-                            target_set = true
-                        elseif (#all_targets > 0) then
-                            local target = all_targets[math.random(#all_targets)]
-                            sim_squad_warfare.set_target(squad, target.id)
-                            target_set = true
+                    target_set = target_set or find_resources(spec, smart, squad, faction, true)
+                    if target_set then
+                        may_send_for[faction] = nil
+                        if spec.one_sortie_per_tick then
+                            break
                         end
                     end
                 end
 
-                if (target_set) then
-                    break
+            elseif at_resource and (isDaylight or (math.random(100) <= night_chance)) then
+                if (math.random(1, 10) < spec.stay_roll) then
+                    target_set = find_resources(spec, smart, squad, faction, false)
                 end
+                target_set = target_set or find_resources(spec, smart, squad, faction, true)
 
-            -- updates squads at a pure resource or territory. Squads should select a new resource if daylight
-            elseif (smart.props) and ((smart.props.resource > 0 and smart.props.base < 1) or (smart.props.territory > 0)) and (isDaylight or (math.random(100) <= night_chance)) then
-                if (math.random(1, 10) < 7) then                                                                                                    -- 70% chance of staying on-level
-                    local level_info = warfare_levels.level_information[smart.level_id]
-
-                    for i,sm in pairs(level_info.smarts) do
-                        local other = sm and alife_object(sm)
-
-                        if not (other.owning_faction) then
-                            check_owner(other)
-                        end
-
-                        if (other.props and other.props.resource > 0) then
-                            if (other.owning_faction == "none") then
-                                all_targets[#all_targets+1] = other
-                            elseif (is_factions_enemies(faction, other.owning_faction)) then
-                                local enemy_squads = SIMBOARD.smarts[other.id].squads
-                                local enemy_power = 0
-                                local loner_power = sim_offline_combat.calculate_squad_power(squad)
-                                for enemy_id,_ in pairs(enemy_squads) do
-                                    local enemy_squad = enemy_id and alife_object(enemy_id)
-                                    enemy_power = enemy_power + sim_offline_combat.calculate_squad_power(enemy_squad)
-                                end
-                                local attack_chance = (loner_power / enemy_power - 1) * 100
-                                if (loner_power) and (loner_power > enemy_power) and (attack_chance > math.random(1,100)) then
-                                    all_targets[#all_targets+1] = other
-                                end
-                            end
-                        end
-                    end
-
-                    if (#all_targets > 0) then
-                        local target = all_targets[math.random(#all_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    end
-                end
-
-                if (target_set == false) then                                                                                                        -- choosing to move off-level, or no empty resources found on-level. Go to a linked-level and find a resource, occupied or not
-                    local linked = level_targets.level_links[smart.level_id]
-                    local keys = warfare.hash_table_to_array(linked)
-
-                    for k = 1,#keys do
-                        local chosen = keys[k].key
-                        local level_info = warfare_levels.level_information[chosen]
-
-                        for i,sm in pairs(level_info.smarts) do
-                            local other = sm and alife_object(sm)
-
-                            if not (other.owning_faction) then
-                                check_owner(other)
-                            end
-
-                            if (other.props and other.props.resource > 0) then
-                                if (other.owning_faction == "none") then
-                                    priority_targets[#priority_targets+1] = other
-                                elseif (is_factions_enemies(faction, other.owning_faction)) then
-                                    local enemy_squads = SIMBOARD.smarts[other.id].squads
-                                    local enemy_power = 0
-                                    local loner_power = sim_offline_combat.calculate_squad_power(squad)
-                                    for enemy_id,_ in pairs(enemy_squads) do
-                                        local enemy_squad = enemy_id and alife_object(enemy_id)
-                                        enemy_power = enemy_power + sim_offline_combat.calculate_squad_power(enemy_squad)
-                                    end
-                                    local attack_chance = (loner_power / enemy_power - 1) * 100
-                                    if (loner_power) and (loner_power > enemy_power) and (attack_chance > math.random(1,100)) then
-                                        all_targets[#all_targets+1] = other
-                                    end
-                                elseif (other.props.base < 1) then
-                                    all_targets[#all_targets+1] = other
-                                end
-                            end
-                        end
-                    end
-
-                    if (#priority_targets > 0) then
-                        local target = priority_targets[math.random(#priority_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    elseif (#all_targets > 0) then
-                        local target = all_targets[math.random(#all_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    end
-                end
-
-            -- updates squads at a pure lair. Squads should select a new lair on the same level if daylight, or select a base if getting late.
-            elseif (smart.props and smart.props.lair > 0 and smart.props.base < 1 and smart.props.resource < 1) and (isDaylight or (math.random(100) <= night_chance)) then
-                local level_info = warfare_levels.level_information[smart.level_id]
-
-                for i,sm in pairs(level_info.smarts) do
-                    local other = sm and alife_object(sm)
-
-                    if not (other.owning_faction) then
-                        check_owner(other)
-                    end
-
-                    if (other.props and other.props.lair > 0 and other.props.base < 1 and other.props.resource < 1) and (other.owning_faction == "none") then                    -- only target pure lairs with no stalkers already present
-                        all_targets[#all_targets+1] = other
-                    end
-                end
-
-                if (#all_targets > 0) then
-                    local target = all_targets[math.random(#all_targets)]
-                    sim_squad_warfare.set_target(squad, target.id)
-                    target_set = true
-                end
+            elseif spec.hunts_lairs and is_pure_lair(smart) and (isDaylight or (math.random(100) <= night_chance)) then
+                target_set = find_lairs(smart, squad)
             end
 
-            local all_targets = {}                -- reset for below
-            local priority_targets = {}            -- reset for below
-
-            if (smart.props and smart.props.base < 1) and (isSunset or isNight) and (target_set == false) then                                        -- send loners back to base, unless they're assigned for night activity
-                if (math.random(1,10) < 8) then                                                                                                        -- 80% chance to first stay on level if possible
-                    local level_info = warfare_levels.level_information[smart.level_id]
-                    for i,sm in pairs(level_info.smarts) do
-                        local other = sm and alife_object(sm)
-
-                        if not (other.owning_faction) then
-                            check_owner(other)
-                        end
-
-                        if (other.props and other.props.base > 0) and (other.owning_faction == "none" or not is_factions_enemies(faction, other.owning_faction)) then    -- only target bases that are empty or with non-hostile forces present
-                            if (other.owning_faction ~= "none") then
-                                local num_squads = squad_count(other, other.owning_faction)
-                                if travel_hubs[other:name()] and (num_squads < other.max_population) then    -- prioritize hubs
-                                    priority_targets[#priority_targets+1] = other
-                                elseif (num_squads < other.max_population) then
-                                    all_targets[#all_targets+1] = other
-                                end
-                            else
-                                all_targets[#all_targets+1] = other
-                            end
-                        end
-                    end
-
-                    if (#priority_targets > 0) then
-                        local target = priority_targets[math.random(#priority_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    elseif (#all_targets > 0) then
-                        local target = all_targets[math.random(#all_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    end
-                end
-
-                -- only hostile bases found on-level, or choosing to move levels. Go to a linked-level and find a base
-                if (target_set == false) then
-                    local linked = level_targets.level_links[smart.level_id]
-                    local keys = warfare.hash_table_to_array(linked)
-
-                    for k = 1,#keys do
-                        local chosen = keys[k].key
-                        local level_info = warfare_levels.level_information[chosen]
-
-                        for i,sm in pairs(level_info.smarts) do
-                            local other = sm and alife_object(sm)
-
-                            if not (other.owning_faction) then
-                                check_owner(other)
-                            end
-
-                            if (other.props and other.props.base > 0) and (other.owning_faction == "none" or not is_factions_enemies(faction, other.owning_faction)) then            -- only target bases that are empty or with non-hostile forces present
-                                if (other.owning_faction ~= "none") then
-                                    local num_squads = squad_count(other, other.owning_faction)
-                                    if travel_hubs[other:name()] and (num_squads < other.max_population) then    -- prioritize travel hubs
-                                        priority_targets[#priority_targets+1] = other
-                                    elseif (num_squads < other.max_population) then
-                                        all_targets[#all_targets+1] = other
-                                    end
-                                else
-                                    all_targets[#all_targets+1] = other
-                                end
-                            end
-                        end
-                    end
-
-                    if (#priority_targets > 0) then
-                        local target = priority_targets[math.random(#priority_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    elseif (#all_targets > 0) then
-                        local target = all_targets[math.random(#all_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    end
-                end
-
-                -- couldn't find non-hostile/non-full base on linked levels - pick a territory on-level, occupied or not
-                if (target_set == false) then
-                    local level_info = warfare_levels.level_information[smart.level_id]
-                    for i,sm in pairs(level_info.smarts) do
-                        local other = sm and alife_object(sm)
-
-                        if not (other.owning_faction) then
-                            check_owner(other)
-                        end
-
-                        if (other.props and other.props.territory > 0) then
-                            all_targets[#all_targets+1] = other
-                        end
-                    end
-
-                    if (#all_targets > 0) then
-                        local target = all_targets[math.random(#all_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    end
-                end
+            if (props and props.base < 1) and (isSunset or isNight) and not target_set then
+                spec.dusk_return(smart, squad, faction)
             end
         end
     end
 end
-
-
--- Code to handle ecologist behavior, including targeting of locations, travel to and from those points, etc.
-function process_ecolog(smart)
-
-    if not (ecolog_timer[smart.id]) then
-        ecolog_timer[smart.id] = warfare.get_time()
-        ecolog_next_update[smart.id] = math.random(60, 180)                -- time in in-game minutes
-        return
-    end
-
-    if (warfare.get_time_ref():diffSec(ecolog_timer[smart.id]) >= ecolog_next_update[smart.id]*6) and not currently_surge then
-        ecolog_timer[smart.id] = warfare_utils.add_time(ecolog_timer[smart.id], ecolog_next_update[smart.id]*6)
-        ecolog_next_update[smart.id] = math.random(60, 180)
-    else
-        return
-    end
-    warfare_log.trace("process_ecolog: smart=%s faction=%s", smart:name(), tostring(smart.owning_faction))
-
-    local squads = SIMBOARD.smarts[smart.id].squads                            -- get info of all squads at location
-
-    for sid,_ in pairs(squads) do
-        local squad = resolve_roster_squad(smart.id, sid)
-        local faction = squad and squad:get_squad_community() or "none"                            -- get faction of squads
-
-        if (warfare_behavior.dispatch_model(faction) == "ecolog") and squad_is_commandable(squad, true) and (squad.current_action == 1) then    -- only operate on ecolog-model squads, exclude unique npcs
-            local night_chance = warfare_options.options.factions[faction].night_activity_chance
-            local isNight = warfare_utils.is_night()
-            local isDaylight = warfare_utils.is_daylight()
-            local isSunset = warfare_utils.is_sunset()
-
-            local target_set = false
-            local all_targets = {}
-
-            if (smart.props and smart.props.base > 0) and (isDaylight) and (math.random(1,10) < 9) then                                                -- updates squads at a base. Squads are assigned to resource locations during daylight hours. 10% chance that they're lazy bums and sit at base until the next update
-                local is_own_mainbase = warfare_options.options.prevent_mainbase_attacks and get_main_base_faction(smart:name()) == faction
-                if ((smart.owning_faction ~= faction and not is_own_mainbase) or (squad_count(smart, faction) > 1)) then                -- own or protected main bases keep their last squad to retain control
-                    if (math.random(1, 10) < 5) then                                                                                                    -- 50% chance of staying on-level
-                        local level_info = warfare_levels.level_information[smart.level_id]
-
-                        for i,sm in pairs(level_info.smarts) do
-                            local other = sm and alife_object(sm)
-
-                            if not (other.owning_faction) then
-                                check_owner(other)
-                            end
-
-                            if (other.props and other.props.resource > 0) and (other.owning_faction == "none" or not is_factions_enemies(faction, other.owning_faction)) then        -- target empty resources or resources with non-hostile stalkers
-                                all_targets[#all_targets+1] = other
-                            end
-                        end
-
-                        if (#all_targets > 0) then
-                            local target = all_targets[math.random(#all_targets)]
-                            sim_squad_warfare.set_target(squad, target.id)
-                            target_set = true
-                        end
-
-                    end
-
-                    if (target_set == false) then                                                                                                        -- choosing to move off-level. Go to a linked-level and find a resource
-                        local linked = level_targets.level_links[smart.level_id]
-                        local keys = warfare.hash_table_to_array(linked)
-                        local chosen = keys[math.random(#keys)].key
-                        local level_info = warfare_levels.level_information[chosen]
-
-                        for i,sm in pairs(level_info.smarts) do
-                            local other = sm and alife_object(sm)
-
-                            if not (other.owning_faction) then
-                                check_owner(other)
-                            end
-
-                            if (other.props and other.props.resource > 0) and (other.owning_faction == "none" or not is_factions_enemies(faction, other.owning_faction)) then
-                                all_targets[#all_targets+1] = other
-                            end
-                        end
-
-                        if (#all_targets > 0) then
-                            local target = all_targets[math.random(#all_targets)]
-                            sim_squad_warfare.set_target(squad, target.id)
-                            target_set = true
-                        end
-                    end
-                end
-
-            elseif (smart.props) and ((smart.props.resource > 0 and smart.props.base < 1) or (smart.props.territory > 0)) and (isDaylight or (math.random(100) <= night_chance)) then                     -- updates squads at a pure resource or territory. Squads should select a new resource if daylight
-                if (math.random(1, 10) < 5) then                                                                                                    -- 50% chance of staying on-level
-                    local level_info = warfare_levels.level_information[smart.level_id]
-
-                    for i,sm in pairs(level_info.smarts) do
-                        local other = sm and alife_object(sm)
-
-                        if not (other.owning_faction) then
-                            check_owner(other)
-                        end
-
-                        if (other.props and other.props.resource > 0) and (other.owning_faction == "none" or not is_factions_enemies(faction, other.owning_faction)) then
-                            all_targets[#all_targets+1] = other
-                        end
-                    end
-
-                    if (#all_targets > 0) then
-                        local target = all_targets[math.random(#all_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    end
-                end
-
-                if (target_set == false) then                                                                                                        -- choosing to move off-level. Go to a linked-level and find a resource
-                    local linked = level_targets.level_links[smart.level_id]
-                    local keys = warfare.hash_table_to_array(linked)
-                    local chosen = keys[math.random(#keys)].key
-                    local level_info = warfare_levels.level_information[chosen]
-
-                    for i,sm in pairs(level_info.smarts) do
-                        local other = sm and alife_object(sm)
-
-                        if not (other.owning_faction) then
-                            check_owner(other)
-                        end
-
-                        if (other.props and other.props.resource > 0) and (other.owning_faction == "none" or not is_factions_enemies(faction, other.owning_faction)) then        -- target empty resources or resources with non-hostile stalkers
-                            all_targets[#all_targets+1] = other
-                        end
-                    end
-
-                    if (#all_targets > 0) then
-                        local target = all_targets[math.random(#all_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    end
-                end
-            end
-
-            local priority_targets = {}
-            local backup_targets_on = {}
-            local backup_targets_off = {}
-
-            if (smart.props and smart.props.base < 1) and (isSunset or isNight) and (target_set == false) then    -- send ecologists back to base, unless they're assigned for night activity
-                local level_info = warfare_levels.level_information[smart.level_id]                                -- first check current level for bases, then linked levels.
-                for i,sm in pairs(level_info.smarts) do                                                            -- only ecologist bases will be priority bases, others will be chosen randomly
-                    local other = sm and alife_object(sm)
-
-                    if not (other.owning_faction) then
-                        check_owner(other)
-                    end
-
-                    if (other.props and other.props.base > 0) and (other.owning_faction == "none" or not is_factions_enemies(faction, other.owning_faction)) then    -- only target bases that are empty or with non-hostile forces present
-                        if (other.owning_faction ~= "none") then
-                            local num_squads = squad_count(other, other.owning_faction)
-                            if travel_hubs[other:name()] and (num_squads < other.max_population) then    -- prioritize on-level hub bases first
-                                priority_targets[#priority_targets+1] = other
-                            elseif (num_squads < other.max_population) then
-                                backup_targets_on[#backup_targets_on+1] = other        -- corresponds to all qualified on-level bases
-                            end
-                        else
-                            backup_targets_on[#backup_targets_on+1] = other
-                        end
-                    end
-                end
-
-                if not (#priority_targets > 0) then        -- only look at linked levels if there isn't an ecologist base on current level
-                    local linked = level_targets.level_links[smart.level_id]
-                    local keys = warfare.hash_table_to_array(linked)
-
-                    for k = 1,#keys do    -- look at all linked levels
-                        local chosen = keys[k].key
-                        local level_info = warfare_levels.level_information[chosen]
-
-                        for i,sm in pairs(level_info.smarts) do
-                            local other = sm and alife_object(sm)
-
-                            if not (other.owning_faction) then
-                                check_owner(other)
-                            end
-
-                            if (other.props and other.props.base > 0) and (other.owning_faction == "none" or not is_factions_enemies(faction, other.owning_faction)) then    -- only target bases that are empty or with non-hostile forces present
-                                if (other.owning_faction ~= "none") then
-                                    local num_squads = squad_count(other, other.owning_faction)
-                                    if travel_hubs[other:name()] and (num_squads < other.max_population) then    -- prioritize any linked hub bases
-                                        priority_targets[#priority_targets+1] = other
-                                    elseif (num_squads < other.max_population) then
-                                        backup_targets_off[#backup_targets_off+1] = other    -- more backup bases in case all on-level bases are hostile
-                                    end
-                                else
-                                    backup_targets_off[#backup_targets_off+1] = other
-                                end
-                            end
-                        end
-                    end
-                end
-
-                if (#priority_targets > 0) then        -- first priority for ecologist bases
-                    local target = priority_targets[math.random(#priority_targets)]
-                    sim_squad_warfare.set_target(squad, target.id)
-                    target_set = true
-                elseif (#backup_targets_on > 0) then                                                                                    -- otherwise try on-level neutral/empty bases
-                    local target = backup_targets_on[math.random(#backup_targets_on)]
-                    sim_squad_warfare.set_target(squad, target.id)
-                    target_set = true
-                elseif (#backup_targets_off > 0) then                                                                                -- if no available on-level bases, pick a linked-level neutral/empty base
-                    local target = backup_targets_off[math.random(#backup_targets_off)]
-                    sim_squad_warfare.set_target(squad, target.id)
-                    target_set = true
-                end
-
-                if (target_set == false) then                                                                    -- couldn't find non-hostile/non-full base on linked levels - pick a territory on-level, occupied or not
-                    local level_info = warfare_levels.level_information[smart.level_id]                            -- this is only for contingency, and realistically should never happen
-                    for i,sm in pairs(level_info.smarts) do
-                        local other = sm and alife_object(sm)
-
-                        if not (other.owning_faction) then
-                            check_owner(other)
-                        end
-
-                        if (other.props and other.props.territory > 0) then
-                            all_targets[#all_targets+1] = other
-                        end
-                    end
-
-                    if (#all_targets > 0) then
-                        local target = all_targets[math.random(#all_targets)]
-                        sim_squad_warfare.set_target(squad, target.id)
-                        target_set = true
-                    end
-                end
-            end
-        end
-    end
-end
-
 
 
 function get_mutant_level_settings(level_id)
@@ -5219,7 +4895,7 @@ function squad_is_commandable(squad, random_patrol_override)
         end
         if (not random_patrol_override) and (not random_patrols[squad.id]) then
             return true
-        elseif random_patrol_override then        -- loner/ecolog random patrols are handled by process_loner/process_ecolog
+        elseif random_patrol_override then        -- loner/ecolog random patrols are handled by process_independent
             return true
         end
     end

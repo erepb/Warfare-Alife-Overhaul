@@ -1,7 +1,6 @@
 -- kind names the MCM control (flag -> check, choice -> list, scale -> track); modxml_warfare checks every trait row against this schema at load.
 TRAITS = {
-    -- loner and ecolog are two genuinely different models, not one model with two skins: different
-    -- update periods, garrison guards, target rules and dusk behavior. See process_loners/process_ecolog.
+    -- loner and ecolog rows of smart_terrain_warfare.DISPATCH_MODELS; unified is process_base_squads.
     dispatch_model                  = { kind = "choice", neutral = "unified", values = { "unified", "loner", "ecolog" } },
 
     holdings_are_open               = { kind = "flag",   neutral = false },

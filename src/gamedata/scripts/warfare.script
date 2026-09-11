@@ -342,10 +342,8 @@ function save_state(m_data)
     m_data.warfare.spawn_mutant_next_update = smart_terrain_warfare.spawn_mutant_next_update
     m_data.warfare.process_mutant_timers = smart_terrain_warfare.process_mutant_timers
     m_data.warfare.process_mutant_next_update = smart_terrain_warfare.process_mutant_next_update
-    m_data.warfare.loner_timer = smart_terrain_warfare.loner_timer
-    m_data.warfare.loners_next_update = smart_terrain_warfare.loners_next_update
-    m_data.warfare.ecolog_timer = smart_terrain_warfare.ecolog_timer
-    m_data.warfare.ecolog_next_update = smart_terrain_warfare.ecolog_next_update
+    m_data.warfare.dispatch_timer = smart_terrain_warfare.dispatch_timer
+    m_data.warfare.dispatch_next_update = smart_terrain_warfare.dispatch_next_update
     m_data.warfare.smart_terrain_distances = smart_terrain_warfare.smart_terrain_distances
     m_data.warfare.under_attack = smart_terrain_warfare.under_attack
 
@@ -463,10 +461,8 @@ function load_state(m_data)
             smart_terrain_warfare.process_mutant_next_update[id] = _max_mutant
         end
     end
-    smart_terrain_warfare.loner_timer = m_data.warfare and m_data.warfare.loner_timer or {}
-    smart_terrain_warfare.loners_next_update = m_data.warfare and m_data.warfare.loners_next_update or {}
-    smart_terrain_warfare.ecolog_timer = m_data.warfare and m_data.warfare.ecolog_timer or {}
-    smart_terrain_warfare.ecolog_next_update = m_data.warfare and m_data.warfare.ecolog_next_update or {}
+    smart_terrain_warfare.dispatch_timer = m_data.warfare and m_data.warfare.dispatch_timer or {}
+    smart_terrain_warfare.dispatch_next_update = m_data.warfare and m_data.warfare.dispatch_next_update or {}
     smart_terrain_warfare.smart_terrain_distances = m_data.warfare and m_data.warfare.smart_terrain_distances or {}
     smart_terrain_warfare.under_attack = m_data.warfare and m_data.warfare.under_attack or {}
 
