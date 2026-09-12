@@ -889,7 +889,7 @@ function begin_capture(target)
     for sid,_ in pairs(squads or {}) do
         local squad = resolve_roster_squad(target.id, sid)
         local faction = squad and squad:get_squad_community()
-        if (faction == warfare.actor_faction) and (not warfare.ignore[squad:section_name()]) then
+        if (faction == warfare.actor_faction) and warfare.is_owned(squad) then
             targeting_squad = squad.id
         end
     end
@@ -1059,7 +1059,7 @@ function process_manual_capture(smart)
                     -- spawn squad at base and send it
                     local current_level = smart.level_id
                     local section = faction_expansions.get_spawn_section(warfare.actor_faction, warfare_factions.faction_information[warfare.actor_faction].resource_count, current_level)
-                    local squad = utils_obj.create_squad(section, closest_base:name())
+                    local squad = warfare.spawn_squad(section, closest_base:name())
                     warfare_log.info("process_manual_capture: spawned squad section=%s from base=%s targeting smart=%s",
                         tostring(section), closest_base:name(), smart:name())
                     sim_squad_warfare.set_target(squad, smart.id)
@@ -1206,7 +1206,7 @@ function process_manual_capture_old(smart)
                 if (targeting < smart.max_population) then
                     local current_level = smart.level_id
                     local section = faction_expansions.get_spawn_section(warfare.actor_faction, warfare_factions.faction_information[warfare.actor_faction].resource_count, current_level)
-                    local squad = utils_obj.create_squad(section, smart:name())
+                    local squad = warfare.spawn_squad(section, smart:name())
                     warfare_log.info("process_manual_capture_old: spawned squad section=%s at smart=%s",
                         tostring(section), smart:name())
                     sim_squad_warfare.set_target(squad, smart.id)
@@ -2417,7 +2417,7 @@ function create_invasion_plan(smart, target)
         for sid,_ in pairs(enemy_target_squads) do
             local squad = resolve_roster_squad(target.id, sid)
 
-            if (squad) and (squad.registered_with_warfare) and (squad:get_squad_community() == defending_faction) and not (warfare.ignore[squad:section_name()]) then
+            if (squad) and (squad.registered_with_warfare) and (squad:get_squad_community() == defending_faction) then
                 total_enemy_power = total_enemy_power + sim_offline_combat.calculate_squad_power(squad)
                 num_enemy_squads = num_enemy_squads + 1
             end
@@ -2670,7 +2670,7 @@ function process_invasion_defense(smart)
 
         -- don't include ignore_list squads or story squads
         -- also exclude random patrols
-        if (squad) and (squad.registered_with_warfare) and (not warfare.ignore[squad:section_name()]) and (not random_patrols[squad.id]) then
+        if (squad) and (squad.registered_with_warfare) and (not random_patrols[squad.id]) then
             local faction = squad:get_squad_community()
 
             -- count all enemy human squads in transit, find their distances to the smart, and their squad powers
@@ -3017,7 +3017,7 @@ function spawn_defense(smart)
         section = faction_expansions.get_spawn_section(smart.owning_faction, faction_bases, current_level)
     end
 
-    local squad = utils_obj.create_squad(section, smart:name())
+    local squad = warfare.spawn_squad(section, smart:name())
     warfare_log.info("spawn_defense: spawned squad section=%s smart=%s faction=%s",
         tostring(section), smart:name(), tostring(smart.owning_faction))
     sim_squad_warfare.set_target(squad, smart.id)
@@ -3076,7 +3076,7 @@ function spawn_patrols(smart)
 
             if (tobj) then
                 local section = faction_expansions.get_spawn_section(smart.owning_faction, smart.resource_count)
-                local squad = utils_obj.create_squad(section, smart:name())
+                local squad = warfare.spawn_squad(section, smart:name())
 
                 if (is_squad) then
                     new_table = {
@@ -3266,7 +3266,7 @@ function process_patrols(smart)
     for squad_id, sobj in pairs(squads) do
         local squad = squad_id and alife_object(squad_id)
 
-        if (squad and squad:clsid() == clsid.online_offline_group_s) and (not warfare.ignore[squad:section_name()]) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
+        if (squad and squad:clsid() == clsid.online_offline_group_s) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
             squad.patrol_owner = smart.id
             squad.patrol_table = patrol_squads[smart.id][squad_id]
 
@@ -3724,10 +3724,10 @@ function spawn_mutants(smart)
             local squad = resolve_roster_squad(smart.id, sid)
             if squad then
                 local faction = squad:get_squad_community()
-                if (faction == "monster") and (not warfare.ignore[squad:section_name()]) and (not sim_offline_combat.stationary_squads[squad:section_name()]) and (squad.current_action == 1) then
+                if (faction == "monster") and warfare.is_owned(squad) and (not sim_offline_combat.stationary_squads[squad:section_name()]) and (squad.current_action == 1) then
                     -- get squad section name
                     local section = squad:section_name()
-                    local new_squad = utils_obj.create_squad(section, smart:name())    -- create identical section
+                    local new_squad = warfare.spawn_squad(section, smart:name())    -- create identical section
                     warfare_log.info("spawn_mutants: spawned same-section section=%s smart=%s",
                         tostring(section), smart:name())
                     sim_squad_warfare.set_target(squad, smart.id)
@@ -3743,7 +3743,7 @@ function spawn_mutants(smart)
 
         if not spawned then
             local section = faction_expansions.get_spawn_section("monster", rare_chance, current_level)
-            local squad = utils_obj.create_squad(section, smart:name())
+            local squad = warfare.spawn_squad(section, smart:name())
             warfare_log.info("spawn_mutants: spawned new mutant section=%s smart=%s",
                 tostring(section), smart:name())
             sim_squad_warfare.set_target(squad, smart.id)
@@ -3781,7 +3781,7 @@ function process_mutants(smart)
         local squad = resolve_roster_squad(smart.id, sid)
         if squad then
             local faction = squad:get_squad_community()
-            if (faction == "monster") and (not warfare.ignore[squad:section_name()]) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
+            if (faction == "monster") and warfare.is_owned(squad) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
                 if (squad.current_action == 1) then            -- mutant squad is idle
                     if not (squad.wait_time) then
                         squad.wait_time = math.random(10, 60)            -- make them wait for some number of in-game minutes
@@ -3797,7 +3797,7 @@ function process_mutants(smart)
         local squad = resolve_roster_squad(smart.id, sid)
         if squad then
             local faction = squad:get_squad_community()
-            if (faction == "monster") and (not warfare.ignore[squad:section_name()]) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
+            if (faction == "monster") and warfare.is_owned(squad) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
                 if (squad.arrive_time and squad.wait_time) then
                     -- force a mutant squad to move off if they exceed the terrain capacity
                     if (warfare.get_time_ref():diffSec(squad.arrive_time) >= squad.wait_time*6) or (mutant_squad_count > smart.max_population) then
@@ -4802,7 +4802,7 @@ function squad_count(smart, faction)
         local squad = sid and alife_object(sid)
 
         if (squad and squad:clsid() == clsid.online_offline_group_s) and warfare.registered_squads[faction][sid] then
-            if (squad:get_squad_community() == faction) and not (axr_companions.companion_squads[squad.id]) and not (warfare.ignore[squad:section_name()]) then
+            if (squad:get_squad_community() == faction) and not (axr_companions.companion_squads[squad.id]) then
                 if (squad.current_target_id and squad.current_target_id == smart.id) then
                     squadCount = squadCount + 1
                 end
@@ -4833,7 +4833,7 @@ function squad_count_defending(smart, faction)
     for sid,_ in pairs(squads) do
         local squad = resolve_roster_squad(smart.id, sid)
         if (squad) and (squad:clsid() == clsid.online_offline_group_s) and warfare.registered_squads[faction][sid] then
-            if (squad:get_squad_community() == faction and squad.current_action == 1) and (not axr_companions.companion_squads[squad.id]) and (not warfare.ignore[squad:section_name()]) then
+            if (squad:get_squad_community() == faction and squad.current_action == 1) and (not axr_companions.companion_squads[squad.id]) then
                 local power = sim_offline_combat.calculate_squad_power(squad)
 
                 if (power and power > 0 and squad:npc_count() > 0 and squad.current_target_id and squad.current_target_id == smart.id) then
@@ -4877,7 +4877,7 @@ function squad_count_detailed(smart, faction)
                     end
                 end
             elseif squad and (squad:clsid() == clsid.online_offline_group_s) and warfare.registered_squads[faction][sid] and (sim_offline_combat.stationary_squads[squad:section_name()]) and (not random_patrols[squad.id]) then
-                if (squad:get_squad_community() == faction and squad.current_action == 1) and (not axr_companions.companion_squads[squad.id]) and (not warfare.ignore[squad:section_name()]) then
+                if (squad:get_squad_community() == faction and squad.current_action == 1) and (not axr_companions.companion_squads[squad.id]) then
                     stationary = stationary + 1
                 end
             end
@@ -4912,7 +4912,7 @@ function squad_count_defending_all(smart)
             if warfare_factions.factions_p[faction]                         -- squad is from warfare faction
             and warfare.registered_squads[faction][sid]                     -- squad is registered in warfare
             and (squad.current_action == 1)                                 -- squad arrived to smart
-            and not (axr_companions.companion_squads[squad.id]) and not (warfare.ignore[squad:section_name()]) then
+            and not (axr_companions.companion_squads[squad.id]) then
                 local power = sim_offline_combat.calculate_squad_power(squad)
 
                 if (power and power > 0 and squad:npc_count() > 0 and squad.current_target_id and squad.current_target_id == smart.id) then
@@ -4973,7 +4973,6 @@ function squad_is_commandable(squad, random_patrol_override)
     if squad
     and squad.registered_with_warfare
     and (squad:clsid() == clsid.online_offline_group_s)
-    and (not warfare.ignore[squad:section_name()])
     and (not sim_offline_combat.stationary_squads[squad:section_name()])
     and (not squad.patrol_table)
     and (not axr_companions.companion_squads[squad.id]) then
@@ -5155,7 +5154,7 @@ function check_owner(smart)
             for squad_id, target_id in pairs(squads) do
                 local squad = squad_id and alife_object(squad_id)
 
-                if (squad and squad:clsid() == clsid.online_offline_group_s) and (not warfare.ignore[squad:section_name()]) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
+                if (squad and squad:clsid() == clsid.online_offline_group_s) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
                     if (squad:get_squad_community() ~= smart.owning_faction) then
                         -- Convert orphaned patrol to random patrol
                         local faction = squad:get_squad_community()
@@ -5884,7 +5883,7 @@ function check_unique_npcs(smart)
         end
 
         while traderCount < maxTraders do
-            local squad = utils_obj.create_squad(uniqueSquad:trader_squad(), sm_name)
+            local squad = warfare.spawn_squad(uniqueSquad:trader_squad(), sm_name, "service")
             warfare_log.info("check_unique_npcs: spawn trader smart=%s faction=%s", sm_name, faction)
 
             sim_squad_warfare.set_target_trader(squad, smart.id, sm_name)
@@ -5893,7 +5892,7 @@ function check_unique_npcs(smart)
         end
 
         while mechanicCount < maxMechanics do
-            local squad = utils_obj.create_squad(uniqueSquad:mechanic_squad(), sm_name)
+            local squad = warfare.spawn_squad(uniqueSquad:mechanic_squad(), sm_name, "service")
             warfare_log.info("check_unique_npcs: spawn mechanic smart=%s faction=%s", sm_name, faction)
 
             sim_squad_warfare.set_target_trader(squad, smart.id, sm_name)
@@ -5902,7 +5901,7 @@ function check_unique_npcs(smart)
         end
 
         while medicCount < maxMedics do
-            local squad = utils_obj.create_squad(uniqueSquad:medic_squad(), sm_name)
+            local squad = warfare.spawn_squad(uniqueSquad:medic_squad(), sm_name, "service")
             warfare_log.info("check_unique_npcs: spawn medic smart=%s faction=%s", sm_name, faction)
 
             sim_squad_warfare.set_target_trader(squad, smart.id, sm_name)
@@ -5911,7 +5910,7 @@ function check_unique_npcs(smart)
         end
 
         while barmanCount < maxBarmen do
-            local squad = utils_obj.create_squad(uniqueSquad:barman_squad(), sm_name)
+            local squad = warfare.spawn_squad(uniqueSquad:barman_squad(), sm_name, "service")
             warfare_log.info("check_unique_npcs: spawn barman smart=%s faction=%s", sm_name, faction)
 
             sim_squad_warfare.set_target_trader(squad, smart.id, sm_name)

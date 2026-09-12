@@ -114,6 +114,95 @@ dynamic_relations_installed = false
 -- Special squads to ignore in offline combat and to ignore when assigning targets
 ignore = {}
 
+-- Squad ownership ------------------------------------------------------------
+--
+-- A squad is warfare's when warfare spawned it, or when it is a generic sim squad
+-- (common = true) spawned by someone else. Story sections (story_id) are never
+-- warfare's. [ignore_list] is an explicit opt-out, [stationary_squads] an explicit
+-- opt-in; both override the automatic rule.
+
+-- Set only while spawn_squad is on the stack: squad_on_npc_creation fires
+-- synchronously inside SIMBOARD:create_squad. true for a faction squad,
+-- "service" for a trader/mechanic/medic/barman (spawned by warfare, never registered).
+spawning_own = false
+
+local section_traits = {}
+
+local function traits_of(section)
+    local t = section_traits[section]
+    if not t then
+        t = {
+            story  = ini_sys:r_string_ex(section, "story_id") ~= nil,
+            common = ini_sys:r_bool_ex(section, "common", false),
+        }
+        section_traits[section] = t
+    end
+    return t
+end
+
+-- Returns owned, reason.
+function owns_section(section, warfare_origin)
+    if not section then
+        return false, "nil"
+    end
+    if sim_offline_combat.get_ignore_list()[section] then
+        return false, "ignore"
+    end
+    if sim_offline_combat.stationary_squads[section] then
+        return true, "stationary"
+    end
+    local t = traits_of(section)
+    if t.story then
+        return false, "story_id"
+    end
+    if warfare_origin == "service" then
+        return false, "service"
+    end
+    if warfare_origin then
+        return true, "origin"
+    end
+    if t.common then
+        return true, "common"
+    end
+    return false, "external"
+end
+
+-- Story squads of simulation.ltx are created regardless of random starting
+-- locations; stationary guards follow the fixed-start rule (see spawn seeding).
+function is_story_section(section)
+    if sim_offline_combat.get_ignore_list()[section] then
+        return true
+    end
+    if sim_offline_combat.stationary_squads[section] then
+        return false
+    end
+    return traits_of(section).story
+end
+
+-- Table-based: registered_with_warfare is only set on the first squad update
+-- after a load, registered_squads is filled by load_state.
+function is_owned(squad)
+    if not squad then
+        return false
+    end
+    local tbl = registered_squads[squad:get_squad_community()]
+    return tbl ~= nil and tbl[squad.id] ~= nil
+end
+
+-- The only way warfare creates squads. smart is a smart object or its name;
+-- kind is nil for a faction squad or "service" (see spawning_own).
+function spawn_squad(section, smart, kind)
+    local squad
+    spawning_own = kind or true
+    if type(smart) == "string" then
+        squad = utils_obj.create_squad(section, smart)
+    else
+        squad = SIMBOARD:create_squad(smart, section)
+    end
+    spawning_own = false
+    return squad
+end
+
 function apply_all_out_war()
     warfare_log.info("apply_all_out_war: setting all faction relations to -4000 (actor_faction=%s)", actor_faction)
     for i, faction in pairs(warfare_factions.factions) do
@@ -193,7 +282,7 @@ function actor_on_first_update()
     for faction, tbl in pairs(registered_squads) do
         for id in pairs(tbl) do
             local obj = alife_object(id)
-            local reason, delete
+            local reason, delete, release
             if not obj then
                 reason = "no_alife"
             elseif type(obj.clsid) ~= "function" or obj:clsid() ~= clsid.online_offline_group_s then
@@ -201,6 +290,11 @@ function actor_on_first_update()
             elseif type(obj.get_squad_community) ~= "function" or obj:get_squad_community() ~= faction then
                 local actual = (type(obj.get_squad_community) == "function") and tostring(obj:get_squad_community()) or "<no method>"
                 reason = "faction_mismatch:" .. actual
+            elseif not (owns_section(obj:section_name(), true)) then
+                -- Registered under the old ignore-list rule (or a section that became
+                -- story/ignored since). Released to vanilla control, never deleted.
+                reason = "not_owned"
+                release = true
             elseif not (warfare_levels.is_squad_supported(obj)) then
                 -- Warfare has no static data for this squad's level (warfare_levels.is_level_supported),
                 -- so the level is spawn-frozen and warfare will never target it again. Unlike the
@@ -208,19 +302,19 @@ function actor_on_first_update()
                 -- left registered there is updated by nobody, since registered_with_warfare also
                 -- suppresses the vanilla generic_update. Those get released below.
                 --
-                -- Story/unique squads (ignore) and companions belong to the level add-on's own
-                -- scripts, so they are only handed back.
+                -- Companions belong to the level add-on's own scripts, so they are only handed back.
                 reason = "excluded_level"
-                delete = not (ignore[obj:section_name()] or axr_companions.companion_squads[id])
+                delete = not axr_companions.companion_squads[id]
             end
             if reason then
-                warfare_log.debug("actor_on_first_update: ghost faction=%s id=%s reason=%s delete=%s",
-                    faction, id, reason, tostring(delete))
-                removed[#removed + 1] = { faction = faction, id = id, reason = reason, delete = delete }
+                warfare_log.debug("actor_on_first_update: ghost faction=%s id=%s reason=%s delete=%s release=%s",
+                    faction, id, reason, tostring(delete), tostring(release))
+                removed[#removed + 1] = { faction = faction, id = id, reason = reason, delete = delete, release = release }
             end
         end
     end
     warfare_log.info("actor_on_first_update: %s ghosts found, purging", #removed)
+    local released = 0
     for _, e in ipairs(removed) do
         remove_registered_squad(e.faction, e.id)
 
@@ -231,7 +325,16 @@ function actor_on_first_update()
                 sim_squad_warfare.remove_squad(squad)
                 squad:remove_squad()
             end
+        elseif (e.release) then
+            local squad = alife_object(e.id)
+            if (squad) then
+                sim_squad_warfare.remove_squad(squad)
+                released = released + 1
+            end
         end
+    end
+    if released > 0 then
+        warfare_log.info("actor_on_first_update: released %s story squads to vanilla control", released)
     end
 
     warfare_log.info("actor_on_first_update: initializing warfare level data")
@@ -549,28 +652,34 @@ end
 function squad_on_npc_creation(squad, se_obj, spawn_smart)
     warfare_log.trace("squad_on_npc_creation: squad=%s smart=%s", squad and squad:name(), spawn_smart and spawn_smart:name())
 
-    -- Ignore any squads in the ignore list.
-    if not (ignore[squad:section_name()]) then
-        if (not squad.registered_with_warfare) then
-
-            -- get the squads faction
-            local faction = squad:get_squad_community()
-
-            if (registered_squads[faction]) then
-                warfare_log.debug("squad_on_npc_creation: registering squad=%s faction=%s smart=%s", squad:name(), faction, spawn_smart:name())
-                registered_squads[faction][squad.id] = spawn_smart.id
-                squad.assigned_target_id = spawn_smart.id
-                squad.registered_with_warfare = true
-                spawn_smart:on_reach_target(squad)
-            else
-                warfare_log.trace("squad_on_npc_creation: faction %s not in registered_squads table", faction)
-            end
-        else
-        end
-    else
-        warfare_log.trace("squad_on_npc_creation: ignored section=%s", squad:section_name())
+    if squad.registered_with_warfare then
+        return
     end
 
+    local section = squad:section_name()
+    local owned, reason = owns_section(section, spawning_own)
+    if not owned then
+        warfare_log.debug("squad_on_npc_creation: squad=%s section=%s owned=false reason=%s", squad:name(), section, reason)
+        return
+    end
+
+    local faction = squad:get_squad_community()
+    if not (registered_squads[faction]) then
+        warfare_log.trace("squad_on_npc_creation: faction %s not in registered_squads table", faction)
+        return
+    end
+
+    if not spawn_smart then
+        warfare_log.warn("squad_on_npc_creation: squad=%s section=%s created without a smart, not registered", squad:name(), section)
+        return
+    end
+
+    warfare_log.debug("squad_on_npc_creation: squad=%s section=%s owned=true reason=%s faction=%s smart=%s",
+        squad:name(), section, reason, faction, spawn_smart:name())
+    registered_squads[faction][squad.id] = spawn_smart.id
+    squad.assigned_target_id = spawn_smart.id
+    squad.registered_with_warfare = true
+    spawn_smart:on_reach_target(squad)
 end
 
 -- last update time
@@ -854,7 +963,7 @@ function fill_start_position()
             -- for new game, spawn 50% the allowable mutants, or one mutant squad per smart (whichever occurs first)
             if (seeded < level_max) and (math.random(100) < 50 * monster_pop_factor) then
                 local section = faction_expansions.get_spawn_section("monster", rare_chance, smart.level_id)
-                local squad = utils_obj.create_squad(section, smart:name())
+                local squad = spawn_squad(section, smart:name())
                 warfare_log.info("fill_start_position: spawned monster section=%s at smart=%s", section, smart:name())
                 sim_squad_warfare.set_target(squad, smart.id)
                 seeded_by_level[smart.level_id] = seeded + 1
@@ -883,7 +992,7 @@ function fill_start_position()
             if (smart) then
                 result, squad_section, count = setting_ini:r_line(section, li, "", "")
                 count = tonumber(count) or 1
-                if (ignore[squad_section] or not warfare_options.options.random_starting_locations) then
+                if (is_story_section(squad_section) or not warfare_options.options.random_starting_locations) then
                     local common = ini_sys:r_bool_ex(squad_section, "common")
                     local faction = ini_sys:r_string_ex(squad_section, "faction")
                     if common then
@@ -931,15 +1040,15 @@ function fill_start_position()
                         for i = 1, count do
                             local squad_spawned = false
                             if smart and (common or string.find(squad_section, "sim_squad_")) and (not is_squad_monster[faction]) and (smart_current_pop < round_idp(math.max(1, smart.max_population * stalker_pop_factor))) then
-                                squad = SIMBOARD:create_squad(smart, squad_section)                -- common squads can't go over user-set cap
+                                squad = spawn_squad(squad_section, smart)                -- common squads can't go over user-set cap
                                 squad_spawned = true
                                 smart_current_pop = smart_current_pop + 1
-                            elseif ignore[squad_section] or (not string.find(squad_section, "sim_squad_")) then
-                                squad = SIMBOARD:create_squad(smart, squad_section)                -- always make story squads
+                            elseif is_story_section(squad_section) or (not string.find(squad_section, "sim_squad_")) then
+                                squad = spawn_squad(squad_section, smart)                -- always make story squads
                                 squad_spawned = true
                             end
 
-                            if smart and squad_spawned and registered_squads[squad:get_squad_community()] and not ignore[squad:section_name()] then
+                            if smart and squad_spawned and registered_squads[squad:get_squad_community()] and owns_section(squad_section, true) then
                                 sim_squad_warfare.set_target(squad, smart.id)
                                 warfare_log.info("fill_start_position: spawned squad section=%s faction=%s smart=%s", squad_section, sf, smart:name())
 
@@ -1044,7 +1153,7 @@ function fill_start_position_on_load()
     for id, v in pairs(SIMBOARD.squads) do
         local squad = alife_object(id)
         local section = squad and squad:section_name()
-        if section and registered_squads[squad.player_id] and (not ignore[section]) then
+        if section and registered_squads[squad.player_id] and owns_section(section, true) then
             local smart_id = get_nearest_smart_id(squad)
             if smart_id then
                 sim_squad_warfare.set_target(squad, smart_id)
@@ -1163,7 +1272,7 @@ function initialize_random_starting_locations()
     local resources = math.random(max_resources) --warfare_factions.faction_information[actor_faction].resource_count
     local section = faction_expansions.get_spawn_section(actor_faction, resources, max_resources)
 
-    local squad = utils_obj.create_squad(section, base:name())
+    local squad = spawn_squad(section, base:name())
     sim_squad_warfare.set_target(squad, base.id)
 
     for _, f in pairs(warfare_factions.factions) do
@@ -1196,7 +1305,7 @@ function initialize_random_starting_locations()
                         s.global_position = gpos
 
                         local section = faction_expansions.get_spawn_section(f, math.random(max_resources), max_resources)
-                        local squad = utils_obj.create_squad(section, s:name())
+                        local squad = spawn_squad(section, s:name())
                         sim_squad_warfare.set_target(squad, s.id)
 
                         break
@@ -1234,7 +1343,7 @@ function initialize_random_starting_locations()
 
                         if (math.random(100) <= warfare_options.options.random_stalker_chance) then
                             local section = faction_expansions.get_spawn_section(f, math.random(max_resources), max_resources)
-                            local squad = utils_obj.create_squad(section, smart:name())
+                            local squad = spawn_squad(section, smart:name())
                             sim_squad_warfare.set_target(squad, smart.id)
                         end
                     end
@@ -1266,14 +1375,14 @@ function initialize_random_starting_locations()
 
                     if (math.random(100) <= warfare_options.options.random_stalker_chance) then
                         local section = faction_expansions.get_spawn_section(f, math.random(max_resources), max_resources)
-                        local squad = utils_obj.create_squad(section, smart:name())
+                        local squad = spawn_squad(section, smart:name())
                         sim_squad_warfare.set_target(squad, smart.id)
                     end
                 end
             elseif (smart.props.lair > 0) then
                 if (math.random(100) <= warfare_options.options.random_monster_chance) then
                     local section = faction_expansions.get_spawn_section("monster", math.random(max_resources), max_resources)
-                    local squad = utils_obj.create_squad(section, smart:name())
+                    local squad = spawn_squad(section, smart:name())
                     sim_squad_warfare.set_target(squad, smart.id)
                 end
             end
@@ -1500,7 +1609,7 @@ function snap()
                 -- Spawn zombied replacement as random patrol
                 if smart_name and original_count > 0 then
                     local section = get_zombied_section(original_section)
-                    local new_squad = utils_obj.create_squad(section, smart_name)
+                    local new_squad = spawn_squad(section, smart_name)
                     if new_squad then
                         warfare_log.trace("snap: zombified squad section=%s->%s smart=%s count=%s", original_section, section, smart_name, original_count)
                         -- Trim zombie squad down to original member count

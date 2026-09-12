@@ -283,7 +283,7 @@ function update_faction(faction)
                     if spawn_random_patrol then
                         local current_level = start.level_id
                         local section = faction_expansions.get_spawn_section(faction, fi.resource_count, current_level)
-                        local squad = utils_obj.create_squad(section, start:name())
+                        local squad = warfare.spawn_squad(section, start:name())
 
                         smart_terrain_warfare.set_random_patrol(squad.id, faction)
                         sim_squad_warfare.set_target(squad, target_id)
@@ -370,7 +370,7 @@ function update_faction(faction)
                                     for j = 0, target_pop do
                                         local current_level = nearest_smart.level_id
                                     local section = faction_expansions.get_spawn_section(faction, fi.resource_count, current_level)
-                                        local squad = utils_obj.create_squad(section, nearest_smart:name())
+                                        local squad = warfare.spawn_squad(section, nearest_smart:name())
                                         sim_squad_warfare.set_target(squad, target.id)
                                     end
                                 end
@@ -550,7 +550,7 @@ function emergency_resurrection_spawn(faction)
 
     for j=1,emergency_squad_count do
         local section = faction_expansions.get_spawn_section(faction, faction_information[faction].resource_count)
-        local squad = utils_obj.create_squad(section, best_spawn:name())
+        local squad = warfare.spawn_squad(section, best_spawn:name())
         if squad then
             sim_squad_warfare.set_target(squad, best_target.id)
             warfare_log.info("emergency_resurrection_spawn: %s spawned squad section=%s id=%s", tostring(faction), tostring(section), tostring(squad.id))

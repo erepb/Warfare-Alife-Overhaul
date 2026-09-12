@@ -675,7 +675,8 @@ function sim_squad_scripted.create_npc(self, spawn_smart, pos, lvid, gvid)
         count[1] = count[1] and tonumber(count[1])
         count[2] = count[2] and tonumber(count[2]) or count[1]
 
-        if _G.WARFARE then
+        -- Warfare's own spawns only: story squads keep their scripted npc_in_squad.
+        if _G.WARFARE and warfare.spawning_own then
             local faction = ini_sys:r_string_ex(settings_id, "faction")
             if (warfare_options.options.factions[faction]) then
                 if (warfare_options.options.factions[faction].random_squad_count) then

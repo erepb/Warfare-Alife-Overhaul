@@ -331,7 +331,7 @@ local function buy_squad(obj, tier, price)
     local f = obj.owning_faction or "none"
     local section = faction_expansions.get_faction_squad(f, tier)
     warfare_log.info("faction_control: buy %s squad faction=%s section=%s smart=%s", tier, tostring(f), tostring(section), tostring(obj:name()))
-    local squad = utils_obj.create_squad(section, obj:name())
+    local squad = warfare.spawn_squad(section, obj:name())
     if squad then
         db.actor:give_money(-1 * price)
         issue_order(squad, obj.id)

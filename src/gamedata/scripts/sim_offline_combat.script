@@ -506,13 +506,13 @@ local function coordinator()
     end
 
     -- Include non-important squads
-    -- Warfare uses ignore_list instead of storyID check (which would include lots of hostile mutants)
+    -- Warfare: only squads it owns (see warfare.owns_section)
     for id, _ in pairs(SIMBOARD.squads) do
         local squad = sim:object(id)
         local section = squad and squad:section_name()
         local sid = get_object_story_id(id)
         if squad and section
-                and ((_G.WARFARE and not ignore_list[section])
+                and ((_G.WARFARE and warfare.is_owned(squad))
                 or ((not _G.WARFARE) and (not sid) and ini_sys:r_bool_ex(section, "common")))
         --        and (not task_squads[id])
         then
