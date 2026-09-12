@@ -382,19 +382,17 @@ function sim_squad_scripted.sim_squad_scripted.show(self)
         end
 
         if (warfare_options.options.fog_of_war) then
-            local fog_of_war_distance = warfare_options.options.fog_of_war_distance
-            fog_of_war_distance = tonumber(fog_of_war_distance)
+            local range_sqr = smart_terrain_warfare.fog_radius_sqr(false)
 
             local levelID = self.m_game_vertex_id and game_graph():vertex(self.m_game_vertex_id):level_id()
             local visible = false
-            local loner_fog = warfare_behavior.no_radio_net(warfare.actor_faction)
 
             if (levelID == get_player_level_id()) then
                 local dist = warfare.distance_to_xz_sqr(self.position, alife():actor().position)
                 local pda = db.actor:item_in_slot(8)
 
                 -- pda v2 gives sight of other loners, pda v3 gives sight of all non-hostiles
-                if (dist < fog_of_war_distance * fog_of_war_distance) then
+                if (dist < range_sqr) then
                     visible = true
                 elseif db.actor and pda and (pda:section() == "device_pda_2") and (faction == warfare.actor_faction) then
                     visible = true
@@ -409,9 +407,9 @@ function sim_squad_scripted.sim_squad_scripted.show(self)
                         local squad = squadID and alife_object(squadID)
 
                         if (squad and squad:clsid() == clsid.online_offline_group_s) then
-                            -- a faction without a radio net gets no sight through its own squads
-                            if (squad:get_squad_community() == warfare.actor_faction) and not loner_fog then
-                                if (warfare.distance_to_xz_sqr(squad.position, self.position) < fog_of_war_distance * fog_of_war_distance) then
+                            -- squad-to-squad sight is own-faction only; allies reveal outposts, not squads
+                            if (squad:get_squad_community() == warfare.actor_faction) then
+                                if (warfare.distance_to_xz_sqr(squad.position, self.position) < range_sqr) then
                                     visible = true
                                     break
                                 end
@@ -419,6 +417,11 @@ function sim_squad_scripted.sim_squad_scripted.show(self)
                         end
                     end
                 end
+            end
+
+            -- own outposts watch their surroundings; like squads, they do not pass squad sightings to allies
+            if not (visible) and levelID then
+                visible = smart_terrain_warfare.seen_by_outpost(levelID, self.position, false)
             end
 
             if (game_relations.is_factions_enemies(self:get_squad_community(), warfare.actor_faction) and warfare_options.options.hide_unfriendly_squads) then

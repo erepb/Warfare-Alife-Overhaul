@@ -3895,6 +3895,38 @@ function spot_is_live(smart)
     return key ~= nil and key ~= "none" and key:sub(1, 6) ~= "stale_"
 end
 
+-- Fog radius, squared. The slider is squad-to-squad sight; a sighting with an outpost on either
+-- end (as observer or as target) reaches twice as far.
+function fog_radius_sqr(involves_smart)
+    local d = tonumber(warfare_options.options.fog_of_war_distance) or 0
+    if involves_smart then
+        d = d * 2
+    end
+    return d * d
+end
+
+-- True when an owned outpost on level lvl has position within outpost fog range. Own outposts
+-- always count; allied ones only with include_allies and a shared intel link.
+function seen_by_outpost(lvl, position, include_allies)
+    local info = warfare_levels.level_information[lvl]
+    local smarts = info and info.smarts
+    if not smarts then
+        return false
+    end
+    local actor_faction = warfare.actor_faction
+    local r = fog_radius_sqr(true)
+    for _, id in pairs(smarts) do
+        local smart = alife_object(id)
+        local owner = smart and smart.owning_faction
+        if owner and owner ~= "none"
+        and (owner == actor_faction or (include_allies and warfare_behavior.shares_intel(actor_faction, owner)))
+        and warfare.distance_to_xz_sqr(smart.position, position) < r then
+            return true
+        end
+    end
+    return false
+end
+
 -- displays warfare's icon for the smart terrain
 -- controls smart terrain icons only, not squad dots
 --function smart_terrain.se_smart_terrain.show(self)
@@ -3921,7 +3953,6 @@ function smart_terrain.se_smart_terrain:show()
 
     local friends = is_factions_friends(warfare.actor_faction, faction)
     local enemies = is_factions_enemies(warfare.actor_faction, faction)
-    local loner_fog = warfare_behavior.no_radio_net(warfare.actor_faction)
 
     local actor_level
 
@@ -3932,13 +3963,12 @@ function smart_terrain.se_smart_terrain:show()
             local visible = false
 
             if (sim_offline_combat.squads_by_level[lvl] ~= nil) then
-                local fog_of_war_distance = warfare_options.options.fog_of_war_distance
-                fog_of_war_distance = tonumber(fog_of_war_distance)
+                local range_sqr = fog_radius_sqr(true)
                 -- check smart distance to active squads on level
                 if (self.is_on_actor_level) then
                     local dist = warfare.distance_to_xz_sqr(self.position, alife():actor().position)
 
-                    if (dist < fog_of_war_distance*fog_of_war_distance) then
+                    if (dist < range_sqr) then
                         visible = true
                     end
                 end
@@ -3949,16 +3979,20 @@ function smart_terrain.se_smart_terrain:show()
                         local squad = squadID and alife_object(squadID)
 
                         if (squad and squad:clsid() == clsid.online_offline_group_s) then
-                            -- actor can always see anything within the fog of war distance of their faction and any allied factions
-                            -- unless the faction has no radio net, in which case its own squads reveal nothing
-                            if ( (squad:get_squad_community() == warfare.actor_faction and not loner_fog) or is_factions_friends(squad:get_squad_community(), warfare.actor_faction) ) then
-                                if (warfare.distance_to_xz_sqr(squad.position, self.position) < fog_of_war_distance*fog_of_war_distance) then
+                            -- a squad reveals what lies within fog range of it when its faction shares intel with the actor's
+                            if warfare_behavior.shares_intel(warfare.actor_faction, squad:get_squad_community()) then
+                                if (warfare.distance_to_xz_sqr(squad.position, self.position) < range_sqr) then
                                     visible = true
                                     break
                                 end
                             end
                         end
                     end
+                end
+
+                -- determine visibility granted by own and allied outposts
+                if not (visible) then
+                    visible = seen_by_outpost(lvl, self.position, true)
                 end
 
                 if not (self.target_spots) then
@@ -3969,15 +4003,12 @@ function smart_terrain.se_smart_terrain:show()
                     self.target_smarts = {}    -- initialize
                 end
 
-                -- loner fog: if this attacking base is not visible, suppress all its target spots
-                local base_invisible = loner_fog and not visible
-
                 for t,spot in pairs(self.target_spots) do
                     local other = alife_object(t)
 
                     if (other) then
-                        -- clear target spots recaptured by the player faction, or if this base turned invisible
-                        if base_invisible or (actor_faction and other.owning_faction == warfare.actor_faction) then
+                        -- clear target spots recaptured by the player faction
+                        if (actor_faction and other.owning_faction == warfare.actor_faction) then
                             set_target_circle(t, spot, nil)
                             self.target_spots[t] = nil
                             other.actor_target = nil
@@ -4000,7 +4031,7 @@ function smart_terrain.se_smart_terrain:show()
 
                 -- smart belongs to player's faction — show target spots only for invasion targets
                 -- cyan=gathering squads, orange=squads ready, red=under attack
-                if (actor_faction) and not base_invisible then
+                if (actor_faction) then
                     local inv = invasions[self.id]
                     local inv_target = inv and inv[1]
                     if inv_target then
@@ -4036,12 +4067,12 @@ function smart_terrain.se_smart_terrain:show()
                     end
                 end
 
-                -- actor can always see members of their own faction no matter the distance, as well as allied factions
-                if ( (faction == warfare.actor_faction and not loner_fog) or is_factions_friends(faction, warfare.actor_faction) ) then
+                -- an outpost reports itself at any distance when its faction shares intel with the actor's
+                if warfare_behavior.shares_intel(warfare.actor_faction, faction) then
                     visible = true
                 end
 
-                -- fog-of-war memory: whatever is in sight now (by range, radio net or allies) is
+                -- fog-of-war memory: whatever is in sight now (by range or shared intel) is
                 -- what the map will remember once it drops out of sight; only real owners are
                 -- remembered, an unowned smart clears the record
                 if (visible) then
@@ -4990,9 +5021,9 @@ end
 local function announce_owner_change(smart, was)
     if smart.owning_faction ~= was then
         sim_offline_combat.on_smart_owner_changed(was, smart.owning_faction)
-        -- a radio-net faction learns of its own loss from the garrison; the memory record is refreshed
-        -- without line of sight so the map does not keep claiming the smart
-        if was == warfare.actor_faction and not warfare_behavior.no_radio_net(warfare.actor_faction) then
+        -- the garrison reports its own loss; the memory record is refreshed without line of sight
+        -- so the map does not keep claiming the smart
+        if was == warfare.actor_faction then
             local owner = smart.owning_faction
             last_seen[smart.id] = (owner and owner ~= "none") and { owner = owner, at = warfare.get_time() } or nil
         end

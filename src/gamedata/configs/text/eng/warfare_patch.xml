@@ -541,7 +541,7 @@
 		<text>Behavior preset</text>
 	</string>
 	<string id="ui_mm_alife_warfare_faction_behavior_preset_desc">
-		<text>Lore: this faction's own traits, as shipped.\nGeneric: every trait at its neutral value - unified dispatch, closed holdings, holds its ground, full command and radio net, no barrier exemptions, lab appeal 1, patrols anywhere.\nPicking one sets all thirteen traits below. The label reads Custom while any trait differs from the chosen preset and returns on its own once they match again.</text>
+		<text>Lore: this faction's own traits, as shipped.\nGeneric: every trait at its neutral value - unified dispatch, closed holdings, holds its ground, full command and intel exchange, no barrier exemptions, lab appeal 1, patrols anywhere.\nPicking one sets all thirteen traits below. The label reads Custom while any trait differs from the chosen preset and returns on its own once they match again.</text>
 	</string>
 	<string id="ui_mm_alife_warfare_faction_dispatch_model">
 		<text>Dispatch model</text>
@@ -573,11 +573,11 @@
 	<string id="ui_mm_alife_warfare_faction_no_central_command_desc">
 		<text>No leadership to answer to.\nWhen you belong to this faction, killing enemy fighters pays no money and earns only half the usual goodwill.</text>
 	</string>
-	<string id="ui_mm_alife_warfare_faction_no_radio_net">
-		<text>No radio net</text>
+	<string id="ui_mm_alife_warfare_faction_no_intel_exchange">
+		<text>No intel exchange</text>
 	</string>
-	<string id="ui_mm_alife_warfare_faction_no_radio_net_desc">
-		<text>No shared intelligence.\nWhen you belong to this faction and fog of war is on, your faction's squads and outposts do not reveal the map for you: you see only what lies within fog range of yourself or of an allied faction's squads, your own faction's outposts are not shown at any distance, and the attack plans of an outpost you cannot see stay hidden. PDA v2 or v3 gives sight of squads back.</text>
+	<string id="ui_mm_alife_warfare_faction_no_intel_exchange_desc">
+		<text>No intel exchange with other factions.\nWith fog of war on, this faction neither receives what allied squads and outposts see nor shares what its own see. Its own squads and outposts still report to a player of this faction; allied outposts and anything allied squads spot stay fogged until you or your faction's squads look for yourselves. As an ally of this faction you get nothing from it either. Enemies and neutrals never share; PDA v2 or v3 sight of squads is unaffected.</text>
 	</string>
 	<string id="ui_mm_alife_warfare_faction_peacetime_appetite">
 		<text>Peacetime appetite</text>

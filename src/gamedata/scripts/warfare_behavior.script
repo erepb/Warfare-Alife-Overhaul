@@ -7,7 +7,7 @@ TRAITS = {
     displaceable_at_peace           = { kind = "flag",   neutral = false },
     holds_ground                    = { kind = "flag",   neutral = true },
     no_central_command              = { kind = "flag",   neutral = false },
-    no_radio_net                    = { kind = "flag",   neutral = false },
+    no_intel_exchange               = { kind = "flag",   neutral = false },
     peacetime_appetite              = { kind = "choice", neutral = "reluctant", values = { "never", "reluctant", "willing", "indifferent" } },
 
     scorcher_travel                 = { kind = "choice", neutral = "zone_and_divide", values = { "zone_and_divide", "divide_open", "exempt" } },
@@ -23,7 +23,7 @@ TRAIT_ORDER = {
     "displaceable_at_peace",
     "holds_ground",
     "no_central_command",
-    "no_radio_net",
+    "no_intel_exchange",
     "peacetime_appetite",
     "scorcher_travel",
     "ignores_miracle_machine",
@@ -48,7 +48,7 @@ LORE = {
         displaceable_at_peace = true,
         holds_ground          = false,
         no_central_command    = true,
-        no_radio_net          = true,
+        no_intel_exchange     = true,
     },
     ecolog = {
         dispatch_model        = "ecolog",
@@ -60,12 +60,12 @@ LORE = {
     bandit = {
         peacetime_appetite = "indifferent",
         no_central_command = true,
-        no_radio_net       = true,
+        no_intel_exchange  = true,
     },
     renegade = {
         peacetime_appetite = "indifferent",
         no_central_command = true,
-        no_radio_net       = true,
+        no_intel_exchange  = true,
     },
     army = {
         peacetime_appetite = "indifferent",
@@ -79,7 +79,7 @@ LORE = {
         scorcher_travel         = "divide_open",
         ignores_miracle_machine = true,
         peacetime_appetite      = "willing",
-        no_radio_net            = true,
+        no_intel_exchange       = true,
     },
     greh = {
         scorcher_travel         = "exempt",
@@ -178,10 +178,19 @@ function no_central_command(faction)
     return get(faction).no_central_command
 end
 
---- No shared sight: a player of this faction is not shown the map through their own faction's
---- squads and outposts. Only meaningful with fog of war on.
-function no_radio_net(faction)
-    return get(faction).no_radio_net
+--- No inter-faction intel exchange: this faction neither receives what allied squads and outposts
+--- see nor shares its own. Intel inside the faction still flows. Only meaningful with fog of war on.
+function no_intel_exchange(faction)
+    return get(faction).no_intel_exchange
+end
+
+--- True when what faction b's squads and outposts see reaches a player of faction a: same faction,
+--- or friends with neither side opting out of the exchange.
+function shares_intel(a, b)
+    if a == b then
+        return true
+    end
+    return game_relations.is_factions_friends(a, b) and not no_intel_exchange(a) and not no_intel_exchange(b)
 end
 
 --- How readily this faction goes after the holdings of someone it is not at war with, resolved

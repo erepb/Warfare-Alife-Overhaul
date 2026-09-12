@@ -37,7 +37,7 @@ function ui_options.init_opt_coder()
             { id = "displaceable_at_peace", type = "check", val = 1, def = false },
             { id = "holds_ground", type = "check", val = 1, def = true },
             { id = "no_central_command", type = "check", val = 1, def = false },
-            { id = "no_radio_net", type = "check", val = 1, def = false },
+            { id = "no_intel_exchange", type = "check", val = 1, def = false },
             { id = "peacetime_appetite", type = "list", val = 0, def = "reluctant", content = {
                 { "never", "wf_appetite_never" }, { "reluctant", "wf_appetite_reluctant" },
                 { "willing", "wf_appetite_willing" }, { "indifferent", "wf_appetite_indifferent" } } },
