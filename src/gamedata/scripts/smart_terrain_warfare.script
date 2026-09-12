@@ -4577,9 +4577,13 @@ end
 -- ownership. visible: passed to get_warfare_info (false = fog mode, hides owner)
 function place_target_circle(self, other, key, visible)
     other.actor_target = true
-    -- the base stops managing its own icon/overlay while it is a target; set_target_circle
-    -- re-adds the icon spot (guarded) so it stays visible under the outline
-    other.warfare_spot = nil
+    -- The base stops managing its own icon/overlay while it is a target. Its current spot has
+    -- to be removed here, not just forgotten: under fog it is an unknown/stale section, not
+    -- the marker's live faction icon, so nothing would ever remove it again.
+    if (other.warfare_spot) then
+        level.map_remove_object_spot(other.id, pda_icons[other.warfare_spot])
+        other.warfare_spot = nil
+    end
     reconcile_self_overlay(other, nil)
     set_target_circle(other.id, nil, key, get_warfare_info(other, visible))
     self.target_spots[other.id] = key
