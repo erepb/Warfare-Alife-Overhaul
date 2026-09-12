@@ -189,11 +189,11 @@
 	<string id="ui_mm_alife_warfare_faction_max_invasion_size_desc">
 		<text>The maximum invasion size factor. A random number between the minimum and maximum invasion size factors is multiplied by the calculated invasion size to give the number of squads that a base will invade with. The size of the invasion force is calculated using the max capacity of the target location, reinforcement potential of any enemy locations near the target, the relative difference in squad power between the factions, and these min/max factors. The invasion size cannot be more than twice the maximum capacity of the origin base (ex: if a base with max capacity of 2 plans to invade a target with max capacity of 5, the invasion can be no larger than 4 squads). If this limitation prevents a small base from planning an adequate invasion, that base will instead contribute squads to a larger nearby base's invasion force. This value is also used for defense to determine the desired power factor versus incoming enemy forces: a value of 1.5 means that the defending base will try to call reinforcements to get a power advantage 1.5x that of the enemy invasion.</text>
 	</string>
-	<string id="ui_mm_alife_warfare_faction_min_patrol_squads_desc">
-		<text>The minimum patrol squad population factor. When a faction owns no bases, each base would (theoretically since they don't own any) have min_patrol_squads * max_population amount of patrol squads.</text>
+	<string id="ui_mm_alife_warfare_faction_patrol_squads">
+		<text>Patrol squads per base</text>
 	</string>
-	<string id="ui_mm_alife_warfare_faction_max_patrol_squads_desc">
-		<text>The maximum patrol squad population factor. When a faction owns every base, each base will have max_patrol_squads * max_population amount of patrol squads.</text>
+	<string id="ui_mm_alife_warfare_faction_patrol_squads_desc">
+		<text>How many patrol squads each base of this faction keeps out at once. 0 disables base patrols.</text>
 	</string>
 	<string id="ui_mm_alife_warfare_faction_min_patrol_time_desc">
 		<text>This is how many in-game minutes it takes for a faction to spawn a patrol squad from a base point if they own only one base. As your faction gains more bases, each individual base will have a slightly longer patrol spawn time approaching that of the maximum patrol respawn time. The actual patrol respawn time of a given base is linearly interpolated based on the min/max patrol respawn values and the percentage of bases in the Zone you control.</text>

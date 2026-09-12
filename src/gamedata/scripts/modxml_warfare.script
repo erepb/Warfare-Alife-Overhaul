@@ -109,9 +109,8 @@ function ui_options.init_opt_coder()
             { id = "lvl_jupiter_underground_priority", type = "track", val = 2, def = 0, min = -100, max = 100, step = 1 },
             { id = "lvl_pripyat_priority", type = "track", val = 2, def = 0, min = -100, max = 100, step = 1 },
         } },
-        { id = "faction_patrols", featured = { "max_patrol_squads", "random_patrols" }, rows = {
-            { id = "max_patrol_squads", type = "track", val = 2, def = 0, min = 0, max = 5, step = 1 },
-            { id = "min_patrol_squads", type = "track", val = 2, def = 0, min = 0, max = 5, step = 1 },
+        { id = "faction_patrols", featured = { "patrol_squads", "random_patrols" }, rows = {
+            { id = "patrol_squads", type = "track", val = 2, def = 1, min = 0, max = 5, step = 1 },
             { id = "min_patrol_time", type = "track", val = 2, def = 1000, min = 0, max = 20000, step = 50, fmt = "time_dhms" },
             { id = "patrol_hunt_chance", type = "track", val = 2, def = 50, min = 0, max = 100, step = 1, fmt = "percent" },
             { id = "min_patrol_rest_time", type = "track", val = 2, def = 60, min = 0, max = 5000, step = 10, fmt = "time_dhms" },

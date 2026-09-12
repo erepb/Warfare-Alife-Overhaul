@@ -222,7 +222,7 @@ function update_faction(faction)
         local respawn = warfare.lerp(ff.max_faction_respawn, ff.min_faction_respawn, clamp(resource_count / warfare.resource_count, 0, 1)) * spawn_mult
         local patrol_respawn = warfare.lerp(ff.max_patrol_time, ff.min_patrol_time, clamp(resource_count / warfare.resource_count, 0, 1)) * spawn_mult
         local invasion_size = warfare.lerp(ff.min_invasion_size, ff.max_invasion_size, clamp(base_count / warfare.base_count, 0, 1))
-        local patrol_pop_factor = warfare.lerp(ff.min_patrol_squads, ff.max_patrol_squads, clamp(base_count / warfare.base_count, 0, 1))
+        local patrol_pop_factor = ff.patrol_squads
 
         -- Fix #1: only clean up current faction's registered squads (was iterating ALL factions)
         local tbl = warfare.registered_squads[faction]

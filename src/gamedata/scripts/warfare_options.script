@@ -227,8 +227,7 @@ function update_settings()
 
     -- For each min/max set, the factions current value will be calculated
     -- by interpolating between min and max using owned_resources/total_resources
-    -- as the factor. This may change for some sets; for instance, min_patrol_squads
-    -- and max_patrol_squads should probably be based on (current_resources+current_bases)/(total_resources+total_bases).
+    -- as the factor.
     for i, faction in pairs(warfare_factions.factions) do
         options.factions[faction] = {}
         options.factions[faction].spawn_on_new_game = ui_options.get("alife/warfare/" .. faction .. "/spawn_on_new_game")
@@ -255,8 +254,7 @@ function update_settings()
         --options.factions[faction].min_active_squads                 = ui_options.get("alife/warfare/"..faction.."/min_active_squads")
         --options.factions[faction].max_active_squads                 = ui_options.get("alife/warfare/"..faction.."/max_active_squads")
 
-        options.factions[faction].min_patrol_squads = ui_options.get("alife/warfare/" .. faction .. "/min_patrol_squads")
-        options.factions[faction].max_patrol_squads = ui_options.get("alife/warfare/" .. faction .. "/max_patrol_squads")
+        options.factions[faction].patrol_squads = ui_options.get("alife/warfare/" .. faction .. "/patrol_squads")
         options.factions[faction].min_patrol_time = ui_options.get("alife/warfare/" .. faction .. "/min_patrol_time")
         options.factions[faction].max_patrol_time = options.factions[faction].min_patrol_time * options.spawn_timer_max_multiplier
         options.factions[faction].patrol_hunt_chance = ui_options.get("alife/warfare/" .. faction .. "/patrol_hunt_chance")
