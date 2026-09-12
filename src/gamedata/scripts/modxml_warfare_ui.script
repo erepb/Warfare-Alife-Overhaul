@@ -157,6 +157,70 @@ function ui_options.UIOptions.Update(self)
     end
 end
 
+-- Tree labels at or under TREE_ROOT, keyed by option path; orange while any option below them is pending.
+-- Vanilla keeps no handle to the label, so Register_Tree is run through a forwarding xml proxy that
+-- records InitTextWnd results: the fill loop runs first, so the i-th one belongs to group[i].
+local TREE_ROOT = "alife/warfare"
+local TREE_NORMAL = GetARGB(255, 180, 180, 180)
+local tree_labels = {}
+
+local function under_root(path)
+    return path == TREE_ROOT or string.sub(path, 1, #TREE_ROOT + 1) == TREE_ROOT .. "/"
+end
+
+local function recolor_tree()
+    local pending = ui_options.opt_temp
+    for path, txt in pairs(tree_labels) do
+        local dirty = false
+        for id in pairs(pending) do
+            if string.sub(id, 1, #path + 1) == path .. "/" then
+                dirty = true
+                break
+            end
+        end
+        txt:SetTextColor(dirty and ui_options.clr_o or TREE_NORMAL)
+    end
+end
+
+local ui_options_UIOptions_register_tree = ui_options.UIOptions.Register_Tree
+function ui_options.UIOptions.Register_Tree(self, tr, path, group, idx)
+    if self.tree[tr] and self.tree[tr][path] then
+        return ui_options_UIOptions_register_tree(self, tr, path, group, idx)
+    end
+    local xml, made = self.xml, {}
+    self.xml = setmetatable({}, { __index = function(_, k)
+        return function(_, ...)
+            local w = xml[k](xml, ...)
+            if k == "InitTextWnd" then
+                made[#made + 1] = w
+            end
+            return w
+        end
+    end })
+    ui_options_UIOptions_register_tree(self, tr, path, group, idx)
+    self.xml = xml
+    for i = 1, #group do
+        local p = (path ~= "") and ui_options.cc(path, group[i].id) or group[i].id
+        if under_root(p) then
+            tree_labels[p] = made[i]
+        end
+    end
+    recolor_tree()
+end
+
+local ui_options_UIOptions_update_pending = ui_options.UIOptions.UpdatePending
+function ui_options.UIOptions.UpdatePending(self)
+    ui_options_UIOptions_update_pending(self)
+    recolor_tree()
+end
+
+-- On_Accept empties opt_temp without UpdatePending, and the dialog's tree windows outlive it.
+local ui_options_UIOptions_on_accept = ui_options.UIOptions.On_Accept
+function ui_options.UIOptions.On_Accept(self)
+    ui_options_UIOptions_on_accept(self)
+    recolor_tree()
+end
+
 -- { {id=, featured={ids}, rows={...}}, ... } -> header, featured rows, then rows gated by precondition.
 function build_sections(sections, leading_rows)
     local out = {}
