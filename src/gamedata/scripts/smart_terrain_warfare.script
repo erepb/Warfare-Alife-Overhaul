@@ -3881,6 +3881,12 @@ function process_mutants(smart)
 
 end
 
+-- record a sighting of the smart's owner in fog-of-war memory; an unowned smart clears the
+-- record, so only real owners are ever remembered
+function remember_owner(smart_id, faction)
+    last_seen[smart_id] = (faction and faction ~= "none") and { owner = faction, at = warfare.get_time() } or nil
+end
+
 -- icon key for a smart that is out of sight: the greyed last-observed owner when fog-of-war
 -- memory holds a record, else the plain "unknown" disc
 function stale_spot_key(smart)
@@ -4073,10 +4079,9 @@ function smart_terrain.se_smart_terrain:show()
                 end
 
                 -- fog-of-war memory: whatever is in sight now (by range or shared intel) is
-                -- what the map will remember once it drops out of sight; only real owners are
-                -- remembered, an unowned smart clears the record
+                -- what the map will remember once it drops out of sight
                 if (visible) then
-                    last_seen[self.id] = (faction ~= "none") and { owner = faction, at = warfare.get_time() } or nil
+                    remember_owner(self.id, faction)
                 end
 
                 -- 'hide underground smarts' option
@@ -4525,6 +4530,12 @@ end
 -- Either key may be nil (nil = no marker). Adds are guarded because AddMapLocation does
 -- not dedup and the icon spot can be shared with the base's own faction icon.
 function set_target_circle(id, old_key, new_key, info)
+    -- a marker draws the target's live faction icon, so putting one up is a sighting: record it
+    -- instead of showing an owner the rest of the map still calls unknown
+    if new_key then
+        remember_owner(id, target_faction_key(new_key))
+    end
+
     if old_key == new_key then
         if new_key then
             level.map_change_spot_hint(id, target_icon_spot(new_key), info)
@@ -5027,8 +5038,7 @@ local function announce_owner_change(smart, was)
         -- the garrison reports its own loss; the memory record is refreshed without line of sight
         -- so the map does not keep claiming the smart
         if was == warfare.actor_faction then
-            local owner = smart.owning_faction
-            last_seen[smart.id] = (owner and owner ~= "none") and { owner = owner, at = warfare.get_time() } or nil
+            remember_owner(smart.id, smart.owning_faction)
         end
     end
 end
