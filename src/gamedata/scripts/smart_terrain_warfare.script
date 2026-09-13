@@ -1843,6 +1843,11 @@ function faction_diplomatic_penalty(contested_smart_id, faction_1, faction_2)
         return
     end
 
+    -- a faction that lets non-enemies take its own bases has no grievance over a lost target
+    if warfare_behavior.displaceable_at_peace(faction_1) then
+        return
+    end
+
     -- penalty scales with the size of the contested smart
     local contested_smart = alife_object(contested_smart_id)
     if not contested_smart then
