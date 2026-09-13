@@ -4,10 +4,12 @@ local SQUADS_MENU_ITEM = "Squads"
 local SMARTS_MENU_ITEM = "Smarts"
 local AUTO_CAPTURE_MENU_ITEM = "Auto Capture"
 local SMART_INFO_MENU_ITEM = "Smart Info"
+local RELATIONS_MENU_ITEM = "Relations"
 local SQUADS_WINDOW_TITLE = "Warfare - Squads"
 local SMARTS_WINDOW_TITLE = "Warfare - Smarts"
 local AUTO_CAPTURE_WINDOW_TITLE = "Warfare - Auto Capture"
 local SMART_INFO_WINDOW_TITLE = "Warfare - Smart Info"
+local RELATIONS_WINDOW_TITLE = "Warfare - Relations"
 
 if ImGui.Groups == nil then
     return
@@ -17,6 +19,7 @@ squads_window_visible = false
 smarts_window_visible = false
 auto_capture_window_visible = false
 smart_info_window_visible = false
+relations_window_visible = false
 
 function on_game_start()
     warfare_log.debug("warfare_imgui.on_game_start: registering ImGui menu and render widgets")
@@ -27,6 +30,7 @@ function on_game_start()
         _, smarts_window_visible = ImGui.MenuItem(SMARTS_MENU_ITEM, nil, smarts_window_visible, true)
         _, auto_capture_window_visible = ImGui.MenuItem(AUTO_CAPTURE_MENU_ITEM, nil, auto_capture_window_visible, true)
         _, smart_info_window_visible = ImGui.MenuItem(SMART_INFO_MENU_ITEM, nil, smart_info_window_visible, true)
+        _, relations_window_visible = ImGui.MenuItem(RELATIONS_MENU_ITEM, nil, relations_window_visible, true)
     end)
 
     -- Register window rendering in the Unique group (renders every frame)
@@ -47,6 +51,10 @@ function on_game_start()
 
         if smart_info_window_visible then
             render_smart_info_window()
+        end
+
+        if relations_window_visible then
+            render_relations_window()
         end
     end)
 end
@@ -87,6 +95,16 @@ function render_smart_info_window()
 
     if expanded then
         warfare_imgui_smart_info.render()
+    end
+    ImGui.End()
+end
+
+function render_relations_window()
+    local expanded, visible = ImGui.Begin(RELATIONS_WINDOW_TITLE, relations_window_visible, ImGuiWindowFlags.None)
+    relations_window_visible = visible
+
+    if expanded then
+        warfare_imgui_relations.render()
     end
     ImGui.End()
 end

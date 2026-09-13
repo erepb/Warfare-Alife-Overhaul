@@ -1,0 +1,172 @@
+--- Debug view for warfare_relations: what every faction pair is doing and why.
+---
+--- One row per pair relation changes may touch. Pending is what has accumulated since the last
+--- flush, already weighted by the friendship and hostility rates; Lands is what the next flush would
+--- commit, gravity's share of the day included, and Queued what it would commit with a full
+--- allowance; Today is what has already been committed since the day rolled over, and Budget what
+--- is left of the allowance. Displacement against Cap is what decides whether that pair can still
+--- move outward, and whether an alliance is reachable at all.
+
+local function fmt(n)
+    if n == nil then
+        return "-"
+    end
+    n = tonumber(n) or 0
+    if n == math.floor(n) then
+        return tostring(math.floor(n))
+    end
+    return string.format("%.1f", n)
+end
+
+local function state_of(r, t)
+    if r >= t then
+        return "allied"
+    end
+    if r <= -t then
+        return "hostile"
+    end
+    return "neutral"
+end
+
+local function mode_name()
+    if warfare_options.options.all_out_war then
+        return "all-out war"
+    end
+    if IsStoryMode() then
+        return "story"
+    end
+    return "default"
+end
+
+local function rows()
+    local out = {}
+    local factions = game_relations.factions_table
+    if not factions then
+        return out
+    end
+    local t = warfare_relations.threshold()
+    local cfg = warfare_relations.settings()
+    for i = 1, #factions do
+        for j = i + 1, #factions do
+            local a, b = factions[i], factions[j]
+            if warfare_relations.pair_allowed(a, b) then
+                local key = warfare_relations.pair_key(a, b)
+                local r = warfare_relations.current(a, b)
+                local anchor = warfare_relations.anchor_for(key)
+                local raw, step, full, room = warfare_relations.preview(a, b, cfg)
+                out[#out + 1] = {
+                    key = key,
+                    label = a .. " / " .. b,
+                    value = r,
+                    anchor = anchor,
+                    displacement = r - anchor,
+                    pending = raw ~= 0 and raw or nil,
+                    lands = raw ~= 0 and step or nil,
+                    queued = (raw ~= 0 and full ~= step) and full or nil,
+                    moved = warfare_relations.moved_today(a, b),
+                    room = room,
+                    state = state_of(r, t),
+                }
+            end
+        end
+    end
+    table.sort(out, function(x, y)
+        return math.abs(x.displacement) > math.abs(y.displacement)
+    end)
+    return out
+end
+
+function render()
+    local o = warfare_options.options
+
+    if not ui_options.get("alife/general/dynamic_relations") then
+        ImGui.Text("Dynamic relations is off - nothing feeds relation changes.")
+        return
+    end
+
+    local t = warfare_relations.threshold()
+    local cfg = warfare_relations.settings()
+    local cap = cfg.cap
+
+    ImGui.Text(string.format("Mode: %s   Day: %s   Next flush in: %ss   Threshold: +/-%s",
+        mode_name(), fmt(warfare_relations.day),
+        fmt(warfare_relations.FLUSH_INTERVAL - (warfare_relations.flush_accum or 0)), fmt(t)))
+    ImGui.Text(string.format("Cap: %s   Budget/day: %s   Kill: %s   Capture: %s   Friend: %s%%   Hostile: %s%%   Decay: %s%%",
+        fmt(cap), fmt(o.relation_daily_budget), fmt(o.relation_step), fmt(o.relation_capture_step),
+        fmt(o.relation_friendship_rate), fmt(o.relation_hostility_rate),
+        fmt(cfg.decay * 100)))
+
+    ImGui.Separator()
+
+    if ImGui.Button("Flush now", vector2(0, 0)) then
+        warfare_relations.flush()
+    end
+    ImGui.SameLine(0, 8)
+    if ImGui.Button("Apply a day's gravity now", vector2(0, 0)) then
+        warfare_relations.apply_gravity()
+    end
+    ImGui.SameLine(0, 8)
+    if ImGui.Button("Re-anchor to current", vector2(0, 0)) then
+        warfare_relations.snapshot_anchors()
+    end
+
+    local data = rows()
+    if #data == 0 then
+        ImGui.Text("No pairs may change - check the faction roster and the Monolith/Sin diplomacy option.")
+        return
+    end
+
+    ImGui.Text(string.format("Movable pairs: %s   (Monolith and Sin %s)",
+        fmt(#data), o.relation_all_pairs and "included" or "excluded"))
+
+    local headers = { "Pair", "Value", "Anchor", "Displaced", "Pending", "Lands", "Queued", "Today", "Budget left", "State" }
+
+    if ImGui.BeginTable("WarfareRelations", #headers, 3, vector2(0, 0), 0) then
+        for i = 1, #headers do
+            ImGui.TableSetupColumn(headers[i], 2, 0, 0)
+        end
+
+        ImGui.TableNextRow(1, 0)
+        for col = 0, #headers - 1 do
+            ImGui.TableSetColumnIndex(col)
+            ImGui.Text(headers[col + 1])
+        end
+
+        for i = 1, #data do
+            local row = data[i]
+            ImGui.TableNextRow()
+
+            ImGui.TableNextColumn()
+            ImGui.Text(row.label)
+
+            ImGui.TableNextColumn()
+            ImGui.Text(fmt(row.value))
+
+            ImGui.TableNextColumn()
+            ImGui.Text(fmt(row.anchor))
+
+            ImGui.TableNextColumn()
+            ImGui.Text(string.format("%s / %s", fmt(row.displacement), fmt(cap)))
+
+            ImGui.TableNextColumn()
+            ImGui.Text(row.pending and fmt(row.pending) or "")
+
+            ImGui.TableNextColumn()
+            ImGui.Text(row.lands and fmt(row.lands) or "")
+
+            ImGui.TableNextColumn()
+            ImGui.Text(row.queued and fmt(row.queued) or "")
+
+            ImGui.TableNextColumn()
+            ImGui.Text(row.moved ~= 0 and fmt(row.moved) or "")
+
+            ImGui.TableNextColumn()
+            ImGui.Text(row.room and fmt(row.room) or "-")
+
+            ImGui.TableNextColumn()
+            ImGui.Text(row.state)
+        end
+
+        ImGui.EndTable()
+    end
+end
