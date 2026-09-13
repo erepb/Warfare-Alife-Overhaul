@@ -429,4 +429,41 @@
 	<string id="st_wrfr_prop_time_culc_day">
 		<text>%sd + %sh</text>
 	</string>
+	<!-- Relations tab: what warfare has pending for a faction pair. -->
+	<string id="st_wrfr_rel_flush">
+		<text>Next relation move in %s</text>
+	</string>
+	<string id="st_wrfr_rel_budget">
+		<text>Daily limit: %s</text>
+	</string>
+	<string id="st_wrfr_rel_nolimit">
+		<text>No daily limit</text>
+	</string>
+	<string id="st_wrfr_rel_static">
+		<text>Relations are not moving</text>
+	</string>
+	<string id="st_wrfr_rel_standing">
+		<text>Standing</text>
+	</string>
+	<string id="st_wrfr_rel_goodwill">
+		<text>Their standing with you</text>
+	</string>
+	<string id="st_wrfr_rel_canon">
+		<text>Canon</text>
+	</string>
+	<string id="st_wrfr_rel_drift">
+		<text>Drift</text>
+	</string>
+	<string id="st_wrfr_rel_lands">
+		<text>Next flush</text>
+	</string>
+	<string id="st_wrfr_rel_moved">
+		<text>Today</text>
+	</string>
+	<string id="st_wrfr_rel_today">
+		<text>Left today</text>
+	</string>
+	<string id="st_wrfr_rel_excluded">
+		<text>Takes no part in relation changes</text>
+	</string>
 </string_table>
