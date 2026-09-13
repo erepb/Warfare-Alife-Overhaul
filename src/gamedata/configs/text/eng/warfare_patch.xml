@@ -60,7 +60,7 @@
 		<text>Contested terrains strain relations</text>
 	</string>
 	<string id="ui_mm_alife_warfare_general_territory_diplo_penalty_desc">
-		<text>When this setting is enabled, two neutral factions contesting a single point will become upset with each other if one of them 'steals' the location from the other. This puts pressure on neutral factions that share a border. Works best with a relations addon, or lowered death_value in dynamic_faction_relations.ltx</text>
+		<text>When enabled, a faction gets upset when a base it was going for is captured by another faction it is not at war with.</text>
 	</string>
 
 	<string id="ui_mm_alife_warfare_general_monster_rare_chance_south">
@@ -659,5 +659,56 @@
 	</string>
 	<string id="ui_mm_alife_warfare_general_fog_of_war_memory_desc">
 		<text>With fog of war on, a smart terrain that drops out of sight keeps showing the owner you last observed there, drawn in grey. Its hover text names that owner and how old the observation is. Only what you or your allies actually saw is remembered; a place you have never seen stays unknown.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_relations">
+		<text>Faction Relations</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_daily_budget">
+		<text>Daily change limit</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_daily_budget_desc">
+		<text>The most any two factions can move in one day, however hard the fighting is. 0 removes the cap.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_step">
+		<text>Value of a kill</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_step_desc">
+		<text>What one death is worth before shaping, scaled by the victim's rank and, a fifth as much, the killer's.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_capture_step">
+		<text>Value of a capture</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_capture_step_desc">
+		<text>What taking a contested place from a faction that was going for it costs, per point of that place's population.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_friendship_rate">
+		<text>Friendship rate</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_friendship_rate_desc">
+		<text>How fast relations move toward friendship, against what events say.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_hostility_rate">
+		<text>Hostility rate</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_hostility_rate_desc">
+		<text>How fast relations move toward hostility, against what events say.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_reach">
+		<text>Distance from canon</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_reach_desc">
+		<text>How far from their starting standing two factions can ever be dragged, as a share of the distance to alliance.\nAt the default, neutrals can ally; enemies can reach a ceasefire but not friendship.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_decay">
+		<text>Return to canon</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_decay_desc">
+		<text>How much of the distance back to their starting standing two factions recover each day when nothing is driving them apart.\nThree times stronger in story mode. Under all-out war it pulls toward neutral instead.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_all_pairs">
+		<text>Monolith and Sin diplomacy</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_all_pairs_desc">
+		<text>Lets Monolith and Sin take part in relation changes: 66 faction pairs can move instead of 45.</text>
 	</string>
 </string_table>

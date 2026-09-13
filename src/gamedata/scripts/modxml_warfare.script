@@ -212,6 +212,16 @@ function ui_options.init_opt_coder()
                 { id = "use_old_auto_capture", type = "check", val = 1, def = false },
                 { id = "prevent_mainbase_attacks", type = "check", val = 1, def = true },
             } },
+            { id = "relations", featured = { "relation_daily_budget" }, rows = {
+                { id = "relation_daily_budget", type = "track", val = 2, def = 250, min = 0, max = 2000, step = 50 },
+                { id = "relation_all_pairs", type = "check", val = 1, def = true },
+                { id = "relation_step", type = "track", val = 2, def = 25, min = 0, max = 100, step = 5 },
+                { id = "relation_capture_step", type = "track", val = 2, def = 10, min = 0, max = 100, step = 1 },
+                { id = "relation_friendship_rate", type = "track", val = 2, def = 50, min = 0, max = 200, step = 5, fmt = "percent" },
+                { id = "relation_hostility_rate", type = "track", val = 2, def = 100, min = 0, max = 200, step = 5, fmt = "percent" },
+                { id = "relation_reach", type = "track", val = 2, def = 125, min = 100, max = 300, step = 5, fmt = "percent" },
+                { id = "relation_decay", type = "track", val = 2, def = 2, min = 0, max = 20, step = 1, fmt = "percent" },
+            } },
             { id = "map", featured = { "fog_of_war", "hide_unfriendly_squads" }, rows = {
                 { id = "fog_of_war", type = "check", val = 1, def = false },
                 { id = "fog_of_war_distance", type = "track", val = 2, def = 50, min = 0, max = 100, step = 1, fmt = "meters" },

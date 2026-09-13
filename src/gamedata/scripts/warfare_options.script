@@ -151,6 +151,15 @@ function update_settings()
     options.territory_diplo_penalty = ui_options.get("alife/warfare/general/territory_diplo_penalty")
     options.prevent_mainbase_attacks = ui_options.get("alife/warfare/general/prevent_mainbase_attacks")
 
+    options.relation_all_pairs = ui_options.get("alife/warfare/general/relation_all_pairs")
+    options.relation_step = ui_options.get("alife/warfare/general/relation_step")
+    options.relation_capture_step = ui_options.get("alife/warfare/general/relation_capture_step")
+    options.relation_friendship_rate = ui_options.get("alife/warfare/general/relation_friendship_rate")
+    options.relation_hostility_rate = ui_options.get("alife/warfare/general/relation_hostility_rate")
+    options.relation_daily_budget = ui_options.get("alife/warfare/general/relation_daily_budget")
+    options.relation_reach = ui_options.get("alife/warfare/general/relation_reach")
+    options.relation_decay = ui_options.get("alife/warfare/general/relation_decay")
+
     options.all_out_war = ui_options.get("alife/warfare/general/all_out_war")
     --    options.factions_keep_last_base                 = ui_options.get("alife/warfare/general/factions_keep_last_base")
     options.novice_squad_price = ui_options.get("alife/warfare/general/novice_squad_price")
@@ -318,6 +327,8 @@ function update_settings()
 
     -- Must follow the loop above: the resolver reads options.factions[f].behavior.
     warfare_behavior.invalidate()
+
+    warfare_relations.invalidate()
 end
 
 ENABLE_MUTANT_OFFLINE_COMBAT = true

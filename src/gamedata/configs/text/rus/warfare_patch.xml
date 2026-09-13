@@ -60,7 +60,7 @@
 		<text>Спорные территории ухудшают отношения</text>
 	</string>
 	<string id="ui_mm_alife_warfare_general_territory_diplo_penalty_desc">
-		<text>Когда эта настройка включена, две нейтральные фракции, оспаривающие одну точку, будут недовольны друг другом, если одна из них "украдет" территорию у другой. Это создает напряжение между нейтральными фракциями, которые имеют общую границу. Лучше всего работает с аддоном для отношений или пониженным значением death_value в dynamic_faction_relations.ltx</text>
+		<text>Когда включено, фракция злится, если базу, на которую она шла, захватывает другая фракция, с которой она не воюет.</text>
 	</string>
 
 	<string id="ui_mm_alife_warfare_general_monster_rare_chance_south">
@@ -654,5 +654,56 @@
 	</string>
 	<string id="ui_mm_alife_warfare_general_fog_of_war_memory_desc">
 		<text>При включённом тумане войны точка, пропавшая из виду, продолжает показывать владельца, которого вы наблюдали там в последний раз, серым цветом. Подсказка называет этого владельца и давность сведений. Запоминается только то, что видели вы или союзники; никогда не виденное место остаётся неизвестным.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_sec_relations">
+		<text>Отношения группировок</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_daily_budget">
+		<text>Предел изменений за сутки</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_daily_budget_desc">
+		<text>Насколько сильно отношения двух фракций могут измениться за сутки, сколько бы ни было боёв. 0 — без предела.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_step">
+		<text>Вес убийства</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_step_desc">
+		<text>Вклад одной смерти в отношения до обработки. Зависит от ранга убитого и, впятеро слабее, от ранга убийцы.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_capture_step">
+		<text>Вес захвата</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_capture_step_desc">
+		<text>Насколько фракция обижается, когда точку, к которой она шла, занимает кто-то другой. Считается за каждую единицу населения точки.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_friendship_rate">
+		<text>Скорость сближения</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_friendship_rate_desc">
+		<text>Множитель для сближения: насколько охотно отношения улучшаются по итогам событий.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_hostility_rate">
+		<text>Скорость вражды</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_hostility_rate_desc">
+		<text>Множитель для вражды: насколько охотно отношения ухудшаются по итогам событий.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_reach">
+		<text>Отход от канона</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_reach_desc">
+		<text>Насколько далеко отношения пары фракций могут уйти от исходных — в долях расстояния до союза.\nПо умолчанию нейтральные фракции могут стать союзниками, а враждующие — дойти до перемирия, но не до дружбы.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_decay">
+		<text>Возврат к канону</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_decay_desc">
+		<text>Какую часть пути к исходным отношениям пара фракций проходит за сутки, пока их ничто не стравливает.\nВтрое сильнее в сюжетном режиме. При тотальной войне тянет к нейтралитету.</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_all_pairs">
+		<text>Дипломатия Монолита и Греха</text>
+	</string>
+	<string id="ui_mm_alife_warfare_general_relation_all_pairs_desc">
+		<text>Монолит и Грех тоже участвуют в изменении отношений: меняться могут 66 пар фракций вместо 45.</text>
 	</string>
 </string_table>
