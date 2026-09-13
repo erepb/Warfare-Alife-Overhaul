@@ -31,6 +31,10 @@ local ARROW_H = 9
 local ARROW_DX = 1
 local ARROW_DY = 1
 
+-- One in-game minute: the tick warfare.actor_on_update throttles itself to, which is the rate at
+-- which the pending totals shown here are actually produced.
+local REFRESH_SEC = 60
+
 -- Muted against the cell values, which keep the saturated palette vanilla chose for standings.
 -- The arrow is a footnote to the number, not a second reading of it.
 local CLR_UP = GetARGB(255, 110, 165, 110)
@@ -347,6 +351,16 @@ function on_game_start()
         local res = original_update(self, ...)
         if not self.wf_value then
             return res
+        end
+
+        -- CUIPdaWnd only drives the active subdialog, so this ticks only while the tab is open.
+        -- The CTime never leaves the panel and is never saved.
+        local now = game.get_game_time()
+        if not self.wf_next_fill then
+            self.wf_next_fill = warfare_utils.add_time(now, REFRESH_SEC)
+        elseif self.wf_next_fill:diffSec(now) <= 0 then
+            self.wf_next_fill = warfare_utils.add_time(now, REFRESH_SEC)
+            fill(self)
         end
 
         -- mouse_over_id means vanilla already claimed a hint for a companion portrait.
