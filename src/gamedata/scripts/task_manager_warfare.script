@@ -46,7 +46,73 @@ function npc_on_death_callback(victim, who)
     end
 end
 
+--- A job's goodwill reaches the registry through xr_effects.inc_faction_goodwill_to_actor: the
+--- giver's faction, and on a gain a random enemy and a random neutral of it, each via
+--- game_relations.change_factions_community_num. While one of the task effects runs, that
+--- function is swapped for one that gives half of every write to the actor's own goodwill and half
+--- to the pair (actor's faction, that faction), so working for a faction moves your own faction's
+--- standing with it as well as yours.
+local TASK_EFFECTS = {
+    "complete_task_inc_goodwill", "complete_task_dec_goodwill", "fail_task_dec_goodwill",
+    "inc_goodwill_by_tasker_comm", "dec_goodwill_by_target_comm",
+    "inc_goodwill_by_tasker_id", "dec_goodwill_by_tasker_id",
+}
+
+local function split_enabled()
+    return _G.WARFARE and ui_options.get("alife/general/dynamic_relations")
+end
+
+local function splitter(original)
+    return function(community, id, delta)
+        delta = tonumber(delta) or 0
+        local actor = warfare.actor_faction
+        if id ~= AC_ID or not actor or not warfare_relations.pair_allowed(actor, community) then
+            return original(community, id, delta)
+        end
+        local own = math.floor(delta / 2 + 0.5)
+        warfare_log.debug("task_manager_warfare.splitter: %s own=%s pair=%s", community, own,
+            delta - own)
+        warfare_relations.contribute_flat(actor, community, delta - own)
+        return original(community, id, own)
+    end
+end
+
+local function wrap_task_effect(name)
+    local effect = xr_effects[name]
+    if not effect then
+        return false
+    end
+    xr_effects[name] = function(...)
+        if not split_enabled() then
+            return effect(...)
+        end
+        local original = game_relations.change_factions_community_num
+        game_relations.change_factions_community_num = splitter(original)
+        local ok, res = pcall(effect, ...)
+        game_relations.change_factions_community_num = original
+        if not ok then
+            error(res, 0)
+        end
+        return res
+    end
+    return true
+end
+
 function on_game_start()
-    warfare_log.debug("task_manager_warfare.on_game_start: registering npc_on_death_callback")
+    warfare_log.debug("task_manager_warfare.on_game_start: registering callbacks")
     RegisterScriptCallback("npc_on_death_callback", npc_on_death_callback)
+
+    if xr_effects.__warfare_task_split then
+        return
+    end
+    xr_effects.__warfare_task_split = true
+    local n = 0
+    for i = 1, #TASK_EFFECTS do
+        if wrap_task_effect(TASK_EFFECTS[i]) then
+            n = n + 1
+        else
+            warfare_log.warn("task_manager_warfare.on_game_start: xr_effects.%s missing", TASK_EFFECTS[i])
+        end
+    end
+    warfare_log.debug("task_manager_warfare.on_game_start: splitting %s task goodwill effects", n)
 end
