@@ -1,0 +1,191 @@
+--- The vanilla Relations tab, rebuilt over the whole faction roster.
+---
+--- Vanilla lists nine factions and swaps one out when the player is Renegade, Sin or ISG. Warfare
+--- moves all twelve, so all twelve are shown.
+---
+--- Vanilla's own matrix is suppressed rather than torn down: emptying self.list before its
+--- InitControls runs leaves its build and fill loops with nothing to iterate, so every other
+--- control on the tab - the frame, the caption, the value-mode button, the companion roster - is
+--- still built and driven by vanilla code.
+---
+--- Both overrides chain to the original. modxml_portrait_cover wraps Reset from its own
+--- on_game_start; replacing rather than wrapping would drop that patch or be dropped by it,
+--- depending on which on_game_start ran first.
+
+local GRID_X = 100              -- tab-relative, and what the layout's backdrop is sized to
+local GRID_Y = 84
+local COL_W = 57
+local ROW_H = 28
+local LABEL_X = 40
+local LABEL_W = 60
+-- The UI is one unscaled 1024x768 space that the renderer stretches to the screen, so on 16:9 a
+-- layout unit is ~1.333 times wider than it is tall. Art sized here has to be pre-squashed by that
+-- factor to come out at its own proportions: ui_inGame4_ico_* is 127x56, and 43x24 renders as
+-- about 57x24 - vanilla's own ratio for this art.
+local LOGO_W = 43               -- ui_inGame4_ico_* are 127x56 banners, not square emblems
+local LOGO_H = 24               -- 43x24 is vanilla's own ratio for this art (101x56 in pda_warfare)
+local HEADER_Y = 56
+
+local function roster()
+    local out = {}
+    local factions = game_relations.factions_table
+    if not factions then
+        warfare_log.err("ui_pda_relations_warfare.roster: game_relations.factions_table missing")
+        return out
+    end
+    for i = 1, #factions do
+        out[i] = factions[i]
+    end
+    return out
+end
+
+local function logo(xml, tab, faction, x, y)
+    local ico = xml:InitStatic("tab:faction_logo", tab)
+    ico:InitTexture("ui_inGame4_ico_" .. faction)
+    ico:SetStretchTexture(true)
+    ico:SetWndPos(vector2():set(x, y))
+    ico:SetWndSize(vector2():set(LOGO_W, LOGO_H))
+    return ico
+end
+
+--- Every Init call returns a fresh window, so the layout carries one template per kind of node and
+--- this draws as many of each as the roster needs.
+local function build(self)
+    local list = self.wf_list
+    local cols = #list
+    if cols == 0 then
+        return
+    end
+
+    local xml = CScriptXmlInit()
+    xml:ParseFile("pda_relations.xml")
+    local tab = self.tab
+    local rows = cols + 1       -- row 0 is the actor's standing with each faction
+
+    for c = 0, cols do
+        local line = xml:InitStatic("tab:grid_v", tab)
+        line:SetWndPos(vector2():set(GRID_X + c * COL_W, GRID_Y))
+        line:SetWndSize(vector2():set(1, rows * ROW_H))
+    end
+    for r = 0, rows do
+        local line = xml:InitStatic("tab:grid_h", tab)
+        line:SetWndPos(vector2():set(GRID_X, GRID_Y + r * ROW_H))
+        line:SetWndSize(vector2():set(cols * COL_W, 1))
+    end
+
+    for i = 1, cols do
+        logo(xml, tab, list[i], GRID_X + (i - 1) * COL_W + math.floor((COL_W - LOGO_W) / 2),
+            HEADER_Y)
+    end
+
+    self.wf_value = {}
+    for k = 0, cols do
+        local y = GRID_Y + k * ROW_H
+
+        if k == 0 then
+            local label = xml:InitTextWnd("tab:faction", tab)
+            label:SetWndPos(vector2():set(LABEL_X, y))
+            label:SetWndSize(vector2():set(LABEL_W, ROW_H))
+            label:SetText(game.translate_string("st_ui_goodwill_name"))
+        else
+            logo(xml, tab, list[k], LABEL_X + math.floor((LABEL_W - LOGO_W) / 2),
+                y + math.floor((ROW_H - LOGO_H) / 2))
+        end
+
+        self.wf_value[k] = {}
+        for i = 1, cols do
+            local cell = xml:InitTextWnd("tab:cell_value", tab)
+            cell:SetWndPos(vector2():set(GRID_X + (i - 1) * COL_W, y))
+            cell:SetWndSize(vector2():set(COL_W, ROW_H))
+            self.wf_value[k][i] = cell
+        end
+    end
+
+    warfare_log.debug("ui_pda_relations_warfare.build: %s columns, %s rows", cols, rows)
+end
+
+local function goodwill_string(v)
+    if v >= 2000 then
+        return "st_ui_goodwill_5"
+    end
+    if v >= 1500 then
+        return "st_ui_goodwill_4"
+    end
+    if v >= 1000 then
+        return "st_ui_goodwill_3"
+    end
+    if v >= 500 then
+        return "st_ui_goodwill_2"
+    end
+    return "st_ui_goodwill_1"
+end
+
+--- Cell (row k, column i) is how faction k sees faction i, which is the orientation vanilla used.
+--- Row 0 is the actor's goodwill with each faction - a different registry, not symmetric with
+--- anything else in the grid.
+local function fill(self)
+    local list = self.wf_list
+    local cols = #list
+    local as_text = self.to_text
+
+    for k = 0, cols do
+        local row = list[k]
+        for i = 1, cols do
+            local col = list[i]
+            local cell = self.wf_value[k][i]
+
+            if not row then
+                local g = relation_registry.community_goodwill(col, AC_ID)
+                cell:SetTextColor((g >= 2000 and self.clr_green)
+                    or (g >= 500 and self.clr_yellow) or self.clr_red)
+                cell:SetText(as_text and game.translate_string(goodwill_string(g)) or tostring(g))
+            else
+                local r = relation_registry.community_relation(row, col)
+                local state = "st_goodwill_indifferent"
+                if r >= game_relations.FRIENDS then
+                    cell:SetTextColor(self.clr_green)
+                    state = "st_goodwill_friendly"
+                elseif r <= game_relations.ENEMIES then
+                    cell:SetTextColor(self.clr_red)
+                    state = "st_goodwill_enemy"
+                else
+                    cell:SetTextColor(self.clr_yellow)
+                end
+                cell:SetText(as_text and game.translate_string(state) or tostring(r))
+            end
+        end
+    end
+end
+
+function on_game_start()
+    -- A script class lives in its own module table; _G is the fallback modxml_portrait_cover uses.
+    local cls = (ui_pda_relations_tab and ui_pda_relations_tab.pda_relations_tab)
+        or _G.pda_relations_tab
+    if not cls then
+        warfare_log.err("ui_pda_relations_warfare.on_game_start: pda_relations_tab class missing")
+        return
+    end
+    if cls.__warfare_matrix then
+        return
+    end
+    cls.__warfare_matrix = true
+    warfare_log.debug("ui_pda_relations_warfare.on_game_start: patching the relations matrix")
+
+    local original_init = cls.InitControls
+    cls.InitControls = function(self, ...)
+        self.wf_list = roster()
+        self.list = {}
+        local res = original_init(self, ...)
+        build(self)
+        return res
+    end
+
+    local original_reset = cls.Reset
+    cls.Reset = function(self, ...)
+        local res = original_reset(self, ...)
+        if self.wf_value then
+            fill(self)
+        end
+        return res
+    end
+end

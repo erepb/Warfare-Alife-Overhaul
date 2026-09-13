@@ -2,7 +2,7 @@
 	<main_wnd x="0" y="0" width="1024" height="768">
 	</main_wnd>
 	
-	<center_background x="100" y="180" width="675" height="350" stretch="1">
+	<center_background x="100" y="164" width="684" height="364" stretch="1">
 	</center_background>
 
 	<frame x="28" y="41" width="764" height="490" stretch="1">
@@ -15,75 +15,19 @@
 	</btn_to_text>
 		
     <tab x="0" y="80" width="724" height="465" stretch="1">
-
 		<caption x="290" y="25" width="260" height="27">
 			<text font="letterica18" align="c" x="5" y="5" r="170" g="170" b="170">pda_relations_header</text>
 		</caption>
-
-        <auto_frameline x="100" y="85" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-        <auto_frameline x="100" y="120" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-        <auto_frameline x="100" y="155" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-		<auto_frameline x="100" y="190" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-        <auto_frameline x="100" y="225" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-        <auto_frameline x="100" y="260" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-		<auto_frameline x="100" y="295" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-        <auto_frameline x="100" y="330" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-        <auto_frameline x="100" y="365" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-		<auto_frameline x="100" y="400" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-		<auto_frameline x="100" y="435" width="675" height="1" vertical="0">
-            <texture>ui_inGame2_pda_line_horizontal</texture>
-        </auto_frameline>
-		
-        <auto_frameline x="100" y="85" width="1" height="350" vertical="1">
-            <texture>ui_inGame2_pda_line_vertical</texture>
-        </auto_frameline>
-        <auto_frameline x="175" y="85" width="1" height="350" vertical="1">
-            <texture>ui_inGame2_pda_line_vertical</texture>
-        </auto_frameline>
-		<auto_frameline x="250" y="85" width="1" height="350" vertical="1">
-            <texture>ui_inGame2_pda_line_vertical</texture>
-        </auto_frameline>
-        <auto_frameline x="325" y="85" width="1" height="350" vertical="1">
-            <texture>ui_inGame2_pda_line_vertical</texture>
-        </auto_frameline>
-        <auto_frameline x="400" y="85" width="1" height="350" vertical="1">
-            <texture>ui_inGame2_pda_line_vertical</texture>
-        </auto_frameline>
-		<auto_frameline x="475" y="85" width="1" height="350" vertical="1">
-            <texture>ui_inGame2_pda_line_vertical</texture>
-        </auto_frameline>
-        <auto_frameline x="550" y="85" width="1" height="350" vertical="1">
-            <texture>ui_inGame2_pda_line_vertical</texture>
-        </auto_frameline>
-        <auto_frameline x="625" y="85" width="1" height="350" vertical="1">
-            <texture>ui_inGame2_pda_line_vertical</texture>
-        </auto_frameline>
-		<auto_frameline x="700" y="85" width="1" height="350" vertical="1">
-            <texture>ui_inGame2_pda_line_vertical</texture>
-        </auto_frameline>
-		<auto_frameline x="775" y="85" width="1" height="350" vertical="1">
-            <texture>ui_inGame2_pda_line_vertical</texture>
-        </auto_frameline>
+		<grid_v x="0" y="0" width="1" height="364" stretch="1">
+			<texture>ui_inGame2_pda_line_vertical</texture>
+		</grid_v>
+		<grid_h x="0" y="0" width="684" height="1" stretch="1">
+			<texture>ui_inGame2_pda_line_horizontal</texture>
+		</grid_h>
+		<faction_logo x="0" y="0" width="43" height="24" stretch="1"/>
+		<cell_value width="57" height="28">
+			<text align="c" vert_align="c" font="letterica18" r="220" g="220" b="220"/>
+		</cell_value>
 		<faction width="45" height="16">
 			<text align="c" font="letterica18" r="220" g="220" b="220">ui_st_community</text>
 		</faction>
