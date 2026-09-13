@@ -881,6 +881,13 @@ function get_monster_pop_factor()
     return cached_monster_pop
 end
 
+-- Factions whose holdings are not common knowledge at game start: fog-of-war memory is not seeded
+-- for them unless all_out_war has every faction openly at war.
+local COVERT_BASES = {
+    greh = true,
+    isg = true,
+}
+
 -- for vanilla, probably create a custom simulation.ltx
 function fill_start_position()
     warfare_log.info("fill_start_position: entry")
@@ -1107,7 +1114,8 @@ function fill_start_position()
             -- the starting bases are common knowledge: seed fog-of-war memory so they show
             -- their owner (greyed) from the first PDA open. One CTime per record: marshal
             -- mis-resolves a userdata shared between tables (lmarshal.c SEEN index order)
-            if smart.props and smart.props.base > 0 then
+            if smart.props and smart.props.base > 0
+            and (warfare_options.options.all_out_war or not COVERT_BASES[best]) then
                 smart_terrain_warfare.last_seen[id] = { owner = best, at = get_time() }
                 known = known + 1
             end
