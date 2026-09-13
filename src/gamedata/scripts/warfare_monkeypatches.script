@@ -476,26 +476,11 @@ function faction_expansions.get_section(faction, advanced_chance, veteran_chance
 end
 
 local game_relations_calculate_relation_change = game_relations.calculate_relation_change
-function game_relations.calculate_relation_change(faction_from, faction_to, base_change)
+function game_relations.calculate_relation_change(victim_tbl, killer_tbl)
     if not _G.WARFARE then
-        return game_relations_calculate_relation_change(faction_from, faction_to, base_change)
+        return game_relations_calculate_relation_change(victim_tbl, killer_tbl)
     end
-    warfare_log.trace("calculate_relation_change: %s vs %s base=%s", tostring(faction_from), tostring(faction_to), tostring(base_change))
-
-    --[[
-        Right now Vanilla Anomaly does this when warfare enable what makes all factions always lose/gain relations on stalker death:
-        friend_count_limit = -1
-        enemy_count_limit = -1
-
-        TODO: Vintar0 disabled that, but I don't understand why so it's temporary enabled back
-        TODO: Fog of war should be false because when it's true Vanilla Anomaly disables relation change (why did VIntar0 did this?)
-    ]]
-
-    local old_fog_of_war = warfare_options.options.fog_of_war
-    warfare_options.options.fog_of_war = false
-    local ret = game_relations_calculate_relation_change(faction_from, faction_to, base_change)
-    warfare_options.options.fog_of_war = old_fog_of_war
-    return ret
+    return warfare_relations.contribute(victim_tbl, killer_tbl)
 end
 
 local tasks_assault_evaluate_smarts_squads = tasks_assault.evaluate_smarts_squads

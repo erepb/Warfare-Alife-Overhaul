@@ -1818,10 +1818,9 @@ function surge_behavior(smart)
 end
 
 
--- factions get upset when their targets are stolen from them
--- apply a decrese to relations when a target is stolen, or two factions race to capture the same empty point
--- penalty is based on death_value and the capacity of the 'stolen' smart terrain. Large bases incur large penalties
--- penalties also stack depending on number of bases that were targeting it. If 4 bases were targeting, the penalty is applied 4 times
+-- Fires when a base this smart was targeting is captured by a faction its owner is NOT at war
+-- with (so the target can no longer be attacked). Penalty is -relation_capture_step * max_population
+-- of the lost smart.
 function faction_diplomatic_penalty(contested_smart_id, faction_1, faction_2)
 
     -- only allowed when dynamic relations is on
@@ -1834,7 +1833,7 @@ function faction_diplomatic_penalty(contested_smart_id, faction_1, faction_2)
     end
 
     -- only allowed for factions whose relations are allowed to change
-    if (not game_relations.is_relation_allowed(faction_1,faction_2)) or (game_relations.is_faction_pair_unaffected(faction_1,faction_2)) or (faction_1 == faction_2) then
+    if not warfare_relations.pair_allowed(faction_1, faction_2) then
         return
     end
 
@@ -1844,15 +1843,18 @@ function faction_diplomatic_penalty(contested_smart_id, faction_1, faction_2)
         return
     end
 
-    -- read dynamic relations properties and smart properties
-    local ini_r = ini_file("plugins\\dynamic_faction_relations.ltx")
-    local delta = ini_r:r_float_ex ("controls" ,"death_value") or 10
+    -- penalty scales with the size of the contested smart
     local contested_smart = alife_object(contested_smart_id)
-    local penalty_value = (-1) * delta * contested_smart.max_population
+    if not contested_smart then
+        return
+    end
+    local step = tonumber(warfare_options.options.relation_capture_step) or 0
+    local penalty_value = (-1) * step * (contested_smart.max_population or 0)
 
     warfare_log.debug("faction_diplomatic_penalty: smart=%s %s vs %s delta=%s",
-        contested_smart and contested_smart:name() or "?", tostring(faction_1), tostring(faction_2), tostring(penalty_value))
-    game_relations.change_faction_relations(faction_1, faction_2, penalty_value)
+        contested_smart:name(), faction_1, faction_2, penalty_value)
+
+    warfare_relations.contribute_flat(faction_1, faction_2, penalty_value)
 end
 
 

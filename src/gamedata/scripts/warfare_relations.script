@@ -1,0 +1,576 @@
+--- warfare_relations: pacing layer for faction-to-faction relation drift.
+---
+--- Vanilla applies a relation change per NPC death. Warfare produces a death per offline battle
+--- round across the whole Zone, so relation pace tracks war intensity rather than war direction.
+--- This module accumulates contributions and commits them on a bounded schedule instead.
+---
+--- Per death: contribute() adds a signed amount to pending[pair] for every faction with a stance
+--- on the victim - its enemies credit the killer, its friends and its own faction debit it - each
+--- weighted by the friendship or hostility rate as it goes in. Every six game hours flush() takes
+--- the accumulated total through the per-day budget, adds that window's share of the pull back
+--- toward the pair's anchor, and commits one change_faction_relations call per pair through the
+--- anchor window.
+---
+--- The anchor is the shipped [communities_relations] value; all_out_war moves it to neutral and
+--- story mode stiffens the pull. Reachability is anchor +/- cap, which is what decides whether a
+--- given pair can ever ally: nothing prohibits it explicitly.
+---
+--- Inert unless _G.WARFARE and alife/general/dynamic_relations are on - the latter is checked by
+--- the game_relations death callbacks upstream of contribute().
+
+local SAFE = 4750               -- stay inside +/-friend_limit: change_faction_relations resets a pegged pair to 0 on a coin flip
+local SEC_PER_DAY = 86400
+FLUSH_INTERVAL = 21600          -- six game hours
+local FLUSHES_PER_DAY = SEC_PER_DAY / FLUSH_INTERVAL
+
+local RANK_WEIGHT = {
+    novice = 0.1,
+    trainee = 0.2,
+    experienced = 0.4,
+    professional = 0.5,
+    veteran = 0.7,
+    expert = 1.0,
+    master = 1.7,
+    legend = 3.0,
+}
+local RANK_DEFAULT = 0.5
+
+-- Column order of [communities_relations] in creatures\game_relations.ltx. NOT
+-- game_relations.factions_table_all, which claims to match it and does not: that table starts
+-- actor, bandit, dolg while the matrix starts actor, monster, trader, army_npc, greh_npc, bandit.
+-- build_lore checks each faction's self-relation lands on its own column before trusting a row.
+local MATRIX_COLUMNS = {
+    "actor", "monster", "trader", "army_npc", "greh_npc", "bandit", "dolg", "ecolog", "freedom",
+    "killer", "army", "monolith", "greh", "stalker", "zombied", "csky", "isg", "renegade",
+    "actor_stalker", "actor_bandit", "actor_dolg", "actor_freedom", "actor_csky", "actor_ecolog",
+    "actor_killer", "actor_army", "actor_monolith", "actor_zombied", "actor_greh", "actor_isg",
+    "actor_renegade", "arena_enemy",
+}
+
+-- Persisted in m_data.warfare by warfare.save_state; plain numbers only (a CTime shared between
+-- saved tables decodes to a closure after the first).
+anchors = {}                    -- [pair_key] = the relation this playthrough started from
+pending = {}                    -- [pair_key] = signed accumulation since the last flush, plus what the last one could not land as a whole number
+spent = {}                      -- [pair_key] = budget consumed this game day
+moved = {}                      -- [pair_key] = signed change committed this game day
+day = 0
+elapsed = 0
+flush_accum = 0
+
+local lore                      -- [pair_key] = shipped relation value
+local allowed_pairs             -- { { a, b, key }, ... } for pairs relation changes may touch
+local allowed_pairs_mode        -- relation_all_pairs as of the last build of allowed_pairs
+local political                 -- { [faction] = true } for the playable faction roster
+
+function pair_key(a, b)
+    if a < b then
+        return a .. "|" .. b
+    end
+    return b .. "|" .. a
+end
+
+local function split_key(key)
+    local i = string.find(key, "|", 1, true)
+    if not i then
+        return nil, nil
+    end
+    return string.sub(key, 1, i - 1), string.sub(key, i + 1)
+end
+
+function threshold()
+    return game_relations.FRIENDS or 1000
+end
+
+-- Ideologically fixed: at war with everyone by definition, so taking part in politics is opt-in.
+local GATED = {
+    monolith = true,
+    greh = true,
+}
+
+local function build_political()
+    political = {}
+    local factions = game_relations.factions_table
+    if not factions then
+        return
+    end
+    for i = 1, #factions do
+        political[factions[i]] = true
+    end
+end
+
+--- Vanilla's [unaffected_factions] and [unaffected_pairs] are ignored: they freeze twelve pairs and
+--- three factions as a balance opinion about the vanilla game, not about warfare. Politics is the
+--- playable roster, which leaves out the non-playable communities (trader, army_npc, monsters).
+local function faction_allowed(f)
+    if not political then
+        build_political()
+    end
+    if not political[f] then
+        return false
+    end
+    if GATED[f] then
+        return warfare_options.options.relation_all_pairs and true or false
+    end
+    return true
+end
+
+function pair_allowed(a, b)
+    if a == b then
+        return false
+    end
+    return faction_allowed(a) and faction_allowed(b)
+end
+
+--- The value change_faction_relations will treat as current: the larger-magnitude of the two cells.
+function current(a, b)
+    local ab = game_relations.get_factions_community(a, b) or 0
+    local ba = game_relations.get_factions_community(b, a) or 0
+    if math.abs(ba) > math.abs(ab) then
+        return ba
+    end
+    return ab
+end
+
+local function build_lore()
+    lore = {}
+    local factions = game_relations.factions_table
+    if not factions then
+        warfare_log.err("warfare_relations.build_lore: game_relations.factions_table missing")
+        return
+    end
+
+    local column = {}
+    for i = 1, #MATRIX_COLUMNS do
+        column[MATRIX_COLUMNS[i]] = i
+    end
+
+    local ini = ini_file("creatures\\game_relations.ltx")
+    local row = {}
+    for i = 1, #factions do
+        local f = factions[i]
+        local line = ini:r_string_ex("communities_relations", f)
+        local cells = line and str_explode(line, ",") or nil
+        -- A row whose self-relation is not on its own column means MATRIX_COLUMNS no longer
+        -- describes the file; anchoring off it would be worse than not anchoring at all.
+        local self_rel = cells and column[f] and tonumber(cells[column[f]])
+        if self_rel and self_rel > 0 then
+            row[f] = cells
+        else
+            warfare_log.err("warfare_relations.build_lore: column order mismatch for %s (self=%s) - anchoring that faction at 0",
+                f, self_rel)
+        end
+    end
+
+    for i = 1, #factions do
+        for j = i + 1, #factions do
+            local a, b = factions[i], factions[j]
+            local va = row[a] and column[b] and tonumber(row[a][column[b]])
+            local vb = row[b] and column[a] and tonumber(row[b][column[a]])
+            local v = va or vb or 0
+            if va and vb and math.abs(vb) > math.abs(va) then
+                v = vb
+            end
+            lore[pair_key(a, b)] = v
+        end
+    end
+    warfare_log.info("warfare_relations.build_lore: cached lore anchors for %s factions", #factions)
+end
+
+local function build_allowed_pairs()
+    allowed_pairs = {}
+    allowed_pairs_mode = warfare_options.options.relation_all_pairs
+    local factions = game_relations.factions_table
+    if not factions then
+        return
+    end
+    for i = 1, #factions do
+        for j = i + 1, #factions do
+            local a, b = factions[i], factions[j]
+            if pair_allowed(a, b) then
+                allowed_pairs[#allowed_pairs + 1] = { a, b, pair_key(a, b) }
+            end
+        end
+    end
+    warfare_log.info("warfare_relations.build_allowed_pairs: %s pairs may change (all_pairs=%s)",
+        #allowed_pairs, allowed_pairs_mode)
+end
+
+--- Record what every pair started this playthrough at. The shipped matrix is not that value:
+--- ui_mm_faction_select hard-sets killer/isg to -4000 at character creation for any non-ISG player
+--- ("for story mode, Mercs and ISG will be enemies"), and anything else may have moved relations
+--- before warfare is running. Anchoring off the live registry keeps those setups intact.
+function snapshot_anchors()
+    anchors = {}
+    local factions = game_relations.factions_table
+    if not factions then
+        warfare_log.err("warfare_relations.snapshot_anchors: game_relations.factions_table missing")
+        return
+    end
+    local n = 0
+    for i = 1, #factions do
+        for j = i + 1, #factions do
+            local a, b = factions[i], factions[j]
+            anchors[pair_key(a, b)] = current(a, b)
+            n = n + 1
+        end
+    end
+    warfare_log.info("warfare_relations.snapshot_anchors: recorded %s pair anchors", n)
+end
+
+local function ensure_anchors()
+    if next(anchors) == nil then
+        snapshot_anchors()
+    end
+end
+
+--- Anchor for a pair: neutral under all_out_war (canon is discarded), else where this playthrough
+--- started. The shipped matrix is only a fallback for a pair the snapshot never saw.
+function anchor_for(key)
+    if warfare_options.options.all_out_war then
+        return 0
+    end
+    local v = anchors[key]
+    if v then
+        return v
+    end
+    if not lore then
+        build_lore()
+    end
+    return lore[key] or 0
+end
+
+--- decay multiplier, cap multiplier
+local function mode_factors()
+    if warfare_options.options.all_out_war then
+        return 1.0, 2.0
+    end
+    if IsStoryMode() then
+        return 3.0, 1.0
+    end
+    return 1.0, 1.0
+end
+
+function settings()
+    local o = warfare_options.options
+    local decay_f, cap_f = mode_factors()
+    return {
+        cap = threshold() * ((tonumber(o.relation_reach) or 125) / 100) * cap_f,
+        budget = tonumber(o.relation_daily_budget) or 0,
+        decay = ((tonumber(o.relation_decay) or 0) / 100) * decay_f,
+    }
+end
+
+--- Weight one contribution by its own direction. Applied here rather than to the netted total: a
+--- window holding +100 and -60 is +40 netted, which at the shipped rates halves to +20, while the
+--- two events weighed separately come to -10. The asymmetry is meant to say that hostility accrues
+--- faster than friendship, and netting at full weight before applying it says the opposite.
+--- It also means pending already holds what will be committed, so nothing has to explain to the
+--- player why the number they were shown lands at half size.
+local function weigh(delta)
+    local o = warfare_options.options
+    local rate = delta < 0 and (tonumber(o.relation_hostility_rate) or 100)
+        or (tonumber(o.relation_friendship_rate) or 100)
+    return delta * rate / 100
+end
+
+--- What is left of a pair's allowance today, or nil when relation_daily_budget is 0.
+local function budget_room(key, cfg)
+    if cfg.budget <= 0 then
+        return nil
+    end
+    local room = cfg.budget - (spent[key] or 0)
+    if room < 0 then
+        return 0
+    end
+    return room
+end
+
+--- A budget of 0 removes the cap rather than freezing the pair: the anchor window still bounds
+--- the movement, and alife/general/dynamic_relations is the switch that turns relation changes off
+--- entirely.
+local function apply_budget(key, v, cfg)
+    local room = budget_room(key, cfg)
+    if not room or v == 0 then
+        return v
+    end
+    if room <= 0 then
+        return 0
+    end
+    if v > room then
+        v = room
+    elseif v < -room then
+        v = -room
+    end
+    spent[key] = (spent[key] or 0) + math.abs(v)
+    return v
+end
+
+--- The whole-number change a pair may actually take, plus the relation and anchor it was measured
+--- against. The window constrains movement outward only: a value already past it (every pair at
+--- -4000 in an all_out_war game) stays put and may still move back in.
+local function clamp_step(a, b, key, delta, cfg)
+    if delta == 0 then
+        return 0
+    end
+    local r = current(a, b)
+    local anc = anchor_for(key)
+
+    local lo = math.min(r, math.max(anc - cfg.cap, -SAFE))
+    local hi = math.max(r, math.min(anc + cfg.cap, SAFE))
+
+    local clamped = r + delta
+    if clamped < lo then
+        clamped = lo
+    elseif clamped > hi then
+        clamped = hi
+    end
+
+    return math.floor(clamped - r + 0.5), r, anc
+end
+
+--- Applies a float delta to one pair.
+local function commit(a, b, key, delta, cfg)
+    local step, r, anc = clamp_step(a, b, key, delta, cfg)
+    if step == 0 then
+        return
+    end
+    warfare_log.debug("warfare_relations.commit: %s r=%s anchor=%s delta=%s step=%s",
+        key, r, anc, delta, step)
+    game_relations.change_faction_relations(a, b, step)
+    moved[key] = (moved[key] or 0) + step
+end
+
+--- What a pair has moved so far today, flushes and gravity together.
+function moved_today(a, b)
+    return moved[pair_key(a, b)] or 0
+end
+
+--- One flush window's share of the day's pull back toward the anchor. Not budgeted: this is
+--- gravity, not event pressure.
+local function gravity_chunk(a, b, key, cfg)
+    if cfg.decay <= 0 then
+        return 0
+    end
+    return (anchor_for(key) - current(a, b)) * cfg.decay / FLUSHES_PER_DAY
+end
+
+--- What flush() would commit for this pair right now, recording nothing. Returns the raw
+--- accumulation, the whole number that would land, the number that would land if the pair still had
+--- its whole allowance, and what is left of that allowance today (nil when relation_daily_budget is
+--- 0). The third differs from the second exactly when the budget is holding the pair back, which is
+--- what lets a display say "queued but not today" instead of showing nothing. cfg is optional - a
+--- caller sweeping many pairs passes one settings() table for the whole sweep.
+function preview(a, b, cfg)
+    local key = pair_key(a, b)
+    local raw = pending[key] or 0
+    cfg = cfg or settings()
+    local room = budget_room(key, cfg)
+    if not pair_allowed(a, b) then
+        return raw, 0, 0, room
+    end
+    local pull = gravity_chunk(a, b, key, cfg)
+    if raw == 0 and pull == 0 then
+        return raw, 0, 0, room
+    end
+
+    local full = clamp_step(a, b, key, raw + pull, cfg)
+    if not room then
+        return raw, full, full, room
+    end
+
+    local v = raw
+    if room <= 0 then
+        v = 0
+    elseif v > room then
+        v = room
+    elseif v < -room then
+        v = -room
+    end
+    return raw, (clamp_step(a, b, key, v + pull, cfg)), full, room
+end
+
+--- How many of the roster a faction is at war with, and how many it is friends with.
+local function stance_counts(f)
+    local enemies, friends = 0, 0
+    local factions = game_relations.factions_table
+    for i = 1, #factions do
+        local g = factions[i]
+        if g ~= f then
+            if game_relations.is_factions_enemies(f, g) then
+                enemies = enemies + 1
+            elseif game_relations.is_factions_friends(f, g) then
+                friends = friends + 1
+            end
+        end
+    end
+    return enemies, friends
+end
+
+--- One death. Every faction hostile to the victim credits the killer's faction, each by one share
+--- of its own enemies; every friend of the victim debits it by one share of its own friends; the
+--- victim's own faction debits it in full. Neutrals to the victim do not react.
+function contribute(victim_tbl, killer_tbl)
+    local victim = victim_tbl and victim_tbl.comm
+    local killer = killer_tbl and killer_tbl.comm
+    if not (victim and killer) or victim == killer then
+        return
+    end
+
+    local step = tonumber(warfare_options.options.relation_step) or 0
+    if step <= 0 then
+        return
+    end
+
+    local v_rank = RANK_WEIGHT[victim_tbl.rank] or RANK_DEFAULT
+    local k_rank = RANK_WEIGHT[killer_tbl.rank] or RANK_DEFAULT
+    local base = step * (v_rank + k_rank / 5)
+
+    local factions = game_relations.factions_table
+    for i = 1, #factions do
+        local f = factions[i]
+        if pair_allowed(f, killer) then
+            local d = 0
+            if f == victim then
+                d = -base
+            elseif game_relations.is_factions_enemies(f, victim) then
+                local enemies = stance_counts(f)
+                d = base / enemies
+            elseif game_relations.is_factions_friends(f, victim) then
+                local _, friends = stance_counts(f)
+                d = -base / friends
+            end
+            if d ~= 0 then
+                local key = pair_key(f, killer)
+                pending[key] = (pending[key] or 0) + weigh(d)
+            end
+        end
+    end
+    warfare_log.trace("warfare_relations.contribute: killer=%s victim=%s base=%s",
+        killer, victim, base)
+end
+
+--- A contribution that is not a death: no rank scaling, same weighting and budget.
+function contribute_flat(faction_1, faction_2, delta)
+    if not (faction_1 and faction_2) or faction_1 == faction_2 then
+        return
+    end
+    delta = tonumber(delta) or 0
+    if delta == 0 then
+        return
+    end
+    local key = pair_key(faction_1, faction_2)
+    pending[key] = (pending[key] or 0) + weigh(delta)
+    warfare_log.debug("warfare_relations.contribute_flat: %s delta=%s", key, delta)
+end
+
+local function ensure_allowed_pairs()
+    if not allowed_pairs or allowed_pairs_mode ~= warfare_options.options.relation_all_pairs then
+        build_allowed_pairs()
+    end
+end
+
+--- Every allowed pair, not just those with something pending: gravity pulls whether or not anyone
+--- fought. The fraction a whole-number commit leaves behind is carried into the next window, so a
+--- pull too small to land as 1 still lands once it has added up.
+function flush()
+    local cfg = settings()
+    ensure_allowed_pairs()
+    local carried = {}
+    local n = 0
+    for i = 1, #allowed_pairs do
+        local a, b, key = allowed_pairs[i][1], allowed_pairs[i][2], allowed_pairs[i][3]
+        local raw = pending[key] or 0
+        local pull = gravity_chunk(a, b, key, cfg)
+        if raw ~= 0 or pull ~= 0 then
+            local v = apply_budget(key, raw, cfg) + pull
+            commit(a, b, key, v, cfg)
+            local rest = v - math.floor(v + 0.5)
+            if rest ~= 0 then
+                carried[key] = rest
+            end
+            n = n + 1
+        end
+    end
+    pending = carried
+    if n > 0 then
+        warfare_log.debug("warfare_relations.flush: committed %s pairs", n)
+    end
+end
+
+--- A whole day's pull at once, for the debug view; tick() spreads the same pull over the day's
+--- flushes. Bypasses asymmetry and the budget - this is gravity, not event pressure.
+function apply_gravity()
+    local cfg = settings()
+    if cfg.decay <= 0 then
+        return
+    end
+    ensure_allowed_pairs()
+    for i = 1, #allowed_pairs do
+        local p = allowed_pairs[i]
+        local key = p[3]
+        local r = current(p[1], p[2])
+        local pull = (anchor_for(key) - r) * cfg.decay
+        commit(p[1], p[2], key, pull, cfg)
+    end
+end
+
+--- Driven by warfare.actor_on_update with its game-second delta.
+function tick(delta_sec)
+    if not _G.WARFARE then
+        return
+    end
+
+    delta_sec = tonumber(delta_sec) or 0
+    if delta_sec < 0 then
+        delta_sec = 0
+    end
+    -- Taken on the first tick, not in load_state: by then game_relations has restored its pstor
+    -- values and nothing else is still writing the registry.
+    ensure_anchors()
+    elapsed = elapsed + delta_sec
+    flush_accum = flush_accum + delta_sec
+
+    local today = math.floor(elapsed / SEC_PER_DAY)
+    if today ~= day then
+        warfare_log.info("warfare_relations.tick: day %s -> %s, resetting budgets", day, today)
+        day = today
+        spent = {}
+        moved = {}
+    end
+
+    -- One flush per crossing, never one per elapsed window: a jump over an hour advances spawn
+    -- timers instead of simulating the interval, so skipped windows were never fought and have
+    -- nothing to counteract the pull toward the anchor.
+    if flush_accum >= FLUSH_INTERVAL then
+        flush_accum = flush_accum % FLUSH_INTERVAL
+        flush()
+    end
+end
+
+--- Drop pairs naming factions the current roster does not have.
+function purge_stale()
+    local factions = game_relations.factions_table
+    if not factions then
+        return
+    end
+    local known = {}
+    for i = 1, #factions do
+        known[factions[i]] = true
+    end
+    for _, tbl in ipairs({ pending, spent, moved, anchors }) do
+        for key in pairs(tbl) do
+            local a, b = split_key(key)
+            if not (a and b and known[a] and known[b]) then
+                warfare_log.warn("warfare_relations.purge_stale: dropping %s", key)
+                tbl[key] = nil
+            end
+        end
+    end
+end
+
+--- Rebuild the caches after an option change that can move the faction roster or which factions are gated.
+function invalidate()
+    lore = nil
+    allowed_pairs = nil
+    political = nil
+end

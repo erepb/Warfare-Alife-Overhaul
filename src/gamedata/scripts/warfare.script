@@ -451,6 +451,14 @@ function save_state(m_data)
     m_data.warfare.under_attack = smart_terrain_warfare.under_attack
     m_data.warfare.last_seen = smart_terrain_warfare.last_seen
 
+    m_data.warfare.relation_anchors = warfare_relations.anchors
+    m_data.warfare.relation_pending = warfare_relations.pending
+    m_data.warfare.relation_spent = warfare_relations.spent
+    m_data.warfare.relation_moved = warfare_relations.moved
+    m_data.warfare.relation_day = warfare_relations.day
+    m_data.warfare.relation_elapsed = warfare_relations.elapsed
+    m_data.warfare.relation_flush_accum = warfare_relations.flush_accum
+
     for sid, _ in pairs(smart_terrain_warfare.random_patrols) do
         local squad = sid and alife_object(sid)
 
@@ -578,6 +586,15 @@ function load_state(m_data)
             smart_terrain_warfare.last_seen[id] = nil
         end
     end
+
+    warfare_relations.anchors = m_data.warfare and m_data.warfare.relation_anchors or {}
+    warfare_relations.pending = m_data.warfare and m_data.warfare.relation_pending or {}
+    warfare_relations.spent = m_data.warfare and m_data.warfare.relation_spent or {}
+    warfare_relations.moved = m_data.warfare and m_data.warfare.relation_moved or {}
+    warfare_relations.day = m_data.warfare and m_data.warfare.relation_day or 0
+    warfare_relations.elapsed = m_data.warfare and m_data.warfare.relation_elapsed or 0
+    warfare_relations.flush_accum = m_data.warfare and m_data.warfare.relation_flush_accum or 0
+    warfare_relations.purge_stale()
 
     new_surge = m_data.warfare and m_data.warfare.new_surge or true
 
@@ -757,6 +774,8 @@ function actor_on_update()
             end
             was_night_wt = new_is_night
         end
+
+        warfare_relations.tick(time_delta)
     end
 
     last_update = warfare_utils.add_time(tg, 60)
