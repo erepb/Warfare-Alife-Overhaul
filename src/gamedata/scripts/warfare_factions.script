@@ -186,7 +186,7 @@ function update_faction(faction)
         for i, lvl in pairs(level_targets.active_levels) do
             local info = warfare_levels.level_information[lvl]
 
-            if (info.faction_stats and info.faction_stats[faction]) then
+            if (info and info.faction_stats and info.faction_stats[faction]) then
                 local num_active, num_inactive = sim_offline_combat.get_num_squads_on_level_both(lvl, faction)
 
                 fi.base_count = fi.base_count + info.faction_stats[faction].base_count

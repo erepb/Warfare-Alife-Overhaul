@@ -572,7 +572,7 @@ local function count_mutant_lairs(li)
 end
 
 -- Level ids are handed out by the game graph, so a level added by another mod cannot have an
--- entry in monster_level_capacity when this script is parsed. warfare.actor_on_first_update calls
+-- entry in monster_level_capacity when this script is parsed. warfare.build_level_information calls
 -- this once warfare_levels.level_information is populated, and any level still without a cap gets
 -- one derived from its own lairs. Level packs that register their own cap keep it.
 function resolve_monster_level_capacity()
@@ -749,6 +749,14 @@ function smart_terrain_on_update(smart)
 
     if not (warfare.initialized) then
         warfare_log.trace("smart_terrain_on_update: warfare not initialized yet")
+        return
+    end
+
+    -- Everything below reads level_information[level]; a level admitted after the
+    -- bootstrap in warfare.build_level_information has none.
+    if not (warfare_levels.level_information[smart.level_id]) then
+        warfare_log.trace("smart_terrain_on_update: no level_information for level %s, skipping smart=%s",
+            tostring(smart.level_id), smart:name())
         return
     end
 
@@ -2257,8 +2265,9 @@ function capture_empty_location(smart, target)
     end
 
     local level = game_graph():vertex(target.m_game_vertex_id):level_id()
-    local linked = level_targets.level_links[level]
-    local currentLevelSmarts = warfare_levels.level_information[level].smarts
+    local linked = level_targets.level_links[level] or {}
+    local currentLevelSmarts = warfare_levels.level_information[level]
+        and warfare_levels.level_information[level].smarts or {}
     local smartCollection = {}
     local bases = {}
 
@@ -2268,7 +2277,8 @@ function capture_empty_location(smart, target)
     end
 
     for lvl,_ in pairs(linked) do
-        local smarts = warfare_levels.level_information[lvl].smarts
+        local smarts = warfare_levels.level_information[lvl]
+            and warfare_levels.level_information[lvl].smarts or {}
 
         for i=1,#smarts do
             smartCollection[#smartCollection+1] = smarts[i]

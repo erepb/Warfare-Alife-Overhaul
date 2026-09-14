@@ -272,7 +272,27 @@ function actor_on_first_update()
         return
     end
 
-    warfare_log.info("actor_on_first_update: scanning registered_squads for ghosts")
+    actor_faction = get_actor_true_community() or alife():actor():community():sub(7)
+    warfare_log.info("actor_on_first_update: actor_faction=%s", actor_faction)
+    give_info("actor_made_wish_for_peace")
+
+    if (warfare_options.options.all_out_war) then
+        warfare_log.info("actor_on_first_update: all_out_war enabled, setting -5000 relations")
+        for i, f in pairs(warfare_factions.factions) do
+            for j, f2 in pairs(warfare_factions.factions) do
+                if f ~= f2 then
+                    game_relations.set_factions_community_num(f, f2, -5000)
+                end
+            end
+        end
+    end
+end
+
+-- Runs from the actor_on_update one-shot init, after every actor_on_first_update handler:
+-- level add-ons register their level_links/level_offsets there, and both the ghost purge
+-- and the level scan below decide on level admission.
+function build_level_information()
+    warfare_log.info("build_level_information: scanning registered_squads for ghosts")
     -- The excluded-level branch below reads this to tell a warfare squad from a story squad,
     -- and get_ignore_list() is self-initialising, so the sweep does not depend on on_game_load
     -- having primed it first.
@@ -307,13 +327,13 @@ function actor_on_first_update()
                 delete = not axr_companions.companion_squads[id]
             end
             if reason then
-                warfare_log.debug("actor_on_first_update: ghost faction=%s id=%s reason=%s delete=%s release=%s",
+                warfare_log.debug("build_level_information: ghost faction=%s id=%s reason=%s delete=%s release=%s",
                     faction, id, reason, tostring(delete), tostring(release))
                 removed[#removed + 1] = { faction = faction, id = id, reason = reason, delete = delete, release = release }
             end
         end
     end
-    warfare_log.info("actor_on_first_update: %s ghosts found, purging", #removed)
+    warfare_log.info("build_level_information: %s ghosts found, purging", #removed)
     local released = 0
     for _, e in ipairs(removed) do
         remove_registered_squad(e.faction, e.id)
@@ -321,7 +341,7 @@ function actor_on_first_update()
         if (e.delete) then
             local squad = alife_object(e.id)
             if (squad) then
-                warfare_log.info("actor_on_first_update: releasing squad=%s on excluded level", tostring(e.id))
+                warfare_log.info("build_level_information: releasing squad=%s on excluded level", tostring(e.id))
                 sim_squad_warfare.remove_squad(squad)
                 squad:remove_squad()
             end
@@ -334,26 +354,10 @@ function actor_on_first_update()
         end
     end
     if released > 0 then
-        warfare_log.info("actor_on_first_update: released %s story squads to vanilla control", released)
+        warfare_log.info("build_level_information: released %s story squads to vanilla control", released)
     end
 
-    warfare_log.info("actor_on_first_update: initializing warfare level data")
-    actor_faction = get_actor_true_community() or alife():actor():community():sub(7)
-    warfare_log.info("actor_on_first_update: actor_faction=%s", actor_faction)
-    give_info("actor_made_wish_for_peace")
-
-    if (warfare_options.options.all_out_war) then
-        warfare_log.info("actor_on_first_update: all_out_war enabled, setting -5000 relations")
-        for i, f in pairs(warfare_factions.factions) do
-            for j, f2 in pairs(warfare_factions.factions) do
-                if f ~= f2 then
-                    game_relations.set_factions_community_num(f, f2, -5000)
-                end
-            end
-        end
-    end
-
-    warfare_log.debug("actor_on_first_update: scanning SIMBOARD.smarts_by_names to populate level_information")
+    warfare_log.debug("build_level_information: scanning SIMBOARD.smarts_by_names to populate level_information")
     local bootstrapped = 0
     for name, smart in warfare_levels.supported_smarts() do
         -- Eagerly bootstrap before the alife scheduler gets to it, so the
@@ -372,7 +376,7 @@ function actor_on_first_update()
         end
 
         if (not warfare_levels.level_information[smart.level_id]) then
-            warfare_log.trace("actor_on_first_update: init level_information[%s]", smart.level_id)
+            warfare_log.trace("build_level_information: init level_information[%s]", smart.level_id)
             warfare_levels.level_information[smart.level_id] = {}
             warfare_levels.level_information[smart.level_id].smarts = {}
             warfare_levels.level_information[smart.level_id].base_count = 0
@@ -407,7 +411,7 @@ function actor_on_first_update()
             end
         end
     end
-    warfare_log.info("actor_on_first_update: bootstrapped %s smarts before level/faction aggregation", tostring(bootstrapped))
+    warfare_log.info("build_level_information: bootstrapped %s smarts before level/faction aggregation", tostring(bootstrapped))
 
     smart_terrain_warfare.resolve_monster_level_capacity()
 end
@@ -800,6 +804,7 @@ function actor_on_update()
             apply_all_out_war()
         end
 
+        build_level_information()
         initialize()
         warfare_levels.update()
         smart_terrain_warfare.build_smart_collections()
@@ -1197,7 +1202,7 @@ end
 -- (load_state, pre-1.4.5 detected via missing defense_delay).
 --
 -- Armed there but applied from actor_on_update, because the interval needs warfare.base_count
--- (set in actor_on_first_update) and faction_information[f].base_count (produced by the
+-- (set in build_level_information) and faction_information[f].base_count (produced by the
 -- warfare_levels/warfare_factions updates that run immediately before this call).
 --
 -- Single pass: ownership is already correct by now. fill_start_position commits it for a new game

@@ -52,6 +52,11 @@ level_information = {}
 -- predicate is data-driven on purpose: an add-on that supplies its own level_links
 -- and level_offsets entries is admitted with no change here.
 --
+-- Only positive verdicts are cached. Level add-ons register their entries from their
+-- own actor_on_first_update, after warfare has already asked about their levels, so a
+-- negative answer is re-evaluated on every call; warfare.build_level_information
+-- (actor_on_update one-shot) is where the admitted set is finally acted on.
+--
 -- active_levels is deliberately not part of the test. It is the aggregation roster
 -- for update() below, not an eligibility list -- level 34 (y04_pole) has links and
 -- offsets but no active_levels entry, and works today.
@@ -75,15 +80,20 @@ function is_level_supported(level_id)
 		return false
 	end
 
-	local cached = level_supported[level_id]
-	if (cached ~= nil) then
-		return cached
+	if (level_supported[level_id]) then
+		return true
 	end
 
 	local has_links = (level_targets.level_links[level_id] ~= nil)
 	local has_offsets = (global_position.level_offsets[level_id] ~= nil)
 	local supported = has_links and has_offsets
-	level_supported[level_id] = supported
+	if (supported) then
+		level_supported[level_id] = true
+		if (level_support_logged[level_id]) then
+			warfare_log.info("level %s (%s) admitted to warfare: add-on registered its level_links and level_offsets",
+				tostring(level_id), level_name_for(level_id))
+		end
+	end
 
 	if not (supported) and not (level_support_logged[level_id]) then
 		level_support_logged[level_id] = true
@@ -130,10 +140,14 @@ function supported_smarts()
 	end
 end
 
+-- active_levels is add-on writable; a level listed there without a level_information
+-- entry (not admitted, or admitted with no smarts) is skipped rather than aggregated.
 function update()
 	warfare_log.trace("warfare_levels.update: tick start")
 	for i,lvl in pairs(level_targets.active_levels) do
-		update_level(lvl)
+		if (level_information[lvl]) then
+			update_level(lvl)
+		end
 	end
 end
 
