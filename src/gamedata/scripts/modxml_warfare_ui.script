@@ -100,15 +100,9 @@ local function apply_pending_rebuild(dlg)
     dlg:Reset_opt(dlg.last_curr_tree, dlg.last_path)
     dlg:UpdatePending()
     local scroll = dlg.scroll_opt
-    -- Clear() scrolls to top; geometry is stale until RecalcNow (modded-exe API, hence pcall).
+    -- Clear() scrolls to top; SetScrollPos recalcs the pad first and clamps to the new range.
     if scroll and p.pos > 0 then
-        local ok = pcall(function()
-            scroll:RecalcNow()
-            scroll:SetScrollPos(p.pos)
-        end)
-        if not ok then
-            warfare_log.warn("modxml_warfare_ui.apply_pending_rebuild: scroll restore unavailable")
-        end
+        scroll:SetScrollPos(p.pos)
     end
 end
 
