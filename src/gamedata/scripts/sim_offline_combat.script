@@ -50,10 +50,10 @@ local ROUND_INTERVAL = 180     -- 3 in-game minutes
 local ROUND_CAP = 30           -- safety cap per tick
 
 -- Skirmish gate: squads that merely cross paths roll for whether they bother to
--- engage, using each faction's patrol_hunt_chance (its appetite for going after
--- enemies). Combined with OR, so one willing side is enough -- a timid faction can
--- still be attacked, it just rarely starts anything. Deliberate engagements (a
--- patrol hunt, or both squads sent at the same smart) bypass the roll entirely.
+-- engage, using the mean of both factions' patrol_hunt_chance -- each side's
+-- reluctance counts, so a timid faction halves every meeting it is part of.
+-- Deliberate engagements (a patrol hunt, or both squads sent at the same smart)
+-- bypass the roll entirely.
 -- A fight that passed the roll is a skirmish: it ends at the first death on either
 -- side, and the pair gets the same recheck window a declined meeting does. The squad
 -- that lost the member turns wary and declines every skirmish for SKIRMISH_WARY.
@@ -658,7 +658,7 @@ local function should_skirmish(squad_1, squad_2, id_1, id_2, community_1, commun
 
     local a = skirmish_hunt_chance(community_1)
     local b = skirmish_hunt_chance(community_2)
-    local chance = 100 - ((100 - a) * (100 - b)) / 100
+    local chance = (a + b) / 2
     if chance < SKIRMISH_FLOOR then
         chance = SKIRMISH_FLOOR
     end
