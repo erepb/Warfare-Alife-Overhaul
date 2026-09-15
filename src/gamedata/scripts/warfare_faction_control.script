@@ -113,19 +113,23 @@ local function map_spot_menu_add_property(ui,id,lvl)
         warfare_log.trace("map_spot_menu_add_property: alife_object(%s) nil, skipping", tostring(id))
         return
     end
-    warfare_log.trace("map_spot_menu_add_property: id=%s name=%s lvl=%s", tostring(id), tostring(obj:name()), tostring(lvl))
-
     ui = warfare_menu_compat.wrap(ui)
 
     -- Note when a selected squad is one of the objects under the cursor, so the global "Selected
     -- Squads" section (built later this same frame) can show only on a stack that contains one.
-    if obj:clsid() == clsid.online_offline_group_s and warfare_squad_command.is_selected(obj.id) then
+    local is_warfare_squad = obj:clsid() == clsid.online_offline_group_s and obj.registered_with_warfare
+    warfare_log.debug("map_spot_menu_add_property: id=%s name=%s lvl=%s clsid=%s smart=%s warfare_squad=%s",
+        tostring(id), tostring(obj:name()), tostring(lvl), tostring(obj:clsid()),
+        tostring(obj:clsid() == clsid.smart_terrain), tostring(is_warfare_squad))
+    if is_warfare_squad and warfare_squad_command.is_selected(obj.id) then
         cmd_sel_squad_tick = time_global()
     end
 
     if (obj:clsid() == clsid.smart_terrain) then
         local f = obj.owning_faction or "none"
-            
+        warfare_log.debug("map_spot_menu_add_property: smart branch owner=%s base=%s money=%s heli=%s",
+            f, tostring(obj.props and obj.props.base), tostring(db.actor and db.actor:money()), tostring(player_heli))
+
         if (player_heli) then
             local heli = alife_object(player_heli)
             
@@ -195,7 +199,9 @@ local function map_spot_menu_add_property(ui,id,lvl)
                 ui:AddItem(str_wrfr[6])
             end
         end
-    elseif (obj:clsid() == clsid.online_offline_group_s) then
+    elseif is_warfare_squad then -- vanilla/addon-managed squads get no warfare entries
+        warfare_log.debug("map_spot_menu_add_property: squad branch faction=%s heli=%s any_selected=%s",
+            tostring(obj:get_squad_community()), tostring(player_heli), tostring(warfare_squad_command.is_any_selected()))
         if (player_heli) then
             local heli = alife_object(player_heli)
             
