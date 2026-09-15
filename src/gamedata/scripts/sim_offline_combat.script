@@ -55,9 +55,11 @@ local ROUND_CAP = 30           -- safety cap per tick
 -- still be attacked, it just rarely starts anything. Deliberate engagements (a
 -- patrol hunt, or both squads sent at the same smart) bypass the roll entirely.
 -- A fight that passed the roll is a skirmish: it ends at the first death on either
--- side, and the pair gets the same recheck window a declined meeting does.
+-- side, and the pair gets the same recheck window a declined meeting does. The squad
+-- that lost the member turns wary and declines every skirmish for SKIRMISH_WARY.
 local SKIRMISH_FLOOR = 10      -- % floor; without it stalker/ecolog/zombied (all 0) never fight each other
 local SKIRMISH_RECHECK = 1800  -- game seconds before a declined pair may roll again
+local SKIRMISH_WARY = 10800    -- game seconds a squad avoids skirmishes after losing a member in one
 local MONSTER_HUNT = 100       -- mutants always engage
 local DEFAULT_HUNT = 50        -- fallback when a community has no faction options row
 
@@ -81,6 +83,7 @@ local faction_power = {}
 local last_combat_time = {}    -- [squad_id] = CTime of last combat round
 local skirmish_decline = {}    -- [pair_key] = CTime a pair declined to engage
 local skirmish_incidental = {} -- [pair_key] = true while the pair's combat lock came from a passed roll
+local skirmish_wary = {}       -- [squad_id] = CTime the squad lost a member in a skirmish
 
 local c_cnt, c_tbl = 0, {} -- enemies collector
 local tbl_smart = {}
@@ -617,6 +620,11 @@ local function skirmish_hunt_chance(community)
     return (opts and opts.patrol_hunt_chance) or DEFAULT_HUNT
 end
 
+local function is_wary(id, now)
+    local t = skirmish_wary[id]
+    return t and now:diffSec(t) < SKIRMISH_WARY
+end
+
 -- Decides whether two squads that have found each other actually fight.
 -- Only incidental meetings roll; anything deliberate resolves as before.
 local function should_skirmish(squad_1, squad_2, id_1, id_2, community_1, community_2)
@@ -634,8 +642,17 @@ local function should_skirmish(squad_1, squad_2, id_1, id_2, community_1, commun
         return true
     end
 
+    local now = warfare.get_time_ref()
     local declined = skirmish_decline[key]
-    if declined and warfare.get_time_ref():diffSec(declined) < SKIRMISH_RECHECK then
+    if declined and now:diffSec(declined) < SKIRMISH_RECHECK then
+        return false
+    end
+
+    -- A squad still smarting from a skirmish loss waves everyone through.
+    local wary = (is_wary(id_1, now) and id_1) or (is_wary(id_2, now) and id_2)
+    if wary then
+        skirmish_decline[key] = warfare.get_time()
+        warfare_log.debug("validate_enemy: skirmish avoided squad_1=%s squad_2=%s wary=%s", id_1, id_2, wary)
         return false
     end
 
@@ -658,21 +675,29 @@ local function should_skirmish(squad_1, squad_2, id_1, id_2, community_1, commun
     return true
 end
 
--- Ends a skirmish after its one death: unlock both squads and wave the pair off
--- for SKIRMISH_RECHECK so they walk away instead of re-engaging next tick.
+-- Ends a skirmish after its one death: unlock both squads, wave the pair off for
+-- SKIRMISH_RECHECK so they walk away instead of re-engaging next tick, and make the
+-- loser wary.
 local function skirmish_break_off(id_1, squad_1, id_2, squad_2, se_victim, round)
     warfare_log.debug("simulate_battle: skirmish break-off attacker=%s victim=%s after npc=%s round=%s", id_1, id_2, se_victim and se_victim.id or "?", round)
     skirmish_decline[skirmish_pair_key(id_1, id_2)] = warfare.get_time()
+    skirmish_wary[id_2] = warfare.get_time()
     disengage_combat(id_1, squad_1, id_2, squad_2)
 end
 
--- Drops declines that have aged out. Entries are keyed by squad pair, and squad
--- ids get recycled, so they must not be allowed to sit around indefinitely.
+-- Drops declines and wary marks that have aged out. Entries are keyed by squad
+-- pair / squad id, and squad ids get recycled, so they must not be allowed to sit
+-- around indefinitely.
 function purge_expired_skirmishes()
     local now = warfare.get_time_ref()
     for key, t in pairs(skirmish_decline) do
         if now:diffSec(t) >= SKIRMISH_RECHECK then
             skirmish_decline[key] = nil
+        end
+    end
+    for id, t in pairs(skirmish_wary) do
+        if now:diffSec(t) >= SKIRMISH_WARY then
+            skirmish_wary[id] = nil
         end
     end
 end
@@ -1026,6 +1051,7 @@ function remove_squad_info(squad_2, id_2, id_1, lid)
     end
     opponents[id_2] = nil
     last_combat_time[id_2] = nil
+    skirmish_wary[id_2] = nil
 
     if squads_by_level[lid] then
         squads_by_level[lid][id_2] = nil
