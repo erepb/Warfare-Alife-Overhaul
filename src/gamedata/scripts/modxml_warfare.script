@@ -229,8 +229,8 @@ function ui_options.init_opt_coder()
             -- baseline, so a preset supplying exactly 1000 compared equal to the clamped 30 and
             -- was never written: the slider read 1000 while ui_options.get returned 30. Matches
             -- max_resurgence_wait_time, which has always allowed 0.
-            { id = "min_resurgence_wait_time", type = "track", val = 2, def = 60000, min = 0, max = 3000000, step = 6000, fmt = "time_dhms" },
-            { id = "max_resurgence_wait_time", type = "track", val = 2, def = 300000, min = 0, max = 6000000, step = 6000, fmt = "time_dhms" },
+            { id = "min_resurgence_wait_time", type = "track", val = 2, def = 43200, min = 0, max = 864000, step = 3600, fmt = "time_dhms" },
+            { id = "max_resurgence_wait_time", type = "track", val = 2, def = 86400, min = 0, max = 1728000, step = 3600, fmt = "time_dhms" },
             { id = "resurgence_chance", type = "track", val = 2, def = 50, min = 0, max = 100, step = 1, fmt = "percent" },
         } },
     }, {
