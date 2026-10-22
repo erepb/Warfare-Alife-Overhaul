@@ -954,7 +954,6 @@ function fill_start_position()
     if (warfare_options.options.random_starting_locations) then
         warfare_log.info("fill_start_position: random_starting_locations enabled, deferring")
         return
-        --initialize_random_starting_locations()
     end
 
     local setting_ini
@@ -1279,8 +1278,7 @@ function initialize_random_starting_locations()
     }
 
     used_smarts[base.id] = true
-    local resources = math.random(max_resources) --warfare_factions.faction_information[actor_faction].resource_count
-    local section = faction_expansions.get_spawn_section(actor_faction, resources, max_resources)
+    local section = faction_expansions.get_spawn_section(actor_faction, math.random(max_resources))
 
     local squad = spawn_squad(section, base:name())
     sim_squad_warfare.set_target(squad, base.id)
@@ -1311,7 +1309,7 @@ function initialize_random_starting_locations()
                         used_smarts[s.id] = true
                         s.global_position = gpos
 
-                        local section = faction_expansions.get_spawn_section(f, math.random(max_resources), max_resources)
+                        local section = faction_expansions.get_spawn_section(f, math.random(max_resources))
                         local squad = spawn_squad(section, s:name())
                         sim_squad_warfare.set_target(squad, s.id)
 
@@ -1349,7 +1347,7 @@ function initialize_random_starting_locations()
                         f = f[math.random(#f)]
 
                         if (math.random(100) <= warfare_options.options.random_stalker_chance) then
-                            local section = faction_expansions.get_spawn_section(f, math.random(max_resources), max_resources)
+                            local section = faction_expansions.get_spawn_section(f, math.random(max_resources))
                             local squad = spawn_squad(section, smart:name())
                             sim_squad_warfare.set_target(squad, smart.id)
                         end
@@ -1359,8 +1357,6 @@ function initialize_random_starting_locations()
                 local f = {}
 
                 for _, faction in pairs(warfare_factions.factions) do
-                    local flag = smart.props[faction] or 0
-
                     if (warfare_options.options.factions[faction].spawn_on_new_game) then
                         local flag = smart.props[faction] or 0
                         local entries = warfare_options.options.factions[faction].random_spawn_entries
@@ -1381,14 +1377,15 @@ function initialize_random_starting_locations()
                     f = f[math.random(#f)]
 
                     if (math.random(100) <= warfare_options.options.random_stalker_chance) then
-                        local section = faction_expansions.get_spawn_section(f, math.random(max_resources), max_resources)
+                        local section = faction_expansions.get_spawn_section(f, math.random(max_resources))
                         local squad = spawn_squad(section, smart:name())
                         sim_squad_warfare.set_target(squad, smart.id)
                     end
                 end
             elseif (smart.props.lair > 0) then
                 if (math.random(100) <= warfare_options.options.random_monster_chance) then
-                    local section = faction_expansions.get_spawn_section("monster", math.random(max_resources), max_resources)
+                    local _, rare_chance = smart_terrain_warfare.get_mutant_level_settings(smart.level_id)
+                    local section = faction_expansions.get_spawn_section("monster", rare_chance, smart.level_id)
                     local squad = spawn_squad(section, smart:name())
                     sim_squad_warfare.set_target(squad, smart.id)
                 end
