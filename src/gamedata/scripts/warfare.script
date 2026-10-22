@@ -16,7 +16,7 @@
 --]]
 
 -- The mod version: bump only here. Release CI reads this line for the tag, archive name and fomod/Info.xml.
-VERSION = "1.6.10"
+VERSION = "1.6.11"
 
 --_G.DEACTIVATE_SIM_ON_NON_LINKED_LEVELS = false
 --_G.ProcessEventQueueState = function() return end
