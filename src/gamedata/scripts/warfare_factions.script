@@ -50,6 +50,10 @@ all_factions = {
 
 faction_information = {}
 
+-- A baseless faction with at least this many living squads is not extinct and gets no resurgence.
+-- Matches the smallest wave emergency_resurrection_spawn sends.
+local RESURGENCE_SURVIVOR_LIMIT = 4
+
 for i = 1, #factions do
     factions_p[factions[i]] = true
 end
@@ -298,15 +302,23 @@ function update_faction(faction)
                 fi.last_resurgence_attempt = warfare.get_time()
                 fi.next_resurgence_attempt = math.random(min_resurgence_wait_time, max_resurgence_wait_time)
 
+                local survivors = (fi.active_squads or 0) + (fi.inactive_squads or 0)
+
                 -- Choose between new and old resurgence logic
-                if warfare_options.options.use_new_resurgence_logic then
-                    -- Emergency spawn: Create powerful squad for extinct factions
-                    warfare_log.debug("update_faction: %s using new resurgence logic", tostring(faction))
-                    local emergency_attempted = emergency_resurrection_spawn(faction)
-                    if emergency_attempted then
-                        warfare_log.info("update_faction: %s emergency resurrection succeeded", tostring(faction))
+                if survivors >= RESURGENCE_SURVIVOR_LIMIT then
+                    warfare_log.debug("update_faction: %s resurgence skipped, %s squads still alive", tostring(faction), tostring(survivors))
+                elseif warfare_options.options.use_new_resurgence_logic then
+                    if math.random(0, 99) < faction_resurgence_chance then
+                        -- Emergency spawn: Create powerful squad for extinct factions
+                        warfare_log.debug("update_faction: %s using new resurgence logic (chance=%s)", tostring(faction), tostring(faction_resurgence_chance))
+                        local emergency_attempted = emergency_resurrection_spawn(faction)
+                        if emergency_attempted then
+                            warfare_log.info("update_faction: %s emergency resurrection succeeded", tostring(faction))
+                        else
+                            warfare_log.warn("update_faction: %s emergency resurrection failed (no valid spawn/target)", tostring(faction))
+                        end
                     else
-                        warfare_log.warn("update_faction: %s emergency resurrection failed (no valid spawn/target)", tostring(faction))
+                        warfare_log.trace("update_faction: %s resurgence roll failed (chance=%s), skipping", tostring(faction), tostring(faction_resurgence_chance))
                     end
                 else
                     -- Original resurgence logic with chance to skip
