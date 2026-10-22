@@ -3070,7 +3070,7 @@ function spawn_defense(smart)
     local current_respawn = get_current_def_respawn_interval(smart.owning_faction)
     if not (defense_timers[smart.id]) or reset_defense_timer[smart.id] then
         defense_timers[smart.id] = warfare.get_time()
-        reset_defense_timer[smart.id] = nil                                            -- timer reset only occurs when a base changes owners
+        reset_defense_timer[smart.id] = nil
         return
     elseif (time_ref():diffSec(defense_timers[smart.id]) > current_respawn * (defense_delay[smart.id] + 1)) then
         defense_timers[smart.id] = warfare_utils.add_time(defense_timers[smart.id], current_respawn * (defense_delay[smart.id] + 1))
@@ -3105,6 +3105,24 @@ function get_current_patrol_respawn_interval(faction)
     local faction_bases = warfare_factions.faction_information[faction].base_count
     local respawn = warfare.lerp(ff.min_patrol_time, ff.max_patrol_time, base_lerp_factor(faction_bases))
     return respawn * (warfare_options.options.spawn_speed_multiplier or 1)
+end
+
+-- Re-arm a captured base's defense and patrol timers for its new owner: each next spawn lands at a
+-- random point within one current interval of that owner.
+function reset_spawn_timers(smart)
+    local faction = smart.owning_faction
+    if not (warfare_options.options.factions[faction] and warfare_factions.faction_information[faction]) then
+        defense_timers[smart.id] = nil
+        patrol_timers[smart.id] = nil
+        return
+    end
+
+    local def_offset = math.random(0, math.floor(get_current_def_respawn_interval(faction)))
+    local pat_offset = math.random(0, math.floor(get_current_patrol_respawn_interval(faction)))
+    defense_timers[smart.id] = warfare_utils.subtract_time(warfare.get_time(), def_offset)
+    patrol_timers[smart.id] = warfare_utils.subtract_time(warfare.get_time(), pat_offset)
+    warfare_log.debug("reset_spawn_timers: smart=%s faction=%s def_offset=%s pat_offset=%s",
+        smart:name(), faction, def_offset, pat_offset)
 end
 
 function spawn_patrols(smart)
@@ -5345,6 +5363,10 @@ function check_owner(smart)
     end
     announce_owner_change(smart, was)
 
+    if (smart.owning_faction ~= was) and (smart.owning_faction ~= "none") and (smart.props) and (smart.props.base > 0) then
+        reset_spawn_timers(smart)
+    end
+
     if (smart.last_owner ~= smart.owning_faction) then
         warfare_log.info("check_owner: ownership changed smart=%s %s -> %s",
             smart:name(), tostring(smart.last_owner), tostring(smart.owning_faction))
@@ -5390,18 +5412,6 @@ function check_owner(smart)
         if (smart.props) and (smart.props.base > 0) then
             -- the new owner waits out a full cooldown before planning from here
             invasion_cooldown[smart.id] = warfare.get_time()
-
-            -- reset timer if enemy faction takes over a base
-            if is_factions_enemies(smart.owning_faction, previous_owner[smart.id]) then
-                reset_defense_timer[smart.id] = 1                                            -- a non-nil value here will cause the spawn time to reset, which will happen when a base's ownership changes
-                patrol_timers[smart.id] = nil
-            -- or reset timer if a diplomatic faction steals a base from another. A handover involving
-            -- a non-diplomatic faction is not treated as a real conquest.
-            elseif warfare_behavior.holds_ground(previous_owner[smart.id])
-            and warfare_behavior.holds_ground(smart.owning_faction) then
-                reset_defense_timer[smart.id] = 1                                            -- a non-nil value here will cause the spawn time to reset, which will happen when a base's ownership changes
-                patrol_timers[smart.id] = nil
-            end
         end
 
         previous_owner[smart.id] = smart.owning_faction                                -- the new owner becomes the previous owner
