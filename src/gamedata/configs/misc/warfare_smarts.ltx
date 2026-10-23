@@ -8,6 +8,9 @@
 ;   resurrect_also = <factions>  comma list of further factions using it as an anchor
 ;   travel_hub     = <weight>    independent factions prefer it when falling back to a base
 ;   lab_entrance   = true        weighted by the lab_entrance_appeal trait
+;   inherit_trade  = true        the warfare trader keeps the trade profile of the job it takes here
+;                                whoever holds the smart; goodwill gates on the main_base faction
+;                                follow the trader's own faction instead
 ;
 ; Level packs add their own smarts with misc\mod_warfare_smarts_<pack>.ltx; `![smart]` amends an
 ; entry here and `!![smart]` removes it. A section for a smart that is not in the game is ignored.
@@ -204,16 +207,18 @@ main_base      = monolith
 resurrect      = true
 
 ; --- Ecologists ---
-[yan_smart_terrain_6_4]                      ; Scientist Bunker (Yantar)
+[yan_smart_terrain_6_4]                      ; Scientist Bunker (Yantar): Sakharov's trade
 main_base      = ecolog
 protect        = true
 resurrect      = true
 travel_hub     = 1
+inherit_trade  = true
 
-[jup_b41]                                    ; Scientist Bunker (Jupiter)
+[jup_b41]                                    ; Scientist Bunker (Jupiter): Hermann's trade
 main_base      = ecolog
 protect        = true
 resurrect      = true
+inherit_trade  = true
 
 ; --- ISG (no protected home base, resurrection anchors only) ---
 [jup_a10_smart_terrain]

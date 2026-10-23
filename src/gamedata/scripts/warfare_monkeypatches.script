@@ -798,6 +798,21 @@ local trade_names = {
     ["isg"]         = "items\\trade\\trade_isg.ltx",
 }
 
+-- npc id -> the faction whose goodwill gates that trader's inherited profile (inherit_trade smarts)
+local inherited_trade_goodwill = {}
+
+-- An inherited profile's supply tiers test goodwill with the base's home faction; the trader's own
+-- faction stands in for it, so tiers follow goodwill with whoever holds the base.
+local xr_conditions_actor_goodwill_ge = xr_conditions.actor_goodwill_ge
+function xr_conditions.actor_goodwill_ge(actor, npc, p)
+    local id = npc and type(npc.id) == "function" and npc:id()
+    local home = id and inherited_trade_goodwill[id]
+    if home and p and p[1] == home then
+        p = { character_community(npc), p[2] }
+    end
+    return xr_conditions_actor_goodwill_ge(actor, npc, p)
+end
+
 local xr_logic_configure_schemes = xr_logic.configure_schemes
 function xr_logic.configure_schemes(npc, ini, ini_filename, stype, section_logic, gulag_name)
     if not _G.WARFARE then
@@ -877,8 +892,13 @@ function xr_logic.configure_schemes(npc, ini, ini_filename, stype, section_logic
                 if xr_conditions.check_npc_trader(db.actor, npc) then
                     -- only true if the npc is a warfare-spawned trader
                     local faction = character_community(npc)
-                    trade_ini = trade_names[faction]
-                    warfare_log.debug("configure_schemes: warfare trader npc=%s faction=%s trade_ini=%s", tostring(npc:name()), tostring(faction), tostring(trade_ini))
+                    if smart_terrain_warfare.inherits_trade(gulag_name) then
+                        inherited_trade_goodwill[npc_id] = smart_terrain_warfare.get_main_base_faction(gulag_name)
+                    else
+                        inherited_trade_goodwill[npc_id] = nil
+                        trade_ini = trade_names[faction]
+                    end
+                    warfare_log.debug("configure_schemes: warfare trader npc=%s faction=%s smart=%s trade_ini=%s", tostring(npc:name()), tostring(faction), tostring(gulag_name), tostring(trade_ini))
                 end
             else
                 trade_ini = "items\\trade\\trade_generic.ltx"                -- generic stalkers give generic trade inventory
