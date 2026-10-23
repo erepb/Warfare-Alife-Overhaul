@@ -470,6 +470,9 @@ local travel_hubs = {}
 -- list of smarts at laboratory entrances
 local lab_entrance_smarts = {}
 
+-- smarts whose warfare trader keeps its job's trade profile
+local inherit_trade_smarts = {}
+
 local function load_smart_roles()
     local ini = ini_file("misc\\warfare_smarts.ltx")
     ini:section_for_each(function(name)
@@ -489,6 +492,9 @@ local function load_smart_roles()
         end
         if (ini:r_bool_ex(name, "lab_entrance", false)) then
             lab_entrance_smarts[name] = true
+        end
+        if (ini:r_bool_ex(name, "inherit_trade", false)) then
+            inherit_trade_smarts[name] = true
         end
         return false
     end)
@@ -6116,6 +6122,10 @@ end
 function get_main_base_faction(smart_name)
     local entry = main_base_data[smart_name]
     return entry and entry.faction
+end
+
+function inherits_trade(smart_name)
+    return inherit_trade_smarts[smart_name] == true
 end
 
 function get_protected_base_faction(smart_name)
