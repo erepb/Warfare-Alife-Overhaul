@@ -1,0 +1,87 @@
+--[[
+
+=======================================================================================
+    Releases the looted-empty corpses of story service NPCs.
+
+    release_body_manager never queues a body that carries a story id, so a dead story
+    trader, mechanic, medic or barman lies at his base forever -- next to the Warfare
+    merchant check_unique_npcs spawned in his place.
+
+    On every level load this releases such a corpse once nothing is left in its
+    inventory. Only corpses on other levels are touched, so the player never sees one
+    vanish; one on the current level is handled on the next level load.
+=======================================================================================
+
+--]]
+
+-- Carried by every stalker and never offered in the loot window.
+local IGNORED_ITEMS = {
+    device_torch = true,
+}
+
+local function counts_as_loot(section)
+    return not (IGNORED_ITEMS[section] or IsItem("anim", section))
+end
+
+local function is_service_section(section, community)
+    local unique = warfare_utils.CheckUniqueSquad(community == "killer" and "merc" or community or "stalker")
+    return unique:is_npc_trader(section)
+            or unique:is_npc_mechanic(section)
+            or unique:is_npc_medic(section)
+            or unique:is_npc_barman(section)
+end
+
+--- Sections still carried by the corpse, or nil when it holds nothing lootable.
+local function leftover_loot(sim, se_npc)
+    local left
+    for id in sim:get_children(se_npc) do
+        local se_item = alife_object(id)
+        local section = se_item and se_item:section_name()
+        if section and counts_as_loot(section) then
+            left = left or {}
+            left[#left + 1] = section
+        end
+    end
+    return left
+end
+
+local function actor_on_first_update()
+    if not IsWarfare() then
+        return
+    end
+
+    local sim = alife()
+    local se_actor = sim and sim:actor()
+    if not se_actor then
+        return
+    end
+
+    -- Collected first: releasing a story object unregisters it from this table.
+    local corpses = {}
+    for story_id, id in pairs(story_objects.object_id_by_story_id) do
+        local se_obj = alife_object(id)
+        if se_obj
+                and IsStalker(nil, se_obj:clsid())
+                and not se_obj:alive()
+                and not simulation_objects.is_on_the_same_level(se_obj, se_actor)
+                and is_service_section(se_obj:section_name(), se_obj:community()) then
+            corpses[#corpses + 1] = { story_id = story_id, se_obj = se_obj }
+        end
+    end
+
+    for _, corpse in ipairs(corpses) do
+        local left = leftover_loot(sim, corpse.se_obj)
+        if left then
+            warfare_log.debug("warfare_story_corpses: keep %s, still carries %s",
+                corpse.story_id, table.concat(left, ","))
+        else
+            warfare_log.info("warfare_story_corpses: release empty corpse %s id=%s",
+                corpse.story_id, corpse.se_obj.id)
+            safe_release_manager.release(corpse.se_obj)
+        end
+    end
+end
+
+function on_game_start()
+    RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
+end
