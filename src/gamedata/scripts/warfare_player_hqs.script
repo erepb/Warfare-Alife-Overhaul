@@ -195,6 +195,15 @@ function allows(smart_name)
     return db.actor ~= nil and hq_of(get_actor_true_community()) == hqs[faction]
 end
 
+--- The actor's HQ faction and smart name, or nil. Unlike active_hq() it doesn't wait for apply(),
+--- so it holds for callers that run before warfare's first update.
+function current_hq()
+    local hq = db.actor and hq_of(get_actor_true_community())
+    if hq then
+        return hq.entry.faction, hq.smart
+    end
+end
+
 -- A Sin player who unlocked toolkit tiers with the warfare mechanic has them with the HQ's story
 -- mechanic as well, and the other way round. Both read <section>_upgrade_tier_<n>.
 local toolkit_task_done = xr_conditions.toolkit_task_done

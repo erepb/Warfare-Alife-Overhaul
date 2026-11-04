@@ -1,0 +1,134 @@
+-- GAMMA parts of the faction HQs (warfare_player_hqs), after GeroyAnekdotov's WALO SIN HQ 2.0.2 and
+-- UNISG Command & Operations 1.0.3. Each applies only to the HQ of the actor's faction.
+--   * Dynamic Anomalies Overhaul spawns no new anomaly inside the HQ. Saved ones are left alone.
+--   * Two campfires (Placeable Campfires' wood + a vanilla campfire zone) in the UNISG depot.
+--   * Sin traders sell from the HQ stock, GAMMA's Sin stock less the food and medicine the HQ's
+--     barman and medic sell.
+
+-- Dynamic anomalies ------------------------------------------------------------------------------
+
+-- smart -> its level, plus a box for anomalies a neighbouring smart could place inside the HQ
+local anomaly_free = {
+    red_smart_terrain_3_2 = { level = "l10_red_forest", min = { -173.5, 0, -46 }, max = { -144, 6, -15 } },
+    jup_b208              = { level = "jupiter" },
+}
+
+local function hq_area()
+    local _, smart = warfare_player_hqs.current_hq()
+    return smart, smart and anomaly_free[smart]
+end
+
+local function inside(area, pos)
+    local lo, hi = area.min, area.max
+    return lo and pos and pos.x >= lo[1] and pos.x <= hi[1] and pos.y >= lo[2] and pos.y <= hi[2]
+        and pos.z >= lo[3] and pos.z <= hi[3]
+end
+
+local dao = drx_da_main
+if dao then
+    local spawn_anomaly_on_smart = dao.drx_da_spawn_anomaly_on_smart
+    dao.drx_da_spawn_anomaly_on_smart = function(level_file, smart_name, anomaly_type, level_name, position_data)
+        local smart = hq_area()
+        if smart and smart == smart_name then
+            return false
+        end
+        return spawn_anomaly_on_smart(level_file, smart_name, anomaly_type, level_name, position_data)
+    end
+
+    local spawn_anomaly = dao.drx_da_spawn_anomaly
+    dao.drx_da_spawn_anomaly = function(anom_type, pos, lvid, gvid, level_file)
+        local _, area = hq_area()
+        if area and inside(area, pos) and level.name() == area.level then
+            return nil
+        end
+        return spawn_anomaly(anom_type, pos, lvid, gvid, level_file)
+    end
+end
+
+-- Campfires --------------------------------------------------------------------------------------
+
+local WOOD_SECTION = "ph_campfiremod"
+local FIRE_SECTION = "campfire"
+
+-- smart -> key -> wood position and heading (the fire is radial)
+local campfires = {
+    jup_b208 = {
+        hall  = { pos = { 400.152, 4.279, -130.446 }, heading = 0.14130 },
+        hall2 = { pos = { 399.007, 4.279, -94.434 },  heading = 3.11059 },
+    },
+}
+
+-- Same offset and zone shape as GAMMA's campfire_placeable.spawn_anomaly_campfire. The wood keeps its
+-- section's own model, bones and logic.
+local function create_campfire(c, gvid)
+    local p = c.pos
+    local pos = vector():set(p[1], p[2], p[3])
+    local lvid = warfare_utils.nearest_lvid(pos)
+    local wood = lvid and alife_create(WOOD_SECTION, pos, lvid, gvid)
+    if not wood then
+        return
+    end
+    wood.angle = vector():set(0, c.heading, 0)
+
+    local fire_pos = vector():set(p[1] - 0.05, p[2] + 0.20, p[3] + 0.05)
+    local fire_lvid = warfare_utils.nearest_lvid(fire_pos)
+    local fire = fire_lvid and alife_create(FIRE_SECTION, fire_pos, fire_lvid, gvid)
+    if not fire then
+        alife_release(wood)
+        return
+    end
+    local data = utils_stpk.get_anom_zone_data(fire)
+    data.shapes = { { shtype = 0, offset = vector():set(0, 10, 0), center = vector():set(0, 0, 0), radius = 0.85 } }
+    utils_stpk.set_anom_zone_data(data, fire)
+    return { wood = wood.id, fire = fire.id }
+end
+
+local function exists(id, section)
+    local se_obj = id and alife_object(id)
+    return se_obj and se_obj:section_name() == section
+end
+
+local function place_campfires()
+    if not (IsWarfare() and ini_sys:section_exist(WOOD_SECTION)) then
+        return
+    end
+    local st = alife_storage_manager.get_state()
+    for smart_name, list in pairs(campfires) do
+        local smart = warfare_utils.smart_on_actor_level(smart_name)
+        if smart and warfare_player_hqs.allows(smart_name) then
+            st.warfare_hq_campfires = st.warfare_hq_campfires or {}
+            local ids = st.warfare_hq_campfires[smart_name] or {}
+            for key, c in pairs(list) do
+                local rec = ids[key]
+                if not (rec and exists(rec.wood, WOOD_SECTION) and exists(rec.fire, FIRE_SECTION)) then
+                    if rec and exists(rec.wood, WOOD_SECTION) then
+                        alife_release(alife_object(rec.wood))
+                    end
+                    if rec and exists(rec.fire, FIRE_SECTION) then
+                        alife_release(alife_object(rec.fire))
+                    end
+                    ids[key] = create_campfire(c, smart.m_game_vertex_id)
+                    warfare_log.info("warfare_player_hqs_gamma_patch: campfire smart=%s key=%s created=%s", smart_name, key, ids[key] ~= nil)
+                end
+            end
+            st.warfare_hq_campfires[smart_name] = ids
+        end
+    end
+end
+
+-- Sin HQ trader stock ----------------------------------------------------------------------------
+
+local GREH_STOCK = "items\\trade\\trade_greh.ltx"
+local HQ_STOCK = "items\\trade\\trade_greh_warfare_hq.ltx"
+
+local trade_init = trade_manager.trade_init
+function trade_manager.trade_init(npc, cfg, ...)
+    if cfg and string.lower(cfg) == GREH_STOCK and warfare_player_hqs.current_hq() == "greh" then
+        cfg = HQ_STOCK
+    end
+    return trade_init(npc, cfg, ...)
+end
+
+function on_game_start()
+    RegisterScriptCallback("actor_on_first_update", place_campfires)
+end

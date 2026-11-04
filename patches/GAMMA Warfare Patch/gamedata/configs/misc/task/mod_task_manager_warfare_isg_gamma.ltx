@@ -1,0 +1,22 @@
+; UNISG trader task for a UNISG player under warfare that uses GAMMA's fetch lists, from UNISG
+; Command & Operations 1.0.3 (GeroyAnekdotov).
+
+[sim_default_isg_trader_task_7]
+icon = ui_inGame2_Nochnaya_ohota
+prior = 25
+storyline = false
+title = unisg_hq_trader_task_7_title
+descr = unisg_hq_trader_task_7_descr
+job_descr = unisg_hq_trader_task_7_job
+task_complete_descr = unisg_hq_trader_task_7_finish
+repeat_timeout = 86400
+stage_complete = 1
+title_functor = general_fetch_task
+descr_functor = general_warfare_fetch_task
+fetch_descr = unisg_hq_trader_task_7_job
+fetch_func = %=setup_fetch_task(sim_default_isg_trader_task_7_fetch:medical_x:2:5)%
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+precondition = {=is_warfare =is_actor_from_faction(isg)} true, false
+on_complete = %=fetch_reward_and_remove(sim_default_isg_trader_task_7_fetch:1.05) =inc_task_stage(sim_default_isg_trader_task_7) =reward_random_money(1500:3300) =complete_task_inc_goodwill(30:isg) =pstor_reset(sim_default_isg_trader_task_7_fetch)%
+condlist_0 = {!task_giver_alive(sim_default_isg_trader_task_7)} fail
