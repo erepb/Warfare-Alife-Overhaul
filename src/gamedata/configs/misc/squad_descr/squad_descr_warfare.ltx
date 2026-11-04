@@ -1,4 +1,5 @@
-;-- Unique NPC squads Warfare seeds on a new game (via mod_simulation_warfare.ltx).
+;-- Unique NPC squads Warfare seeds on a new game (via mod_simulation_warfare.ltx, or
+;-- warfare_player_hqs for a player faction HQ).
 ;-- Each must also be listed in the OCS [ignore_list] so Warfare never registers it.
 
 [mar_smart_terrain_3_3_renegade_trader_squad]:online_offline_group
@@ -24,3 +25,39 @@ faction = renegade
 npc_random = sim_default_renegade_medic
 npc_in_squad = 1, 1
 target_smart = mar_smart_terrain_3_3
+
+[red_smart_terrain_3_2_greh_medic_squad]:online_offline_group
+faction = greh
+npc_random = sim_default_greh_medic
+npc_in_squad = 1, 1
+target_smart = red_smart_terrain_3_2
+
+[red_smart_terrain_3_2_greh_barman_squad]:online_offline_group
+faction = greh
+npc_random = sim_default_greh_barman
+npc_in_squad = 1, 1
+target_smart = red_smart_terrain_3_2
+
+[jup_b208_isg_trader_squad]:online_offline_group
+faction = isg
+npc_random = sim_default_isg_trader
+npc_in_squad = 1, 1
+target_smart = jup_b208
+
+[jup_b208_isg_mechanic_squad]:online_offline_group
+faction = isg
+npc_random = sim_default_isg_mechanic
+npc_in_squad = 1, 1
+target_smart = jup_b208
+
+[jup_b208_isg_medic_squad]:online_offline_group
+faction = isg
+npc_random = sim_default_isg_medic
+npc_in_squad = 1, 1
+target_smart = jup_b208
+
+[jup_b208_isg_barman_squad]:online_offline_group
+faction = isg
+npc_random = sim_default_isg_barman
+npc_in_squad = 1, 1
+target_smart = jup_b208

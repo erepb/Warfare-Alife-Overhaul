@@ -1,0 +1,103 @@
+; UNISG HQ services at the Jupiter depot. Positions from UNISG Command & Operations 1.0.3.
+; The medic and barman exist only while the actor plays UNISG (warfare_player_hqs); the trader and
+; mechanic whenever warfare spawns one here.
+; The animpoints keep the default reach_distance (0.8): an NPC within reach_distance plays the
+; animation where it stands.
+
+; Warfare-spawned trader, upstairs. The cover by the entrance stays the story leader's: prior must
+; stay above vanilla's jup_depo_isg_leader job there, which accepts any trader. trade only has to be
+; set: warfare_monkeypatches swaps in the stock of the trader's own faction.
+[logic@jup_b208_warfare_trader]
+suitable = {=check_npc_trader} true
+trade = items\trade\trade_isg.ltx
+prior = 201
+active = beh@jup_b208_warfare_trader
+can_select_weapon = {=is_warfare} true, false
+dont_keep_items = true
+level_spot = trader
+
+; Warfare-spawned mechanic, on the cover vanilla gives the depot's story mechanic.
+[logic@jup_b208_warfare_mechanic]
+suitable = {=check_npc_mechanic} true
+trade = items\trade\trade_generic_mechanic.ltx
+prior = 200
+active = animpoint@jup_b208_warfare_mechanic
+can_select_weapon = {=is_warfare} true, false
+dont_keep_items = true
+level_spot = mechanic
+
+[animpoint@jup_b208_warfare_mechanic]
+cover_name = mechanic_monolith_jup_depo_plase
+avail_animations = animpoint_sit_normal
+use_camp = false
+meet = meet
+combat_ignore_cond = {=is_warfare} false, {=actor_enemy =check_enemy_name(actor)} false, true
+combat_ignore_keep_when_attacked = {=is_warfare} false, true
+invulnerable = {=is_warfare} false, {!actor_enemy} true, false
+gather_items_enabled = false
+help_wounded_enabled = false
+corpse_detection_enabled = false
+
+; Warfare-spawned medic and barman, each sitting on a chair created by warfare_base_props.script.
+; warfare_job_anchors keeps beh from standing them up there (its anchor seats).
+[logic@jup_b208_warfare_medic]
+suitable = {=check_npc_medic} true
+trade = items\trade\trade_generic_medic.ltx
+prior = 200
+active = beh@jup_b208_warfare_medic
+can_select_weapon = {=is_warfare} true, false
+dont_keep_items = true
+level_spot = medic
+
+[logic@jup_b208_warfare_barman]
+suitable = {=check_npc_barman} true
+trade = items\trade\trade_generic_barman.ltx
+prior = 200
+active = beh@jup_b208_warfare_barman
+can_select_weapon = {=is_warfare} true, false
+dont_keep_items = true
+level_spot = barman
+
+[beh@general]
+behavior_state = beh_move
+target = waypoint
+walk_dist = 100
+jog_dist = 220
+wait_anim = guard
+walk_anim = patrol
+jog_anim = patrol
+run_anim = rush
+delay_anim = guard
+meet = meet
+combat_ignore_cond = {=is_warfare} false, {=actor_true_enemy =check_enemy_name(actor)} false, true
+combat_ignore_keep_when_attacked = {=is_warfare} false, true
+invulnerable = {=is_warfare} false, {!actor_true_enemy} true, false
+gather_items_enabled = false
+help_wounded_enabled = false
+corpse_detection_enabled = false
+
+[beh@jup_b208_warfare_medic]:beh@general
+pt1 = 1000000000,animpoint_sit_normal | pos:387.757,4.279,-125.742 animpoint:387.457,4.279,-125.737,-1.000,0.000,0.017
+path_end = loop
+
+[beh@jup_b208_warfare_trader]:beh@general
+pt1 = 1000000000,guard | pos:416.335,9.851,-86.489 look:415.477,9.851,-87.001
+path_end = loop
+
+[beh@jup_b208_warfare_barman]:beh@general
+pt1 = 1000000000,animpoint_sit_normal | pos:424.385,9.954,-81.692 animpoint:424.685,9.954,-81.688,1.000,0.000,0.015
+path_end = loop
+
+[meet]
+close_anim      = nil
+close_victim    = nil
+far_anim        = nil
+far_victim      = nil
+close_distance  = 0
+far_distance    = 0
+close_snd_distance = 3
+abuse           = false
+use = {=actor_enemy} false, true
+allow_break = false
+meet_on_talking = false
+trade_enable = false

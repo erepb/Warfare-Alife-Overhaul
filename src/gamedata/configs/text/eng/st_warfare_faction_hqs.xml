@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+    <string id="unisg_hq_trader_task_1_title">
+        <text>Mutant sweep</text>
+    </string>
+    <string id="unisg_hq_trader_task_1_descr">
+        <text>A dangerous mutant group has been identified. Contract issued by %s (%s). Eliminate the group and return for payment.</text>
+    </string>
+    <string id="unisg_hq_trader_task_1_job">
+        <text>We need a mutant infestation cleared. Can you handle it?</text>
+    </string>
+    <string id="unisg_hq_trader_task_1_finish">
+        <text>The target is eliminated. Well done.</text>
+    </string>
+    <string id="unisg_hq_trader_task_2_title">
+        <text>Enemy outpost assault</text>
+    </string>
+    <string id="unisg_hq_trader_task_2_descr">
+        <text>An enemy encampment has been identified. Contract issued by %s (%s). Clear the marked position and report back.</text>
+    </string>
+    <string id="unisg_hq_trader_task_2_job">
+        <text>We need an enemy outpost neutralized.</text>
+    </string>
+    <string id="unisg_hq_trader_task_2_finish">
+        <text>Outpost cleared. Contract complete.</text>
+    </string>
+    <string id="unisg_hq_trader_task_3_title">
+        <text>Target elimination</text>
+    </string>
+    <string id="unisg_hq_trader_task_3_descr">
+        <text>A contract has been issued to eliminate a target. Client: %s (%s). Target details will be provided once you accept.</text>
+    </string>
+    <string id="unisg_hq_trader_task_3_job">
+        <text>A specific hostile stalker needs to be eliminated.</text>
+    </string>
+    <string id="unisg_hq_trader_task_3_finish">
+        <text>Target eliminated. Payment authorized.</text>
+    </string>
+    <string id="unisg_hq_trader_task_4_title">
+        <text>Artifact procurement: %s</text>
+    </string>
+    <string id="unisg_hq_trader_task_4_descr">
+        <text>Client %s (%s) requests a sample for analysis: %s. Find it and deliver it to HQ.</text>
+    </string>
+    <string id="unisg_hq_trader_task_4_job">
+        <text>Our researchers need a specific artifact.</text>
+    </string>
+    <string id="unisg_hq_trader_task_4_finish">
+        <text>Sample received. The researchers will be pleased.</text>
+    </string>
+    <string id="unisg_hq_trader_task_5_title">
+        <text>Rare samples: %s</text>
+    </string>
+    <string id="unisg_hq_trader_task_5_descr">
+        <text>The laboratory needs rare mutant tissue. Requested by %s (%s). Bring: %s.</text>
+    </string>
+    <string id="unisg_hq_trader_task_5_job">
+        <text>The lab needs rare mutant tissue for analysis.</text>
+    </string>
+    <string id="unisg_hq_trader_task_5_finish">
+        <text>Rare samples received and paid for.</text>
+    </string>
+    <string id="unisg_hq_trader_task_6_title">
+        <text>Biological samples: %s</text>
+    </string>
+    <string id="unisg_hq_trader_task_6_descr">
+        <text>Routine mutant tissue samples have been requested by %s (%s). Deliver: %s.</text>
+    </string>
+    <string id="unisg_hq_trader_task_6_job">
+        <text>We need mutant tissue samples from the field.</text>
+    </string>
+    <string id="unisg_hq_trader_task_6_finish">
+        <text>Samples accepted. Payment issued.</text>
+    </string>
+    <string id="unisg_hq_trader_task_7_descr">
+        <text>Client %s (%s) requests medical supplies: %s.</text>
+    </string>
+    <string id="unisg_hq_trader_task_7_finish">
+        <text>The infirmary is restocked. Here is your pay.</text>
+    </string>
+    <string id="unisg_hq_trader_task_7_job">
+        <text>The infirmary needs medical supplies.</text>
+    </string>
+    <string id="unisg_hq_trader_task_7_title">
+        <text>Medical requisition: %s</text>
+    </string>
+    <string id="unisg_hq_trader_task_8_title">
+        <text>Lost Knowledge</text>
+    </string>
+    <string id="unisg_hq_trader_task_8_descr">
+        <text>UNISG intelligence has located a stash containing classified research documents. Recover the documents and return them to the HQ trader.</text>
+    </string>
+    <string id="unisg_hq_trader_task_8_job">
+        <text>We need classified research papers from a stash. Follow the coordinates, recover the documents and bring them here. Keep any other supplies you find.</text>
+    </string>
+    <string id="unisg_hq_trader_task_8_finish">
+        <text>Documents secured. Here is your payment.</text>
+    </string>
+</string_table>

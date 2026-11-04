@@ -6124,6 +6124,11 @@ function get_main_base_faction(smart_name)
     return entry and entry.faction
 end
 
+-- The smart's main_base_data entry, or nil. Read-only: change it through set_main_base.
+function get_main_base(smart_name)
+    return main_base_data[smart_name]
+end
+
 function inherits_trade(smart_name)
     return inherit_trade_smarts[smart_name] == true
 end
@@ -6154,7 +6159,7 @@ function get_main_bases(faction)
 end
 
 -- For compatibility patches: entry has the main_base_data shape; nil removes the smart.
--- Must run before the first warfare update (on_game_start).
+-- Must run before the first warfare update (on_game_start, or by actor_on_first_update).
 function set_main_base(smart_name, entry)
     main_base_data[smart_name] = entry
     rebuild_main_base_indices()

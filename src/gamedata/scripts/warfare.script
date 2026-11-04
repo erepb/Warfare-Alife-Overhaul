@@ -348,6 +348,7 @@ function actor_on_first_update()
 
     actor_faction = get_actor_true_community() or alife():actor():community():sub(7)
     warfare_log.info("actor_on_first_update: actor_faction=%s", actor_faction)
+    warfare_player_hqs.apply(actor_faction)
     give_info("actor_made_wish_for_peace")
 end
 
@@ -945,6 +946,9 @@ function fill_start_position()
     SIMBOARD.start_position_filled = true
     warfare_levels.open_graph_gated_smarts()
 
+    local new_game_config = axr_main.config
+    warfare_player_hqs.apply(new_game_config and new_game_config:r_value("character_creation", "new_game_faction", 3))
+
     -- Arm the spawn-timer stagger. It can't be applied here (see stagger_spawn_timers),
     -- so it runs from the actor_on_update one-shot init -- possibly after GAMMA's
     -- autosave-and-reload of the freshly created game, hence the persisted flag.
@@ -1032,6 +1036,26 @@ function fill_start_position()
     local spawned_smart = {}        -- smart id -> smart
     local spawn_seq = 0
 
+    -- Tally by the squad's real community, not by its section's faction:
+    -- get_squad_section_faction has no "monster" branch and falls
+    -- through to "stalker", which would hand lairs to the loners.
+    local function tally_spawn(smart, squad)
+        local community = squad:get_squad_community()
+        if community and not is_squad_monster[community] then
+            spawn_seq = spawn_seq + 1
+            if not spawned_by_faction[smart.id] then
+                spawned_by_faction[smart.id] = {}
+                spawn_order[smart.id] = {}
+                spawned_smart[smart.id] = smart
+            end
+            local tally = spawned_by_faction[smart.id]
+            tally[community] = (tally[community] or 0) + 1
+            if not spawn_order[smart.id][community] then
+                spawn_order[smart.id][community] = spawn_seq
+            end
+        end
+    end
+
     warfare_log.info("fill_start_position: lair seeding complete, processing simulation.ltx sections")
     setting_ini:section_for_each(function(section)
         lc = setting_ini:line_count(section)
@@ -1105,25 +1129,7 @@ function fill_start_position()
                             if smart and squad and registered_squads[squad:get_squad_community()] and owns_section(squad_section, true) then
                                 sim_squad_warfare.set_target(squad, smart.id)
                                 warfare_log.info("fill_start_position: spawned squad section=%s faction=%s smart=%s", squad_section, sf, smart:name())
-
-                                -- Tally by the squad's real community, not by sf:
-                                -- get_squad_section_faction has no "monster" branch and falls
-                                -- through to "stalker", which would hand lairs to the loners.
-                                local community = squad:get_squad_community()
-                                if community and not is_squad_monster[community] then
-                                    spawn_seq = spawn_seq + 1
-                                    if not spawned_by_faction[smart.id] then
-                                        spawned_by_faction[smart.id] = {}
-                                        spawn_order[smart.id] = {}
-                                        spawned_smart[smart.id] = smart
-                                    end
-                                    local tally = spawned_by_faction[smart.id]
-                                    tally[community] = (tally[community] or 0) + 1
-                                    if not spawn_order[smart.id][community] then
-                                        spawn_order[smart.id][community] = spawn_seq
-                                    end
-                                end
-                            else
+                                tally_spawn(smart, squad)
                             end
                         end
                     end
@@ -1131,6 +1137,36 @@ function fill_start_position()
             end
         end
     end)
+
+    -- The actor's faction HQ (warfare_player_hqs) gets its own squads, unless simulation.ltx already
+    -- placed another faction there.
+    local hq = warfare_player_hqs.new_game_seed()
+    if hq then
+        local hq_smart, faction = hq.smart, hq.faction
+        local occupied = false
+        for community in pairs(spawned_by_faction[hq_smart.id] or {}) do
+            occupied = occupied or community ~= faction
+        end
+        if occupied then
+            warfare_log.info("fill_start_position: HQ smart=%s already holds another faction, no HQ squads", hq_smart:name())
+        elseif warfare_options.options.factions[faction] and warfare_options.options.factions[faction].spawn_on_new_game then
+            if hq.section and owns_section(hq.section, true) then
+                for i = 1, hq.count do
+                    local squad = spawn_squad(hq.section, hq_smart)
+                    if squad then
+                        sim_squad_warfare.set_target(squad, hq_smart.id)
+                        tally_spawn(hq_smart, squad)
+                        warfare_log.info("fill_start_position: spawned HQ squad section=%s smart=%s", hq.section, hq_smart:name())
+                    end
+                end
+            end
+            for _, section in ipairs(hq.service) do
+                if spawn_squad(section, hq_smart) then
+                    warfare_log.info("fill_start_position: spawned HQ service squad section=%s smart=%s", section, hq_smart:name())
+                end
+            end
+        end
+    end
 
     -- Commit ownership: plurality of squads spawned, ties broken by whoever arrived first.
     -- Both smart.owning_faction and smart_owners are written. smart_owners is the load-bearing

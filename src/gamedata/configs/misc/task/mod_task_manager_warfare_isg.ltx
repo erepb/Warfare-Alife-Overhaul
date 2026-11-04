@@ -1,0 +1,139 @@
+; UNISG trader tasks for a UNISG player under warfare, from UNISG Command & Operations 1.0.3
+; (GeroyAnekdotov), matching the other factions' trader tasks in tm_warfare.ltx. The GAMMA Warfare
+; Patch adds the one built on GAMMA's fetch lists.
+
+[sim_default_isg_trader_task_1]
+icon = ui_inGame2_Nochnaya_ohota
+prior = 15
+storyline = false
+title = unisg_hq_trader_task_1_title
+descr = unisg_hq_trader_task_1_descr
+job_descr = unisg_hq_trader_task_1_job
+task_complete_descr = unisg_hq_trader_task_1_finish
+repeat_timeout = 86400
+stage_complete = 1
+descr_functor = general_warfare_task
+status_functor = assault_task_status_functor
+target_functor = assault_task_target_functor
+status_functor_params = monster, monster_predatory_day, monster_predatory_night, monster_vegetarian, monster_zombied_day, monster_zombied_night, monster_special
+on_job_descr = %=setup_assault_task(sim_default_isg_trader_task_1)%
+precondition = {=is_warfare =is_actor_from_faction(isg) =validate_assault_task(sim_default_isg_trader_task_1:1:1:nil:false:true:nil)} true, false
+on_complete = %=inc_task_stage(sim_default_isg_trader_task_1) =reward_random_money(2500:5000) =reward_stash(true) =complete_task_inc_goodwill(35:isg)%
+condlist_0 = {!task_giver_alive(sim_default_isg_trader_task_1)} fail
+
+[sim_default_isg_trader_task_2]
+icon = ui_inGame2_Odin_vistrel
+prior = 15
+storyline = false
+title = unisg_hq_trader_task_2_title
+descr = unisg_hq_trader_task_2_descr
+job_descr = unisg_hq_trader_task_2_job
+task_complete_descr = unisg_hq_trader_task_2_finish
+repeat_timeout = 86400
+stage_complete = 1
+descr_functor = general_warfare_task
+status_functor = assault_task_status_functor
+target_functor = assault_task_target_functor
+status_functor_params = stalker,bandit,dolg,army
+on_job_descr = %=setup_assault_task(sim_default_isg_trader_task_2)%
+precondition = {=is_warfare =is_actor_from_faction(isg) =validate_assault_task(sim_default_isg_trader_task_2:2:1:nil:false:true:nil)} true, false
+on_complete = %=inc_task_stage(sim_default_isg_trader_task_2) =reward_random_money(5500:8500) =reward_stash(true) =complete_task_inc_goodwill(50:isg)%
+condlist_0 = {!task_giver_alive(sim_default_isg_trader_task_2)} fail
+
+[sim_default_isg_trader_task_3]
+icon = ui_inGame2_Odin_vistrel
+prior = 15
+storyline = false
+title = unisg_hq_trader_task_3_title
+descr = unisg_hq_trader_task_3_descr
+job_descr = unisg_hq_trader_task_3_job
+task_complete_descr = unisg_hq_trader_task_3_finish
+repeat_timeout = 86400
+stage_complete = 1
+descr_functor = general_warfare_task
+status_functor = bounty_task
+target_functor = general_bounty_task
+precondition = {=is_warfare =is_actor_from_faction(isg)} true, false
+on_job_descr = %=setup_bounty_task(sim_default_isg_trader_task_3:false:false:stalker:bandit:dolg:army)%
+on_complete = %=inc_task_stage(sim_default_isg_trader_task_3) =reward_random_money(5000:8000) =reward_stash(true) =complete_task_inc_goodwill(45:isg)%
+condlist_0 = {!task_giver_alive(sim_default_isg_trader_task_3)} fail
+
+[sim_default_isg_trader_task_4]
+icon = ui_inGame2_Kontrakt_s_uchenimi
+prior = 25
+storyline = false
+title = unisg_hq_trader_task_4_title
+descr = unisg_hq_trader_task_4_descr
+job_descr = unisg_hq_trader_task_4_job
+task_complete_descr = unisg_hq_trader_task_4_finish
+repeat_timeout = 86400
+stage_complete = 1
+title_functor = general_fetch_task
+descr_functor = general_warfare_fetch_task
+fetch_descr = unisg_hq_trader_task_4_job
+fetch_func = %=setup_fetch_task(sim_default_isg_trader_task_4_fetch:artefacts:1:1)%
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+precondition = {=is_warfare =is_actor_from_faction(isg)} true, false
+on_complete = %=fetch_reward_and_remove(sim_default_isg_trader_task_4_fetch:1.1) =inc_task_stage(sim_default_isg_trader_task_4) =reward_random_money(3500:6000) =complete_task_inc_goodwill(30:isg) =pstor_reset(sim_default_isg_trader_task_4_fetch)%
+condlist_0 = {!task_giver_alive(sim_default_isg_trader_task_4)} fail
+
+[sim_default_isg_trader_task_5]
+icon = ui_inGame2_Nochnaya_ohota
+prior = 25
+storyline = false
+title = unisg_hq_trader_task_5_title
+descr = unisg_hq_trader_task_5_descr
+job_descr = unisg_hq_trader_task_5_job
+task_complete_descr = unisg_hq_trader_task_5_finish
+repeat_timeout = 86400
+stage_complete = 1
+title_functor = general_fetch_task
+descr_functor = general_warfare_fetch_task
+fetch_descr = unisg_hq_trader_task_5_job
+fetch_func = %=setup_fetch_task(sim_default_isg_trader_task_5_fetch:mutant_parts_rare:1:2)%
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+precondition = {=is_warfare =is_actor_from_faction(isg)} true, false
+on_complete = %=fetch_reward_and_remove(sim_default_isg_trader_task_5_fetch:1.35) =inc_task_stage(sim_default_isg_trader_task_5) =reward_random_money(1500:3300) =complete_task_inc_goodwill(30:isg) =pstor_reset(sim_default_isg_trader_task_5_fetch)%
+condlist_0 = {!task_giver_alive(sim_default_isg_trader_task_5)} fail
+
+[sim_default_isg_trader_task_6]
+icon = ui_inGame2_Nochnaya_ohota
+prior = 25
+storyline = false
+title = unisg_hq_trader_task_6_title
+descr = unisg_hq_trader_task_6_descr
+job_descr = unisg_hq_trader_task_6_job
+task_complete_descr = unisg_hq_trader_task_6_finish
+repeat_timeout = 86400
+stage_complete = 1
+title_functor = general_fetch_task
+descr_functor = general_warfare_fetch_task
+fetch_descr = unisg_hq_trader_task_6_job
+fetch_func = %=setup_fetch_task(sim_default_isg_trader_task_6_fetch:mutant_parts:6:10)%
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+precondition = {=is_warfare =is_actor_from_faction(isg)} true, false
+on_complete = %=fetch_reward_and_remove(sim_default_isg_trader_task_6_fetch:1.1) =inc_task_stage(sim_default_isg_trader_task_6) =reward_random_money(1200:2800) =complete_task_inc_goodwill(30:isg) =pstor_reset(sim_default_isg_trader_task_6_fetch)%
+condlist_0 = {!task_giver_alive(sim_default_isg_trader_task_6)} fail
+
+[sim_default_isg_trader_task_8]
+icon = ui_inGame2_Poslednie_razrabotki
+storyline = false
+prior = 45
+repeat_timeout = 43200
+precondition = {-drx_sl_quest_item_task_1_started =is_warfare =is_actor_from_faction(isg)} true, false
+
+title = unisg_hq_trader_task_8_title
+descr = unisg_hq_trader_task_8_descr
+job_descr = unisg_hq_trader_task_8_job
+task_complete_descr = unisg_hq_trader_task_8_finish
+
+stage_complete = 1
+target_functor = drx_sl_quest_item_task_target
+status_functor = drx_sl_quest_item_task_status
+condlist_0 = {!task_giver_alive(sim_default_isg_trader_task_8)} fail
+on_job_descr = %=drx_sl_create_quest_stash(sim_default_isg_trader_task_8:1)%
+on_complete = %=reward_random_money_by_dist(sim_default_isg_trader_task_8:4500:6000:0.4) =complete_task_inc_goodwill(50:isg) =remove_item(drx_sl_quest_item_1) =inc_task_stage(sim_default_isg_trader_task_8) -drx_sl_quest_item_task_1_started =drx_sl_unregister_task_giver(sim_default_isg_trader_task_8) =drx_sl_reset_stored_task(sim_default_isg_trader_task_8)%
+on_fail = %=fail_task_dec_goodwill(25:isg) -drx_sl_quest_item_task_1_started =drx_sl_unregister_task_giver(sim_default_isg_trader_task_8) =drx_sl_reset_stored_task(sim_default_isg_trader_task_8)%

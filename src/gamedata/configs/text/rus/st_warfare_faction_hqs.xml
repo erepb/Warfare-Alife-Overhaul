@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+    <string id="unisg_hq_trader_task_1_title">
+        <text>Зачистка мутантов</text>
+    </string>
+    <string id="unisg_hq_trader_task_1_descr">
+        <text>На территории Зоны выявлено опасное скопление мутантов. Операцию поручил %s (%s). Ликвидируйте указанную группу и вернитесь за оплатой.</text>
+    </string>
+    <string id="unisg_hq_trader_task_1_job">
+        <text>Есть задача по ликвидации мутантов. Зачистите указанную территорию.</text>
+    </string>
+    <string id="unisg_hq_trader_task_1_finish">
+        <text>Цель уничтожена. Хорошая работа.</text>
+    </string>
+    <string id="unisg_hq_trader_task_2_title">
+        <text>Штурм вражеского лагеря</text>
+    </string>
+    <string id="unisg_hq_trader_task_2_descr">
+        <text>Разведка выявила вражеский лагерь. Заказчик: %s, сектор %s. Очистите отмеченную позицию от противников и доложите о выполнении.</text>
+    </string>
+    <string id="unisg_hq_trader_task_2_job">
+        <text>Нужно устранить вражеский отряд на указанной позиции.</text>
+    </string>
+    <string id="unisg_hq_trader_task_2_finish">
+        <text>Лагерь зачищен. Контракт закрыт.</text>
+    </string>
+    <string id="unisg_hq_trader_task_3_title">
+        <text>Контракт на ликвидацию</text>
+    </string>
+    <string id="unisg_hq_trader_task_3_descr">
+        <text>Подписан контракт на устранение цели. Заказчик: %s, сектор %s. Подробности о цели появятся после принятия задания.</text>
+    </string>
+    <string id="unisg_hq_trader_task_3_job">
+        <text>Есть контракт на устранение конкретного вражеского сталкера.</text>
+    </string>
+    <string id="unisg_hq_trader_task_3_finish">
+        <text>Цель ликвидирована. Вознаграждение ваше.</text>
+    </string>
+    <string id="unisg_hq_trader_task_4_title">
+        <text>Артефакт для исследований: %s</text>
+    </string>
+    <string id="unisg_hq_trader_task_4_descr">
+        <text>Заказчик %s (%s) требует образец для научного анализа: %s. Добудьте его и доставьте в штаб.</text>
+    </string>
+    <string id="unisg_hq_trader_task_4_job">
+        <text>Научная группа запрашивает артефакт.</text>
+    </string>
+    <string id="unisg_hq_trader_task_4_finish">
+        <text>Образец получен. Учёные будут довольны.</text>
+    </string>
+    <string id="unisg_hq_trader_task_5_title">
+        <text>Редкие образцы: %s</text>
+    </string>
+    <string id="unisg_hq_trader_task_5_descr">
+        <text>Для лаборатории требуется биологический материал редких мутантов. Заказчик: %s (%s). Необходимо принести: %s.</text>
+    </string>
+    <string id="unisg_hq_trader_task_5_job">
+        <text>Нужно доставить редкие части мутантов для исследований.</text>
+    </string>
+    <string id="unisg_hq_trader_task_5_finish">
+        <text>Редкие образцы получены и оплачены.</text>
+    </string>
+    <string id="unisg_hq_trader_task_6_title">
+        <text>Биоматериалы: %s</text>
+    </string>
+    <string id="unisg_hq_trader_task_6_descr">
+        <text>Задание на сбор обычных биологических материалов. Заказчик: %s (%s). Доставьте: %s.</text>
+    </string>
+    <string id="unisg_hq_trader_task_6_job">
+        <text>Необходимо собрать биологические образцы мутантов.</text>
+    </string>
+    <string id="unisg_hq_trader_task_6_finish">
+        <text>Материалы приняты. Работа оплачена.</text>
+    </string>
+    <string id="unisg_hq_trader_task_7_descr">
+        <text>Заказчик %s (%s) запрашивает медикаменты: %s.</text>
+    </string>
+    <string id="unisg_hq_trader_task_7_finish">
+        <text>Лазарет пополнен, получи оплату.</text>
+    </string>
+    <string id="unisg_hq_trader_task_7_job">
+        <text>Нужны медикаменты для лазарета.</text>
+    </string>
+    <string id="unisg_hq_trader_task_7_title">
+        <text>Запас медикаментов: %s</text>
+    </string>
+    <string id="unisg_hq_trader_task_8_title">
+        <text>Потерянное знание</text>
+    </string>
+    <string id="unisg_hq_trader_task_8_descr">
+        <text>Разведке UNISG стало известно о тайнике с засекреченными исследовательскими документами. Найдите тайник, заберите документы и верните их торговцу штаба.</text>
+    </string>
+    <string id="unisg_hq_trader_task_8_job">
+        <text>Нам нужны секретные научные материалы из одного тайника. Проверьте координаты, заберите документы и доставьте их сюда. Остальные вещи в тайнике можете оставить себе.</text>
+    </string>
+    <string id="unisg_hq_trader_task_8_finish">
+        <text>Документы доставлены. Отличная работа, оплата ваша.</text>
+    </string>
+</string_table>

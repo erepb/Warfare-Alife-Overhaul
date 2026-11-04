@@ -47,6 +47,23 @@ local WIRE_LAMP = {
     main_bone = "bone_lamp", main_cone_angle = 2.094, glow_texture = "", glow_radius = 0.7, ambient_bone = "bone_omni",
 }
 
+-- Vanilla desk lamp (table_lamp_01) as a hanging lamp, standing on a trolley. It has no bone_omni,
+-- so the ambient light uses bone_lamp too; every bone is pinned so the arm can't fold.
+local DESK_LAMP = {
+    visual_name = PROPS .. "table_lamp_01",
+    main_color = 0xffffffff, main_brightness = 0.7, main_color_animator = [[light\light_omni_white_idle]],
+    main_range = 6, light_flags = 42, lamp_fixed_bones = "link,leg1,leg2,in_,out_,bone_lamp,konus", health = 100,
+    main_virtual_size = 0.1, ambient_radius = 2, ambient_power = 0.1, ambient_texture = "", main_texture = "",
+    main_bone = "bone_lamp", main_cone_angle = 2.094, glow_texture = "", glow_radius = 0.5, ambient_bone = "bone_lamp",
+}
+
+local CHAIR    = PROPS .. "stul_wood_01"
+local MATTRESS = PROPS .. "mattress02"   -- 2.04 x 0.94, 0.11 thick, origin at its underside
+local MATTRESS_BONES = "bone01_(1),bone01_(2),bone01_(3),bone02_(1),bone02_(2),bone02_(3),bone03"
+local TROLLEY  = PROPS .. "med_stolik_01" -- 0.65 x 0.87, tray 0.91 above its origin
+local TROLLEY_BONES = "link,korpus_1,korpus_2,other,stoyka_left_1,stoyka_left_2,stoyka_right_1,stoyka_right_2,"
+    .. "wheel_left_1,wheel_left_2,wheel_right_1,wheel_right_2"
+
 -- smart name -> pieces. key names the piece in storage. pos is the model origin, heading in radians
 -- (engine getH convention), optional bank rolls the model about its forward axis.
 -- visual / fixed_bones override the section's own; ini is the custom data (default COLLIDE_INI).
@@ -116,6 +133,68 @@ local pieces = {
           pos = { -173.73508, 2.48869, 415.53053 }, heading = 3.23391 },
         { key = "lamp_medic", section = HANGING_LAMP, lamp = WIRE_LAMP,
           pos = { -171.59898, 4.85432, 417.12808 }, heading = 0, bank = math.pi },
+    },
+
+    -- Sin HQ in the Red Forest mine (warfare_player_hqs), laid out by SIN HQ 2.0.2: the renegade
+    -- workbench pair, medic corner and bar items moved here.
+    ["red_smart_terrain_3_2"] = {
+        { key = "table", section = PHYSIC_OBJECT, visual = TABLE, fixed_bones = "link",
+          pos = { -156.07967, 2.17797, -25.93725 }, heading = 3.15066 },
+        { key = "vice", section = "awr_tiski", ini = VICE_INI,
+          pos = { -156.09188, 3.02932, -25.71644 }, heading = 1.57910 },
+
+        -- Medic corner: he sits facing the table. The chair stands where the sit animation settles him
+        -- (red_smart_terrain_3_2_warfare_logic.ltx animpoint, warfare_job_anchors seat).
+        { key = "medic_table", section = PHYSIC_OBJECT, visual = TABLE, fixed_bones = "link", ini = TABLE_TOP_INI,
+          pos = { -156.22121, 2.17840, -36.33188 }, heading = 4.68457 },
+        { key = "medic_chair", section = PHYSIC_OBJECT, visual = CHAIR, fixed_bones = "link",
+          pos = { -157.27080, 2.18006, -36.30268 }, heading = 1.54298 },
+        { key = "medic_medkit", section = PHYSIC_OBJECT, visual = PROPS .. "dev_aptechka_low",
+          fixed_bones = "bone01", ini = TABLE_ITEM_INI, pos = { -156.08596, 3.03141, -35.78543 }, heading = 4.98457 },
+        { key = "medic_bandage", section = PHYSIC_OBJECT, visual = PROPS .. "dev_bandage",
+          fixed_bones = "bone01", ini = TABLE_ITEM_INI, pos = { -156.03238, 3.04441, -36.01701 }, heading = 4.18457 },
+        { key = "medic_stim", section = PHYSIC_OBJECT, visual = PROPS .. "stim1",
+          fixed_bones = "bone01", ini = TABLE_ITEM_INI, pos = { -156.28950, 3.04541, -35.90982 }, heading = 5.88457 },
+        { key = "medic_kit", section = PHYSIC_OBJECT, visual = PROPS .. "item_aptechka2",
+          fixed_bones = "link", ini = TABLE_ITEM_INI, pos = { -156.11655, 3.03241, -36.88500 }, heading = 4.48457 },
+
+        -- Bar: two barrels in front of the barman, plate and mug on one, the vodka crate on the other.
+        { key = "barrel_left", section = PHYSIC_OBJECT, visual = BARREL, fixed_bones = "barrel",
+          pos = { -152.35210, 2.20186, -19.60422 }, heading = 3.09450 },
+        { key = "barrel_right", section = PHYSIC_OBJECT, visual = BARREL, fixed_bones = "barrel",
+          pos = { -153.09328, 2.20186, -19.56930 }, heading = 3.09450 },
+        { key = "bar_plate", section = PHYSIC_OBJECT, visual = PROPS .. "kitchen_tarelka1",
+          fixed_bones = "link", pos = { -152.43201, 3.29213, -19.60046 }, heading = 3.09450 },
+        { key = "bar_mug", section = PHYSIC_OBJECT, visual = PROPS .. "kitchen_krujka",
+          fixed_bones = "bone01", pos = { -152.16478, 3.29213, -19.45288 }, heading = 3.09450 },
+        { key = "bar_bottles", section = PHYSIC_OBJECT, visual = PROPS .. "box_bottle_1",
+          fixed_bones = "link", pos = { -153.09328, 3.29213, -19.56930 }, heading = 3.09450 },
+        { key = "bar_vodka_1", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
+          pos = { -152.91923, 3.31213, -19.48739 }, heading = 3.49450 },
+        { key = "bar_vodka_2", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
+          pos = { -153.03862, 3.31213, -19.47176 }, heading = 4.99450 },
+        { key = "bar_vodka_3", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
+          pos = { -153.16989, 3.31213, -19.49561 }, heading = 2.29450 },
+        { key = "bar_vodka_4", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
+          pos = { -152.98717, 3.31213, -19.65439 }, heading = 5.79450 },
+        { key = "bar_vodka_5", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
+          pos = { -153.12796, 3.31213, -19.66777 }, heading = 4.19450 },
+    },
+
+    -- UNISG HQ in the Jupiter depot (warfare_player_hqs), laid out by UNISG Command & Operations 1.0.3:
+    -- the medic's and barman's chairs, and an infirmary bed, trolley and lamp in vanilla models.
+    ["jup_b208"] = {
+        { key = "medic_chair", section = PHYSIC_OBJECT, visual = CHAIR, fixed_bones = "link",
+          pos = { 386.95700, 4.27900, -125.72850 }, heading = 1.55380 },
+        { key = "barman_chair", section = PHYSIC_OBJECT, visual = CHAIR, fixed_bones = "link",
+          pos = { 425.18500, 9.95400, -81.68050 }, heading = 4.72739 },
+        -- the sleep spot (warfare_sleep_spots) is on it
+        { key = "bed", section = PHYSIC_OBJECT, visual = MATTRESS, fixed_bones = MATTRESS_BONES,
+          pos = { 384.28900, 4.41100, -130.07000 }, heading = 3.19864 },
+        { key = "trolley", section = PHYSIC_OBJECT, visual = TROLLEY, fixed_bones = TROLLEY_BONES, ini = TABLE_TOP_INI,
+          pos = { 382.96600, 4.42600, -128.72800 }, heading = 3.51523 },
+        { key = "lamp_trolley", section = HANGING_LAMP, lamp = DESK_LAMP,
+          pos = { 382.96600, 5.34600, -128.72800 }, heading = 3.51523 },
     },
 }
 
@@ -247,7 +326,7 @@ local function actor_on_first_update()
 
     for smart_name, list in pairs(pieces) do
         local smart = warfare_utils.smart_on_actor_level(smart_name)
-        if smart then
+        if smart and warfare_player_hqs.allows(smart_name) then
             local ids = st.warfare_base_props[smart_name] or {}
             local signatures = st.warfare_base_props_poses[smart_name] or {}
             release_unlisted(smart_name, list, ids, signatures)

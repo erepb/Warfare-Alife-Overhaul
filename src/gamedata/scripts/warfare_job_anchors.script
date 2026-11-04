@@ -20,6 +20,13 @@ local anchors = {
     -- seat = warfare_base_props' medic_chair
     { smart = "mar_smart_terrain_3_3", job = "mar_smart_terrain_3_3_warfare_medic",
       pos = { -171.5, 2.50729, 416.5 }, seat = { -171.74308, 2.48869, 415.71453 } },
+    -- the faction HQs (warfare_player_hqs); seats = warfare_base_props' chairs
+    { smart = "red_smart_terrain_3_2", job = "red_smart_terrain_3_2_warfare_medic",
+      pos = { -156.97092, 2.17706, -36.31102 }, seat = { -157.27080, 2.18006, -36.30268 } },
+    { smart = "jup_b208", job = "jup_b208_warfare_medic",
+      pos = { 387.757, 4.279, -125.742 }, seat = { 386.95700, 4.27900, -125.72850 } },
+    { smart = "jup_b208", job = "jup_b208_warfare_barman",
+      pos = { 424.385, 9.954, -81.692 }, seat = { 425.18500, 9.95400, -81.68050 } },
 }
 
 local level_anchors -- anchors on the current level, built on first update
@@ -40,7 +47,7 @@ local function actor_on_first_update()
     level_anchors = {}
     for _, a in ipairs(anchors) do
         local smart = warfare_utils.smart_on_actor_level(a.smart)
-        if smart then
+        if smart and warfare_player_hqs.allows(a.smart) then
             local beh = "beh@" .. a.job
             local seat = a.seat and to_vector(a.seat)
             level_anchors[#level_anchors + 1] = { smart = smart, logic = "logic@" .. a.job, beh = beh,
