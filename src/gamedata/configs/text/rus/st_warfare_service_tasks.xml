@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+    <string id="st_warfare_medic_drugkit_task_name">
+        <text>Найти для медика «%s»</text>
+    </string>
+    <string id="st_warfare_medic_drugkit_task_text">
+        <text>Медик хочет сам делать лекарства, а не ждать, пока их привезут. Для этого ему нужен «%s». Найду — отнесу ему.</text>
+    </string>
+    <string id="st_warfare_medic_drugkit_task_about">
+        <text>Без нормального оборудования лекарства тут не сделаешь. Помоги его раздобыть.</text>
+    </string>
+    <string id="st_warfare_medic_drugkit_task_fetch_about">
+        <text>Есть. Бинты и аптечки уходят быстрее, чем их подвозят. Был бы у меня «%s» — делал бы препараты сам, прямо здесь. Принесёшь — заплачу, да и на прилавке у меня появится кое-что посерьёзнее бинтов.</text>
+    </string>
+    <string id="st_warfare_medic_drugkit_task_fetch_finish">
+        <text>Вот это другое дело. Теперь развернусь как следует. Держи, как договаривались.</text>
+    </string>
+</string_table>

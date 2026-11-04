@@ -1,0 +1,128 @@
+; GAMMA's Barkeep timeouts and bounty terms for the warfare barman tasks.
+
+![sim_default_stalker_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_stalker_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_stalker_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_stalker_barman_task_3:false:true:army:bandit:killer)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_stalker_barman_task_3) =complete_task_inc_goodwill(50:stalker)%
+
+![sim_default_dolg_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_dolg_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_dolg_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_dolg_barman_task_3:false:true:freedom:bandit)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_dolg_barman_task_3) =complete_task_inc_goodwill(50:dolg)%
+
+![sim_default_freedom_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_freedom_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_freedom_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_freedom_barman_task_3:false:true:dolg:bandit:army)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_freedom_barman_task_3) =complete_task_inc_goodwill(50:freedom)%
+
+![sim_default_csky_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_csky_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_csky_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_csky_barman_task_3:false:true:renegade:bandit)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_csky_barman_task_3) =complete_task_inc_goodwill(50:csky)%
+
+![sim_default_ecolog_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_ecolog_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_army_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_army_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_army_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_army_barman_task_3:false:true:stalker:bandit:freedom:csky)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_army_barman_task_3) =complete_task_inc_goodwill(50:army)%
+
+![sim_default_bandit_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_bandit_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_bandit_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_bandit_barman_task_3:false:true:stalker:killer:dolg:csky:army)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_bandit_barman_task_3) =complete_task_inc_goodwill(50:bandit)%
+
+![sim_default_killer_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_killer_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_killer_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_killer_barman_task_3:false:true:stalker:bandit:dolg:army)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_killer_barman_task_3) =complete_task_inc_goodwill(50:killer)%
+
+![sim_default_monolith_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_monolith_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_monolith_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_monolith_barman_task_3:false:true:stalker:army:freedom:dolg:killer:csky:bandit)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_monolith_barman_task_3) =complete_task_inc_goodwill(50:monolith)%
+
+![sim_default_renegade_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_renegade_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_renegade_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_renegade_barman_task_3:false:true:stalker:killer:dolg:csky:army)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_renegade_barman_task_3) =complete_task_inc_goodwill(50:renegade)%
+
+![sim_default_greh_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_greh_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_greh_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_greh_barman_task_3:false:true:stalker:army:freedom:dolg:killer:csky:bandit)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_greh_barman_task_3) =complete_task_inc_goodwill(50:greh)%
+
+![sim_default_isg_barman_task_1]
+repeat_timeout = 32800
+
+![sim_default_isg_barman_task_2]
+repeat_timeout = 63200
+
+![sim_default_isg_barman_task_3]
+repeat_timeout = 32200
+on_job_descr = %=setup_bounty_task(sim_default_isg_barman_task_3:false:true:stalker:bandit:dolg:army)%
+on_complete = %=reward_random_money(4500:5000) =reward_stash(true) =inc_task_stage(sim_default_isg_barman_task_3) =complete_task_inc_goodwill(50:isg)%

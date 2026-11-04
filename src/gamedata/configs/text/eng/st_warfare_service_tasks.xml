@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+    <string id="st_warfare_medic_drugkit_task_name">
+        <text>Find %s for the Medic</text>
+    </string>
+    <string id="st_warfare_medic_drugkit_task_text">
+        <text>The medic needs a %s to make medicine on site instead of waiting for supplies. If I find one, I should bring it back.</text>
+    </string>
+    <string id="st_warfare_medic_drugkit_task_about">
+        <text>I can't make medicine here without the right equipment. Help me get it.</text>
+    </string>
+    <string id="st_warfare_medic_drugkit_task_fetch_about">
+        <text>There is. Bandages and medkits run out faster than supplies arrive. With a %s I could make them myself, right here. Bring me one and you'll be paid for it, and I'll have more than bandages to sell.</text>
+    </string>
+    <string id="st_warfare_medic_drugkit_task_fetch_finish">
+        <text>Now that's what I needed. I can finally make proper medicine here. Here's your payment.</text>
+    </string>
+</string_table>
