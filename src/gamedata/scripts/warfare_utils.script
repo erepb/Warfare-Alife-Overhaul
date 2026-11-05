@@ -240,13 +240,17 @@ function CheckUniqueSquad:is_npc_mechanic(squad_name)
         self.mechan_str = "mechan"
     end
     if not self.yar_str then
-        self.yar_str = "yar"
+        self.yar_str = "freedom_yar"    -- Yar only; a bare "yar" also matches Degtyarev and Yarmoshuk
+    end
+    if not self.mech_str then
+        self.mech_str = "_mech_"        -- jup_cont_mech_bandit, merc_pri_a18_mech_mlr, zat_stancia_mech_merc
     end
     return self.sfind(squad_name, self.mechanic)
             or self.sfind(squad_name, self.tech_str)
             or self.sfind(squad_name, self.mechanic_str)
             or self.sfind(squad_name, self.mechan_str)
             or self.sfind(squad_name, self.yar_str)
+            or self.sfind(squad_name, self.mech_str)
 end
 
 function CheckUniqueSquad:is_npc_barman(squad_name)
@@ -286,8 +290,8 @@ function CheckUniqueSquad:is_npc_trader(squad_name)
     if not self.ashot_str then
         self.ashot_str = "ashot"
     end
-    if not self.scientist_str then
-        self.scientist_str = "scientist"
+    if not self.physicist_str then
+        self.physicist_str = "nuclear_physicist"    -- Hermann; his bunker mates Ozersky and Tukarev are no traders
     end
     if not self.petrenko_str then
         self.petrenko_str = "petrenko"
@@ -297,7 +301,7 @@ function CheckUniqueSquad:is_npc_trader(squad_name)
             or self.sfind(squad_name, self.trade_str)
             or self.sfind(squad_name, self.sakharov_str)
             or self.sfind(squad_name, self.ashot_str)
-            or self.sfind(squad_name, self.scientist_str)
+            or self.sfind(squad_name, self.physicist_str)
             or self.sfind(squad_name, self.petrenko_str)
 end
 

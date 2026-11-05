@@ -420,6 +420,12 @@ uniques = {
     ["zat_b40_smart_terrain"]  = { 1, 1, 0, 0, 0 },
 }
 
+-- Smarts whose uniques also count the service NPCs assigned to the listed smarts: Yar, the pri_a16
+-- mechanic, belongs to pri_a16_mlr_copy.
+local unique_npc_hosts = {
+    ["pri_a16"] = { "pri_a16_mlr_copy" },
+}
+
 -- Main bases, travel hubs and lab entrances come from misc\warfare_smarts.ltx (load_smart_roles
 -- below); level packs add theirs through DLTX, compatibility scripts through set_main_base.
 -- main_base_data: smart_name -> { faction, protect, resurrect, resurrect_also }
@@ -5972,6 +5978,48 @@ function fetch_smart_distance(smart, other)
 end
 
 
+local function service_role(unique, name)
+    if unique:is_npc_mechanic(name) then
+        return "mechanic"
+    elseif unique:is_npc_barman(name) then
+        return "barman"
+    elseif unique:is_npc_trader(name) then
+        return "trader"
+    elseif unique:is_npc_medic(name) then
+        return "medic"
+    end
+end
+
+-- Adds the service NPCs of the squads assigned to the smart to counts: each member by its section,
+-- or the squad once by its name when no member section names a role.
+local function count_smart_service_npcs(unique, smart_id, counts)
+    local board = SIMBOARD.smarts[smart_id]
+    if not board then
+        return
+    end
+    local sim = alife()
+    for sid,_ in pairs(board.squads) do
+        local s = sid and alife_object(sid)
+        if (s) then
+            local found = false
+            for k in s:squad_members() do
+                local se_obj = k.object or k.id and sim:object(k.id)
+                local role = se_obj and service_role(unique, se_obj:section_name())
+                if role then
+                    counts[role] = counts[role] + 1
+                    found = true
+                end
+            end
+            if not found then
+                local role = service_role(unique, s:name())
+                if role then
+                    counts[role] = counts[role] + 1
+                end
+            end
+        end
+    end
+end
+
 function check_unique_npcs(smart)
 
     if not (smart.last_unique_check) then
@@ -6019,30 +6067,21 @@ function check_unique_npcs(smart)
         local maxMedics = tbl[3]
         local maxBarmen = tbl[4]
 
-        local squads = SIMBOARD.smarts[smart.id].squads
-        local traderCount = 0
-        local mechanicCount = 0
-        local medicCount = 0
-        local barmanCount = 0
-
-        for sid,_ in pairs(squads) do
-            local s = sid and alife_object(sid)
-
-            if (s) then
-                local sq_name = s:name()
-
-                -- make sure there are no vanilla traders or mechanics
-                if uniqueSquad:is_npc_mechanic(sq_name) then
-                    mechanicCount = mechanicCount + 1
-                elseif uniqueSquad:is_npc_barman(sq_name) then
-                    barmanCount = barmanCount + 1
-                elseif uniqueSquad:is_npc_trader(sq_name) then
-                    traderCount = traderCount + 1
-                elseif uniqueSquad:is_npc_medic(sq_name) then
-                    medicCount = medicCount + 1
+        local counts = { trader = 0, mechanic = 0, medic = 0, barman = 0 }
+        count_smart_service_npcs(uniqueSquad, smart.id, counts)
+        local hosts = unique_npc_hosts[sm_name]
+        if hosts then
+            for i = 1, #hosts do
+                local host = SIMBOARD.smarts_by_names[hosts[i]]
+                if host then
+                    count_smart_service_npcs(uniqueSquad, host.id, counts)
                 end
             end
         end
+        local traderCount = counts.trader
+        local mechanicCount = counts.mechanic
+        local medicCount = counts.medic
+        local barmanCount = counts.barman
 
         while traderCount < maxTraders do
             local squad = warfare.spawn_squad(uniqueSquad:trader_squad(), sm_name, "service")
