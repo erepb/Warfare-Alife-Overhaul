@@ -1,0 +1,56 @@
+-- Grok's Armor Exchange offers the ISG suit exchange on the story ISG leaders and tech only, which a
+-- non-story game never spawns. This puts it on the trader and mechanic at the ISG HQ. Every other
+-- warfare-spawned ISG trader or mechanic shares their profiles, so a precondition hides it there.
+
+local EXCHANGE_DIALOG = "armor_exchange_insider_isg"
+local DIALOG_FILE = "dialogs_grok_armor_exchange"
+local PRECONDITION = "modxml_warfare_armor_exchange_gamma_patch.hq_exchange_allowed"
+
+local profiles = {
+    sim_default_isg_trader   = true,
+    sim_default_isg_mechanic = true,
+}
+
+local HQ_SMART = "jup_b208"
+
+-- false only for an NPC with one of the profiles above whose squad is not assigned to the HQ smart:
+-- the new-game crew and the crew check_unique_npcs spawns once the depot is captured both are
+function hq_exchange_allowed(first_speaker, second_speaker)
+    local npc = dialogs.who_is_npc(first_speaker, second_speaker)
+    if not (npc and profiles[npc:profile_name()]) then
+        return true
+    end
+    local squad = get_object_squad(npc)
+    local hq = SIMBOARD.smarts_by_names[HQ_SMART]
+    return squad ~= nil and hq ~= nil and squad.smart_id == hq.id
+end
+
+local function exchange_installed()
+    local files = ini_sys:r_string_ex("dialogs", "files")
+    return files ~= nil and string.find(files, DIALOG_FILE, 1, true) ~= nil
+end
+
+local function add_exchange_dialog(character_id, dialog_list)
+    if profiles[character_id] then
+        dialog_list:add(EXCHANGE_DIALOG)
+    end
+end
+
+function on_xml_read()
+    RegisterScriptCallback("on_xml_read", function(xml_file_name, xml_obj)
+        if not string.find(xml_file_name, DIALOG_FILE, 1, true) then
+            return
+        end
+        local dialog = xml_obj:query(string.format("dialog[id=%s]", EXCHANGE_DIALOG))[1]
+        if dialog then
+            xml_obj:insertFromXMLString(string.format("<precondition>%s</precondition>", PRECONDITION), dialog, 1)
+            warfare_log.info("modxml_warfare_armor_exchange_gamma_patch: HQ precondition added to %s", EXCHANGE_DIALOG)
+        end
+    end)
+end
+
+function on_game_start()
+    if exchange_installed() then
+        RegisterScriptCallback("on_specific_character_dialog_list", add_exchange_dialog)
+    end
+end
