@@ -182,6 +182,12 @@
 	<string id="st_wrfr_heli_already_spawned">
 		<text>Helicopter already spawned on level!</text>
 	</string>
+	<string id="st_wrfr_move_heli">
+		<text>Move helicopter here</text>
+	</string>
+	<string id="st_wrfr_heli_moved">
+		<text>Helicopter redeployed</text>
+	</string>
 	
 	<string id="st_wrfr_smrt_auto_capture">
 		<text>Auto capturing %s!</text>

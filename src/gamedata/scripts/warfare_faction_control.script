@@ -28,6 +28,8 @@ function refresh_strings()
     str_wrfr[18] = game.translate_string("st_wrfr_send_heli_to_squad")
     str_wrfr[19] = game.translate_string("st_wrfr_remove_heli")
     str_wrfr[20] = game.translate_string("st_wrfr_heli_route")
+    str_wrfr[21] = game.translate_string("st_wrfr_move_heli")
+    str_wrfr[22] = game.translate_string("st_wrfr_heli_moved")
     str_wrfr[37] = game.translate_string("st_wrfr_heli_removed")
     str_wrfr[38] = game.translate_string("st_wrfr_heli_already_spawned")
     str_wrfr[39] = game.translate_string("st_wrfr_order_17")
@@ -83,6 +85,28 @@ end
 -- flat subsection). ui is always wrapped, so AddHeader is there even on an exe that lacks it.
 local function add_header(ui, text)
     ui:AddHeader(text)
+end
+
+-- The player's helicopter while it still exists on another level; moving it to the actor's level is free.
+local function player_heli_off_level()
+    local se_heli = player_heli and alife_object(player_heli)
+    if not se_heli then
+        return nil
+    end
+    if game_graph():vertex(se_heli.m_game_vertex_id):level_id() == get_player_level_id() then
+        return nil
+    end
+    return se_heli
+end
+
+-- A shot-down player helicopter stops being the player's: the wreck can't be moved or block a purchase.
+local bind_heli_heli_die = bind_heli.heli_die
+function bind_heli.heli_die(obj)
+    if obj and player_heli == obj:id() then
+        warfare_log.info("faction_control: player heli id=%s destroyed", obj:id())
+        player_heli = nil
+    end
+    return bind_heli_heli_die(obj)
 end
 
 local cmd_build_tick = nil
@@ -168,7 +192,9 @@ local function map_spot_menu_add_property(ui,id,lvl)
                     buy_items[#buy_items + 1] = str_wrfr[4]
                 end
 
-                if (money >= warfare_options.options.heli_price) and warfare_squad_command.can_buy_heli() then
+                if player_heli_off_level() then
+                    buy_items[#buy_items + 1] = str_wrfr[21]
+                elseif (not player_heli) and (money >= warfare_options.options.heli_price) and warfare_squad_command.can_buy_heli() then
                     buy_items[#buy_items + 1] = str_wrfr[5]
                 end
 
@@ -705,26 +731,22 @@ local function map_spot_menu_property_clicked(property_ui,id,level_name,prop,pro
         end
 
         return
-    elseif (prop == str_wrfr[5]) then
-        warfare_log.info("faction_control: buy heli requested")
+    elseif (prop == str_wrfr[5] or prop == str_wrfr[21]) then
+        local old_heli = player_heli_off_level()
+        warfare_log.info("faction_control: %s heli requested old=%s", old_heli and "move" or "buy", tostring(player_heli))
 
-        if (player_heli) then
-            local o = alife_object(player_heli)
+        if (prop == str_wrfr[21]) and not old_heli then
+            warfare_log.warn("faction_control: move heli: player_heli=%s no longer on another level", tostring(player_heli))
+            return
+        end
 
-            if (o) then
-                local heliLevel = game_graph():vertex(o.m_game_vertex_id):level_id()
-                local playerLevel = get_player_level_id()
-
-                if (heliLevel ~= playerLevel) then
-                    warfare_log.debug("faction_control: existing heli on diff level (heli=%s actor=%s), replacing at full price", tostring(heliLevel), tostring(playerLevel))
-                    safe_release_manager.release(o)
-                    player_heli = nil
-                else
-                    warfare_log.debug("faction_control: heli already spawned on actor level, refusing")
-                    notify(str_wrfr[38])
-                    return
-                end
+        if (player_heli) and not old_heli then
+            if alife_object(player_heli) then
+                warfare_log.debug("faction_control: heli already spawned on actor level, refusing")
+                notify(str_wrfr[38])
+                return
             end
+            player_heli = nil
         end
 
         local nearestSmart = SIMBOARD.smarts[smart_terrain.nearest_to_actor_smart.id].smrt
@@ -735,13 +757,17 @@ local function map_spot_menu_property_clicked(property_ui,id,level_name,prop,pro
             local se_obj = heli_alife_warfare.create_heli_weak(warfare.actor_faction, 0, nearestSmart, pos)
 
             if (se_obj) then
-                db.actor:give_money(-1 * (warfare_options.options.heli_price))
+                if old_heli then
+                    safe_release_manager.release(old_heli)
+                else
+                    db.actor:give_money(-1 * (warfare_options.options.heli_price))
+                end
 
                 heli_alife_warfare.set_target(se_obj, 0)
                 player_heli = se_obj.id
-                warfare_log.info("faction_control: heli spawned id=%s faction=%s", tostring(se_obj.id), tostring(warfare.actor_faction))
+                warfare_log.info("faction_control: heli spawned id=%s faction=%s moved=%s", tostring(se_obj.id), tostring(warfare.actor_faction), tostring(old_heli ~= nil))
 
-                notify(str_wrfr[20])
+                notify(old_heli and str_wrfr[22] or str_wrfr[20])
             else
                 warfare_log.warn("faction_control: heli spawn returned nil")
             end

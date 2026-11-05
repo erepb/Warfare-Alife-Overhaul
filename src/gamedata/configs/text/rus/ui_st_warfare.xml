@@ -182,6 +182,12 @@
 	<string id="st_wrfr_heli_already_spawned">
 		<text>Вертолет уже вызван на локацию!</text>
 	</string>
+	<string id="st_wrfr_move_heli">
+		<text>Перебросить вертолет сюда</text>
+	</string>
+	<string id="st_wrfr_heli_moved">
+		<text>Вертолет переброшен</text>
+	</string>
 
 	<string id="st_wrfr_smrt_auto_capture">
 		<text>Автоматический захват: %s!</text>
