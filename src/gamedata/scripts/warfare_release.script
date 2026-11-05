@@ -1,6 +1,7 @@
 --[[ warfare_release.script -- which of a smart's own squads may leave it, and for what.
 
-    Every sender that takes a faction's squads off a smart it holds asks this file first:
+    Senders that take a faction's squads off a smart it holds for expansion, invasions,
+    defense or rebalancing ask this file first:
 
         local squads = warfare_release.squads_for(smart, faction, "claim")
         if squads then
@@ -12,11 +13,16 @@
         manual   false = refused for the actor's faction under PDA manual control
         release  function(counts, mode) -> how many squads the purpose may take; false = no limit
         squads   which of the owner's arrived squads count as free (see free_squads); only
-                 routine moves skip resting squads, invasion, defense and retreat take them
+                 rebalance and claim skip resting squads
 
     A purpose missing from POLICY may not send at all. A new sender adds its row here,
     which means deciding what it does while its base is besieged, staging an invasion or
     supporting one.
+
+    Senders outside this file call set_target directly: manual capture, recall to a base
+    (recall_squad_to_base), random and base patrols, the surge shelter and return, and
+    orphan-patrol conversion. process_independent ("roam", "dusk_return") moves loner and
+    ecolog squads between smarts they don't hold and uses send() only for its log.
 ]]
 
 

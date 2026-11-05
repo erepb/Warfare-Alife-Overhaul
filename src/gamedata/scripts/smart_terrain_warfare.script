@@ -3695,7 +3695,8 @@ local function scan_links(smart, visit)
 end
 
 -- First bucket with an unlocked member wins; a random such member becomes the squad's target.
-local function pick(squad, ...)
+-- Returns whether the squad was sent.
+local function pick(smart, squad, purpose, ...)
     local faction = squad:get_squad_community()
     for i = 1, select("#", ...) do
         local open = {}
@@ -3705,8 +3706,7 @@ local function pick(squad, ...)
             end
         end
         if #open > 0 then
-            sim_squad_warfare.set_target(squad, open[math.random(#open)].id)
-            return true
+            return warfare_release.send(smart, squad, open[math.random(#open)].id, purpose)
         end
     end
     return false
@@ -3747,7 +3747,7 @@ local function find_resources(spec, smart, squad, faction, linked)
         local keys = linked_levels(smart)
         scan_level(keys[math.random(#keys)].key, visit)
     end
-    return pick(squad, priority, all)
+    return pick(smart, squad, "roam", priority, all)
 end
 
 local function find_lairs(smart, squad)
@@ -3757,7 +3757,7 @@ local function find_lairs(smart, squad)
             all[#all + 1] = other
         end
     end)
-    return pick(squad, all)
+    return pick(smart, squad, "roam", all)
 end
 
 -- Bases a squad may fall back to: empty, its own with intake room, or a non-enemy's with a guest
@@ -3790,7 +3790,7 @@ local function find_bases(smart, squad, faction, linked)
     else
         scan_level(smart.level_id, visit)
     end
-    return pick(squad, priority, all)
+    return pick(smart, squad, "dusk_return", priority, all)
 end
 
 local function find_territory(smart, squad)
@@ -3800,7 +3800,7 @@ local function find_territory(smart, squad)
             all[#all + 1] = other
         end
     end)
-    return pick(squad, all)
+    return pick(smart, squad, "dusk_return", all)
 end
 
 local function is_protected_mainbase(smart, faction)
@@ -3880,7 +3880,7 @@ DISPATCH_MODELS = {
                     collect_base(faction, other, priority, off)
                 end)
             end
-            return pick(squad, priority, on, off) or find_territory(smart, squad)
+            return pick(smart, squad, "dusk_return", priority, on, off) or find_territory(smart, squad)
         end,
     },
 }
@@ -3924,7 +3924,8 @@ function process_independent(smart, model, spec)
         local squad = resolve_roster_squad(smart.id, sid)
         local faction = squad and squad:get_squad_community()
 
-        if faction and (warfare_behavior.dispatch_model(faction) == model) and squad_is_commandable(squad, true) and (squad.current_action == 1) then
+        if faction and (warfare_behavior.dispatch_model(faction) == model) and squad_is_commandable(squad, true) and (squad.current_action == 1)
+        and not sim_squad_warfare.squad_is_settled(squad) then
             local night_chance = warfare_options.options.factions[faction].night_activity_chance
             local target_set = false
 
