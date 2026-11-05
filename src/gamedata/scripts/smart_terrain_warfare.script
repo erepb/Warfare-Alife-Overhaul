@@ -1327,13 +1327,25 @@ end
 
 local function support_forward(smart, faction)
 --[[
-    Supporting base: forward spare squads to the invasion base, keeping the guards.
+    Supporting base: forward spare squads to the invasion base, keeping the guards, up to
+    what the invasion still needs counting squads already on their way. Once it needs
+    none, this base stops supporting and is back to its own business next pass.
 ]]
+    local inv_base_id = supporting_invasion[smart.id]
+    local inv_base = alife_object(inv_base_id)
+    local needed = inv_base and invasion_squads_needed(inv_base, build_incoming_map(faction)) or 0
+    if (needed <= 0) then
+        warfare_log.debug("support_forward: smart=%s stops supporting %s, the invasion has enough",
+            smart:name(), inv_base and inv_base:name() or tostring(inv_base_id))
+        supporting_invasion[smart.id] = nil
+        return
+    end
+
     local squads, n = warfare_release.squads_for(smart, faction, "support_forward")
     if not (squads) then
         return
     end
-    local inv_base_id = supporting_invasion[smart.id]
+    n = math.min(n, needed)
     for i = 1, #squads do
         warfare_release.send(smart, squads[i], inv_base_id, "support_forward")
         n = n - 1
@@ -2826,6 +2838,19 @@ end
 
 
 
+-- Squads the invasion staged at `inv_base` still lacks: its force plus guards, minus the owner's
+-- squads there (and, with `incoming` from build_incoming_map, those on their way).
+function invasion_squads_needed(inv_base, incoming)
+    local inv = invasions[inv_base.id]
+    if not (inv) then
+        return 0
+    end
+    local regular, _, stationary = squad_count_detailed(inv_base, inv_base.owning_faction)
+    local en_route = (incoming and incoming[inv_base.id]) or 0
+    return inv[2] + math.max(guard_size, stationary) - regular - stationary - en_route
+end
+
+
 -- if an invasion plan is not certified, factions will instead look at nearby bases on-level and see if they can contribute to their invasion
 -- skip_aggression: if true, bypass aggression checks (base wanted to invade the same target as another closer base)
 function contribute_to_other_invasion(smart, skip_aggression)
@@ -2849,8 +2874,7 @@ function contribute_to_other_invasion(smart, skip_aggression)
             local invasion_base_to_target = fetch_smart_distance(other, invasion_target)
             local support_base_to_target = fetch_smart_distance(smart, invasion_target)
             local reinforce_dist = fetch_smart_distance(smart, other)
-            local other_sq_reg,_,sq_stat = squad_count_detailed(other, other.owning_faction)
-            local squads_needed = invasions[other.id][2] + math.max(guard_size, sq_stat) - other_sq_reg - sq_stat
+            local squads_needed = invasion_squads_needed(other)
 
             -- only contribute if invasion base is closer to enemy target than support base, and squads are still needed
             if (invasion_base_to_target < support_base_to_target) and (squads_needed > 0) then
@@ -2871,9 +2895,7 @@ function contribute_to_other_invasion(smart, skip_aggression)
             -- otherwise: aggression roll determines willingness to contribute
             if (other and other.owning_faction) and (skip_aggression or (math.random(150) < aggression)) then
                 -- re-check how many squads the invasion base still needs
-                local other_sq_reg,_,sq_stat = squad_count_detailed(other, other.owning_faction)
-                local squads_needed = invasions[other.id][2] + math.max(guard_size, sq_stat) - other_sq_reg - sq_stat
-                if squads_needed > 0 then
+                if invasion_squads_needed(other) > 0 then
                     local squad = warfare_release.free_squads(smart, smart.owning_faction, "contribute")[1]
                     if squad then
                         warfare_release.send(smart, squad, other.id, "contribute")
