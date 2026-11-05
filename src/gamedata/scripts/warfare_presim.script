@@ -235,6 +235,23 @@ local function emission_running()
     return (sm and sm.started) or (pm and pm.started) or false
 end
 
+-- Anomaly's ironman life granter counts game hours since the start minus storage ironman.sleep_hrs;
+-- simulated time is credited there as slept, rounded up to whole hours.
+local function credit_ironman_sleep(minutes)
+    local st = storage()
+    local im = st and st.ironman
+    if not (im and im.life_feature and im.sleep_hrs) then
+        return
+    end
+    run.ironman_min = (run.ironman_min or 0) + minutes
+    local hours = math.ceil(run.ironman_min / 60)
+    local credited = run.ironman_hrs or 0
+    if hours > credited then
+        im.sleep_hrs = im.sleep_hrs + hours - credited
+        run.ironman_hrs = hours
+    end
+end
+
 -- Simulated-Time-Skip's Travel hook would capture the step; its passthrough flag lets it through.
 local function advance_clock(minutes)
     local st_mod = run.simulated_time
@@ -311,6 +328,7 @@ local function step_body()
         s = math.min(s, run.target - run.elapsed)
     end
     advance_clock(s)
+    credit_ironman_sleep(s)
     alife():force_update()
     run.elapsed = run.elapsed + s
     run.steps = run.steps + 1
