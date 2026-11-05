@@ -15,4 +15,19 @@
     <string id="st_warfare_medic_drugkit_task_fetch_finish">
         <text>Вот это другое дело. Теперь развернусь как следует. Держи, как договаривались.</text>
     </string>
+    <string id="st_warfare_medic_supplies_task_name">
+        <text>Пополнить запасы лазарета</text>
+    </string>
+    <string id="st_warfare_medic_supplies_task_text">
+        <text>У медика кончаются лекарства. Просит принести: %s.</text>
+    </string>
+    <string id="st_warfare_medic_supplies_task_about">
+        <text>Раненых хватает, а лекарства тают на глазах — подвозят их куда медленнее. Поможешь пополнить запас?</text>
+    </string>
+    <string id="st_warfare_medic_supplies_task_fetch_about">
+        <text>Раненых несут и несут, а полки почти пустые. Принеси мне: %s. Заплачу как следует.</text>
+    </string>
+    <string id="st_warfare_medic_supplies_task_fetch_finish">
+        <text>Ну, ещё нескольких на ноги поставлю. Держи деньги.</text>
+    </string>
 </string_table>

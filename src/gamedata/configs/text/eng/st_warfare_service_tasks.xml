@@ -15,4 +15,19 @@
     <string id="st_warfare_medic_drugkit_task_fetch_finish">
         <text>Now that's what I needed. I can finally make proper medicine here. Here's your payment.</text>
     </string>
+    <string id="st_warfare_medic_supplies_task_name">
+        <text>Restock the Infirmary</text>
+    </string>
+    <string id="st_warfare_medic_supplies_task_text">
+        <text>The medic is running low on medicine and needs %s.</text>
+    </string>
+    <string id="st_warfare_medic_supplies_task_about">
+        <text>There's no shortage of wounded here, but medicine runs out faster than it arrives. Help me restock.</text>
+    </string>
+    <string id="st_warfare_medic_supplies_task_fetch_about">
+        <text>The wounded keep coming and my shelves are nearly empty. Bring me %s and I'll pay you well for them.</text>
+    </string>
+    <string id="st_warfare_medic_supplies_task_fetch_finish">
+        <text>That will keep a few more people on their feet. Here's your money.</text>
+    </string>
 </string_table>

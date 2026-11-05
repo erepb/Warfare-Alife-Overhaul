@@ -22,6 +22,26 @@ on_complete = %=reward_stash(true) +sim_default_stalker_medic_drugkit_done =fetc
 on_fail = %=pstor_reset(sim_default_stalker_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_stalker_medic_task_1) =drx_sl_reset_stored_task(sim_default_stalker_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_stalker_medic_task_1)} fail
 
+[sim_default_stalker_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_stalker_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:stalker) =fetch_reward_and_remove(sim_default_stalker_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_stalker_medic_task_2) =pstor_reset(sim_default_stalker_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_stalker_medic_task_2) =drx_sl_reset_stored_task(sim_default_stalker_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_stalker_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_stalker_medic_task_2) =drx_sl_reset_stored_task(sim_default_stalker_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_stalker_medic_task_2)} fail
+
 [sim_default_stalker_barman_task_1]
 icon = ui_iconsTotal_artefact
 prior = 65
@@ -97,6 +117,26 @@ fetch_func = %=setup_generic_fetch_task(sim_default_dolg_medic_task_1_fetch:1:it
 on_complete = %=reward_stash(true) +sim_default_dolg_medic_drugkit_done =fetch_reward_and_remove(sim_default_dolg_medic_task_1_fetch:1.5) =complete_task_inc_goodwill(50:dolg) =inc_task_stage(sim_default_dolg_medic_task_1) =pstor_reset(sim_default_dolg_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_dolg_medic_task_1) =drx_sl_reset_stored_task(sim_default_dolg_medic_task_1)%
 on_fail = %=pstor_reset(sim_default_dolg_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_dolg_medic_task_1) =drx_sl_reset_stored_task(sim_default_dolg_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_dolg_medic_task_1)} fail
+
+[sim_default_dolg_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_dolg_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:dolg) =fetch_reward_and_remove(sim_default_dolg_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_dolg_medic_task_2) =pstor_reset(sim_default_dolg_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_dolg_medic_task_2) =drx_sl_reset_stored_task(sim_default_dolg_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_dolg_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_dolg_medic_task_2) =drx_sl_reset_stored_task(sim_default_dolg_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_dolg_medic_task_2)} fail
 
 [sim_default_dolg_barman_task_1]
 icon = ui_iconsTotal_artefact
@@ -174,6 +214,26 @@ on_complete = %=reward_stash(true) +sim_default_freedom_medic_drugkit_done =fetc
 on_fail = %=pstor_reset(sim_default_freedom_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_freedom_medic_task_1) =drx_sl_reset_stored_task(sim_default_freedom_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_freedom_medic_task_1)} fail
 
+[sim_default_freedom_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_freedom_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:freedom) =fetch_reward_and_remove(sim_default_freedom_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_freedom_medic_task_2) =pstor_reset(sim_default_freedom_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_freedom_medic_task_2) =drx_sl_reset_stored_task(sim_default_freedom_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_freedom_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_freedom_medic_task_2) =drx_sl_reset_stored_task(sim_default_freedom_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_freedom_medic_task_2)} fail
+
 [sim_default_freedom_barman_task_1]
 icon = ui_iconsTotal_artefact
 prior = 65
@@ -249,6 +309,26 @@ fetch_func = %=setup_generic_fetch_task(sim_default_csky_medic_task_1_fetch:1:it
 on_complete = %=reward_stash(true) +sim_default_csky_medic_drugkit_done =fetch_reward_and_remove(sim_default_csky_medic_task_1_fetch:1.5) =complete_task_inc_goodwill(50:csky) =inc_task_stage(sim_default_csky_medic_task_1) =pstor_reset(sim_default_csky_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_csky_medic_task_1) =drx_sl_reset_stored_task(sim_default_csky_medic_task_1)%
 on_fail = %=pstor_reset(sim_default_csky_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_csky_medic_task_1) =drx_sl_reset_stored_task(sim_default_csky_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_csky_medic_task_1)} fail
+
+[sim_default_csky_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_csky_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:csky) =fetch_reward_and_remove(sim_default_csky_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_csky_medic_task_2) =pstor_reset(sim_default_csky_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_csky_medic_task_2) =drx_sl_reset_stored_task(sim_default_csky_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_csky_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_csky_medic_task_2) =drx_sl_reset_stored_task(sim_default_csky_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_csky_medic_task_2)} fail
 
 [sim_default_csky_barman_task_1]
 icon = ui_iconsTotal_artefact
@@ -326,6 +406,26 @@ on_complete = %=reward_stash(true) +sim_default_ecolog_medic_drugkit_done =fetch
 on_fail = %=pstor_reset(sim_default_ecolog_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_ecolog_medic_task_1) =drx_sl_reset_stored_task(sim_default_ecolog_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_ecolog_medic_task_1)} fail
 
+[sim_default_ecolog_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_ecolog_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:ecolog) =fetch_reward_and_remove(sim_default_ecolog_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_ecolog_medic_task_2) =pstor_reset(sim_default_ecolog_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_ecolog_medic_task_2) =drx_sl_reset_stored_task(sim_default_ecolog_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_ecolog_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_ecolog_medic_task_2) =drx_sl_reset_stored_task(sim_default_ecolog_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_ecolog_medic_task_2)} fail
+
 [sim_default_ecolog_barman_task_1]
 icon = ui_iconsTotal_artefact
 prior = 65
@@ -384,6 +484,26 @@ fetch_func = %=setup_generic_fetch_task(sim_default_army_medic_task_1_fetch:1:it
 on_complete = %=reward_stash(true) +sim_default_army_medic_drugkit_done =fetch_reward_and_remove(sim_default_army_medic_task_1_fetch:1.5) =complete_task_inc_goodwill(50:army) =inc_task_stage(sim_default_army_medic_task_1) =pstor_reset(sim_default_army_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_army_medic_task_1) =drx_sl_reset_stored_task(sim_default_army_medic_task_1)%
 on_fail = %=pstor_reset(sim_default_army_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_army_medic_task_1) =drx_sl_reset_stored_task(sim_default_army_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_army_medic_task_1)} fail
+
+[sim_default_army_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_army_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:army) =fetch_reward_and_remove(sim_default_army_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_army_medic_task_2) =pstor_reset(sim_default_army_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_army_medic_task_2) =drx_sl_reset_stored_task(sim_default_army_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_army_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_army_medic_task_2) =drx_sl_reset_stored_task(sim_default_army_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_army_medic_task_2)} fail
 
 [sim_default_army_barman_task_1]
 icon = ui_iconsTotal_artefact
@@ -461,6 +581,26 @@ on_complete = %=reward_stash(true) +sim_default_bandit_medic_drugkit_done =fetch
 on_fail = %=pstor_reset(sim_default_bandit_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_bandit_medic_task_1) =drx_sl_reset_stored_task(sim_default_bandit_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_bandit_medic_task_1)} fail
 
+[sim_default_bandit_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_bandit_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:bandit) =fetch_reward_and_remove(sim_default_bandit_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_bandit_medic_task_2) =pstor_reset(sim_default_bandit_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_bandit_medic_task_2) =drx_sl_reset_stored_task(sim_default_bandit_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_bandit_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_bandit_medic_task_2) =drx_sl_reset_stored_task(sim_default_bandit_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_bandit_medic_task_2)} fail
+
 [sim_default_bandit_barman_task_1]
 icon = ui_iconsTotal_artefact
 prior = 65
@@ -536,6 +676,26 @@ fetch_func = %=setup_generic_fetch_task(sim_default_killer_medic_task_1_fetch:1:
 on_complete = %=reward_stash(true) +sim_default_killer_medic_drugkit_done =fetch_reward_and_remove(sim_default_killer_medic_task_1_fetch:1.5) =complete_task_inc_goodwill(50:killer) =inc_task_stage(sim_default_killer_medic_task_1) =pstor_reset(sim_default_killer_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_killer_medic_task_1) =drx_sl_reset_stored_task(sim_default_killer_medic_task_1)%
 on_fail = %=pstor_reset(sim_default_killer_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_killer_medic_task_1) =drx_sl_reset_stored_task(sim_default_killer_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_killer_medic_task_1)} fail
+
+[sim_default_killer_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_killer_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:killer) =fetch_reward_and_remove(sim_default_killer_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_killer_medic_task_2) =pstor_reset(sim_default_killer_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_killer_medic_task_2) =drx_sl_reset_stored_task(sim_default_killer_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_killer_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_killer_medic_task_2) =drx_sl_reset_stored_task(sim_default_killer_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_killer_medic_task_2)} fail
 
 [sim_default_killer_barman_task_1]
 icon = ui_iconsTotal_artefact
@@ -613,6 +773,26 @@ on_complete = %=reward_stash(true) +sim_default_monolith_medic_drugkit_done =fet
 on_fail = %=pstor_reset(sim_default_monolith_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_monolith_medic_task_1) =drx_sl_reset_stored_task(sim_default_monolith_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_monolith_medic_task_1)} fail
 
+[sim_default_monolith_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_monolith_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:monolith) =fetch_reward_and_remove(sim_default_monolith_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_monolith_medic_task_2) =pstor_reset(sim_default_monolith_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_monolith_medic_task_2) =drx_sl_reset_stored_task(sim_default_monolith_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_monolith_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_monolith_medic_task_2) =drx_sl_reset_stored_task(sim_default_monolith_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_monolith_medic_task_2)} fail
+
 [sim_default_monolith_barman_task_1]
 icon = ui_iconsTotal_artefact
 prior = 65
@@ -688,6 +868,26 @@ fetch_func = %=setup_generic_fetch_task(sim_default_renegade_medic_task_1_fetch:
 on_complete = %=reward_stash(true) +sim_default_renegade_medic_drugkit_done =fetch_reward_and_remove(sim_default_renegade_medic_task_1_fetch:1.5) =complete_task_inc_goodwill(50:renegade) =inc_task_stage(sim_default_renegade_medic_task_1) =pstor_reset(sim_default_renegade_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_renegade_medic_task_1) =drx_sl_reset_stored_task(sim_default_renegade_medic_task_1)%
 on_fail = %=pstor_reset(sim_default_renegade_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_renegade_medic_task_1) =drx_sl_reset_stored_task(sim_default_renegade_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_renegade_medic_task_1)} fail
+
+[sim_default_renegade_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_renegade_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:renegade) =fetch_reward_and_remove(sim_default_renegade_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_renegade_medic_task_2) =pstor_reset(sim_default_renegade_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_renegade_medic_task_2) =drx_sl_reset_stored_task(sim_default_renegade_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_renegade_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_renegade_medic_task_2) =drx_sl_reset_stored_task(sim_default_renegade_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_renegade_medic_task_2)} fail
 
 [sim_default_renegade_barman_task_1]
 icon = ui_iconsTotal_artefact
@@ -765,6 +965,26 @@ on_complete = %=reward_stash(true) +sim_default_greh_medic_drugkit_done =fetch_r
 on_fail = %=pstor_reset(sim_default_greh_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_greh_medic_task_1) =drx_sl_reset_stored_task(sim_default_greh_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_greh_medic_task_1)} fail
 
+[sim_default_greh_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_greh_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:greh) =fetch_reward_and_remove(sim_default_greh_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_greh_medic_task_2) =pstor_reset(sim_default_greh_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_greh_medic_task_2) =drx_sl_reset_stored_task(sim_default_greh_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_greh_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_greh_medic_task_2) =drx_sl_reset_stored_task(sim_default_greh_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_greh_medic_task_2)} fail
+
 [sim_default_greh_barman_task_1]
 icon = ui_iconsTotal_artefact
 prior = 65
@@ -840,6 +1060,26 @@ fetch_func = %=setup_generic_fetch_task(sim_default_isg_medic_task_1_fetch:1:itm
 on_complete = %=reward_stash(true) +sim_default_isg_medic_drugkit_done =fetch_reward_and_remove(sim_default_isg_medic_task_1_fetch:1.5) =complete_task_inc_goodwill(50:isg) =inc_task_stage(sim_default_isg_medic_task_1) =pstor_reset(sim_default_isg_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_isg_medic_task_1) =drx_sl_reset_stored_task(sim_default_isg_medic_task_1)%
 on_fail = %=pstor_reset(sim_default_isg_medic_task_1_fetch) =drx_sl_unregister_task_giver(sim_default_isg_medic_task_1) =drx_sl_reset_stored_task(sim_default_isg_medic_task_1)%
 condlist_0 = {!task_giver_alive(sim_default_isg_medic_task_1)} fail
+
+[sim_default_isg_medic_task_2]
+icon = ui_inGame2_D_Sisshik
+prior = 50
+repeat_timeout = 43200
+storyline = false
+title = st_warfare_medic_supplies_task_name
+title_functor = general_fetch_task
+descr = st_warfare_medic_supplies_task_text
+descr_functor = general_fetch_task
+job_descr = st_warfare_medic_supplies_task_about
+fetch_descr = st_warfare_medic_supplies_task_fetch_about
+task_complete_descr = st_warfare_medic_supplies_task_fetch_finish
+stage_complete = 1
+status_functor = actor_has_fetch_item
+target_functor = general_fetch_task
+fetch_func = %=setup_fetch_task(sim_default_isg_medic_task_2_fetch:medical:4:6)%
+on_complete = %=complete_task_inc_goodwill(50:isg) =fetch_reward_and_remove(sim_default_isg_medic_task_2_fetch:1.5) =inc_task_stage(sim_default_isg_medic_task_2) =pstor_reset(sim_default_isg_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_isg_medic_task_2) =drx_sl_reset_stored_task(sim_default_isg_medic_task_2)%
+on_fail = %=pstor_reset(sim_default_isg_medic_task_2_fetch) =drx_sl_unregister_task_giver(sim_default_isg_medic_task_2) =drx_sl_reset_stored_task(sim_default_isg_medic_task_2)%
+condlist_0 = {!task_giver_alive(sim_default_isg_medic_task_2)} fail
 
 [sim_default_isg_barman_task_1]
 icon = ui_iconsTotal_artefact
