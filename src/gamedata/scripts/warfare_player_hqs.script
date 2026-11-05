@@ -41,6 +41,8 @@ local hqs = {
         seed     = { section = "isg_sim_squad_novice", count = 2 },
         service  = { "jup_b208_isg_trader_squad", "jup_b208_isg_mechanic_squad",
                      "jup_b208_isg_medic_squad", "jup_b208_isg_barman_squad" },
+        -- new_game_start_locations.ltx: from any other start the depot is left empty to be captured
+        seed_start = "yanov_depo_monolith",
     },
 }
 
@@ -170,9 +172,14 @@ end
 --- The applied HQ's new-game squads, or nil: { smart, faction, section, count, service }.
 --- section/count are the warfare-owned guards (section nil when none); service lists the
 --- ignore-listed unique NPC squads, which find the smart by their target_smart.
-function new_game_seed()
+--- `start` is the chosen new-game start location; an HQ with a seed_start other than it gets nil.
+function new_game_seed(start)
     local smart = active and smart_by_name(active.smart)
     if not smart then
+        return
+    end
+    if active.seed_start and active.seed_start ~= start then
+        warfare_log.info("warfare_player_hqs: start=%s is not %s, smart=%s starts empty", start, active.seed_start, active.smart)
         return
     end
     local seed = active.seed or {}
