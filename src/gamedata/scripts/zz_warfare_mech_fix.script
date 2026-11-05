@@ -22,6 +22,10 @@
     they were of the actor's faction, and label the workshop with the Warfare mechanic
     who actually stands there.
 
+    Under Warfare a story mechanic's death frees his vice as in vanilla, but puts no
+    mechanic spot on the vice and sends no "no longer need permission" news: every vice
+    is already usable, and the faction mechanic who takes the base carries his own spot.
+
     Skipped when this addon's GAMMA patch is installed. GAMMA ships its own bind_awr
     (from "G.A.M.M.A. Vices are free") whose access() carries an extra SMR clause;
     taking the callback over would drop it, and GAMMA's workshop already counts toolkits
@@ -166,6 +170,29 @@ function physic_object_on_use_callback(obj, who)
     CreateTimeEvent(0, "delay_workshop", delay, start_ui)
 end
 
+--- bind_awr's OnDeath minus SetMarker, and without its news.
+function npc_on_death_callback(victim, who)
+    if not _G.WARFARE then
+        return bind_awr.npc_on_death_callback(victim, who)
+    end
+    if not (victim and who and IsStalker(victim) and not victim:alive()) then
+        return
+    end
+
+    local section = victim:section()
+    for vice, row in pairs(angles) do
+        if row[1] == section then
+            local story_obj = get_story_object(section)
+            if story_obj then
+                level.map_remove_object_spot(story_obj:id(), "ui_pda2_mechanic_location")
+            end
+            bind_awr.full_access(vice, section)
+            warfare_log.info("zz_warfare_mech_fix: story mechanic %s died, vice %s is free", section, vice)
+            return
+        end
+    end
+end
+
 --------------------------------------------------------------------------------------
 -- Install
 --------------------------------------------------------------------------------------
@@ -191,6 +218,8 @@ function on_game_start()
     -- script is named to sort after bind_awr, whose on_game_start has already run.
     UnregisterScriptCallback("physic_object_on_use_callback", bind_awr.physic_object_on_use_callback)
     RegisterScriptCallback("physic_object_on_use_callback", physic_object_on_use_callback)
+    UnregisterScriptCallback("npc_on_death_callback", bind_awr.npc_on_death_callback)
+    RegisterScriptCallback("npc_on_death_callback", npc_on_death_callback)
 
-    warfare_log.info("zz_warfare_mech_fix: workbench callback installed")
+    warfare_log.info("zz_warfare_mech_fix: workbench callbacks installed")
 end
