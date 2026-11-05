@@ -1286,7 +1286,7 @@ function process_manual_capture_old(smart)
 
             local startTime = manual_point[2]
 
-            local diff =  round_idp(time_ref():diffSec(startTime)/60)
+            local diff = time_ref():diffSec(startTime)
 
             if (diff >= (warfare_options.options.auto_capture_wait_time)) then
                 manual_point = nil
@@ -4831,11 +4831,11 @@ function get_warfare_info(smart, visible)
     local props = get_smart_base_info(smart, visible, true)
 
     if (manual_point and manual_point[1] and smart.id == manual_point[1]) then
-        local diff = round_idp(time_ref():diffSec(manual_point[2])/60)
+        local diff = time_ref():diffSec(manual_point[2])
         local remaining = (warfare_options.options.auto_capture_wait_time) - diff
 
         if (remaining >= 0) then
-            props = props.." \\n" .. clr_gr .. str_wrfr[10] .. ": " .. clr_y .. strformat(str_wrfr[14] , remaining) .. " \\n"
+            props = props.." \\n" .. clr_gr .. str_wrfr[10] .. ": " .. clr_y .. format_game_minutes(math.ceil(remaining / 60)) .. " \\n"
         end
     end
 
