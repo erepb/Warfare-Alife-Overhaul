@@ -454,6 +454,42 @@ function game_relations.calculate_relation_change(victim_tbl, killer_tbl)
     return warfare_relations.contribute(victim_tbl, killer_tbl)
 end
 
+-- Faction helicopters target by faction relations: hostile stalkers and a hostile actor; mutants never.
+-- Helis without a real faction (community "heli") keep the vanilla rule.
+local heli_factions = {}
+for _, f in ipairs(game_relations.factions_table) do
+    heli_factions[f] = true
+end
+
+local heli_combat_is_enemy = heli_combat.heli_combat.is_enemy
+function heli_combat.heli_combat.is_enemy(self, obj)
+    local se_heli = _G.WARFARE and alife_object(self.object:id())
+    local heli_faction = se_heli and se_heli.community
+    if not heli_factions[heli_faction] then
+        return heli_combat_is_enemy(self, obj)
+    end
+
+    if not (IsStalker(obj) and obj:alive()) then
+        return false
+    end
+
+    if xr_combat_ignore.ignore_enemy_by_overrides(self.object, obj) or IsWounded(obj) then
+        return false
+    end
+
+    if obj:id() == AC_ID then
+        local actor_faction = warfare.actor_faction
+        return actor_faction ~= nil and game_relations.is_factions_enemies(heli_faction, actor_faction)
+    end
+
+    if not game_relations.is_factions_enemies(heli_faction, character_community(obj)) then
+        return false
+    end
+
+    local squad = get_object_squad(obj)
+    return not (squad and xr_combat_ignore.safe_zone_npcs[squad.id])
+end
+
 local tasks_assault_evaluate_smarts_squads = tasks_assault.evaluate_smarts_squads
 function tasks_assault.evaluate_smarts_squads(task_id, tbl, smart, squad_def, faction_def)
     if (not smart or not _G.WARFARE) then
