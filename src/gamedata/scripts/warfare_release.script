@@ -11,7 +11,8 @@
         modes    the base modes (base_mode) it may send from; any other mode refuses
         manual   false = refused for the actor's faction under PDA manual control
         release  function(counts, mode) -> how many squads the purpose may take; false = no limit
-        squads   which of the owner's arrived squads count as free (see free_squads)
+        squads   which of the owner's arrived squads count as free (see free_squads); only
+                 routine moves skip resting squads, invasion, defense and retreat take them
 
     A purpose missing from POLICY may not send at all. A new sender adds its row here,
     which means deciding what it does while its base is besieged, staging an invasion or
@@ -58,6 +59,12 @@ local ANY_RESTED = { random_patrols = true, rested = true }
 local GARRISON_RESTED = { at_smart = true, rested = true }
 
 
+-- What a staging base holds beyond its invasion force and guards.
+local function staging_spare(c)
+    return c.regular + c.stationary - c.invasion - c.guards
+end
+
+
 -- counts fields: regular (arrived commandable own squads), stationary, guards
 -- (max(guard_size, stationary)), invasion (own planned invasion size, 0 if none), cap
 -- (base_max_allowable), is_base.
@@ -91,7 +98,7 @@ POLICY = {
     -- Morning expansion onto resources, territories and lairs.
     claim = {
         modes = { normal = true, staging = true },
-        release = function(c) return c.regular + c.stationary - smart_terrain_warfare.guard_size end,
+        release = function(c) return c.regular - c.guards end,
         squads = ANY_RESTED,
     },
 
@@ -107,7 +114,12 @@ POLICY = {
     capture_empty = {
         modes = { normal = true, staging = true },
         manual = false,
-        release = function(c) return c.regular + c.stationary - smart_terrain_warfare.guard_size end,
+        release = function(c, mode)
+            if (mode == "staging") then
+                return staging_spare(c)
+            end
+            return c.regular + c.stationary - smart_terrain_warfare.guard_size
+        end,
         squads = ANY,
     },
 
@@ -122,7 +134,10 @@ POLICY = {
     defend_ally = {
         modes = { normal = true, supporting = true, staging = true },
         manual = false,
-        release = function(c)
+        release = function(c, mode)
+            if (mode == "staging") then
+                return staging_spare(c)
+            end
             if c.is_base then
                 return c.regular - smart_terrain_warfare.guard_size + c.stationary
             end
