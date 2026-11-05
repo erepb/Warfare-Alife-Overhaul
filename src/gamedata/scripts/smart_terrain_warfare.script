@@ -1325,15 +1325,141 @@ end
 
 
 
---
+local function support_forward(smart, faction)
+--[[
+    Supporting base: forward spare squads to the invasion base, keeping the guards.
+]]
+    local squads, n = warfare_release.squads_for(smart, faction, "support_forward")
+    if not (squads) then
+        return
+    end
+    local inv_base_id = supporting_invasion[smart.id]
+    for i = 1, #squads do
+        warfare_release.send(smart, squads[i], inv_base_id, "support_forward")
+        n = n - 1
+        if (n <= 0) then
+            break
+        end
+    end
+end
+
+
+local function step_rebalance(ctx)
+    return ctx.morning and rebalance_surplus(ctx.smart, ctx.faction)
+end
+
+
+local function step_claim(ctx)
+--[[
+    Expansion onto resources, territories and lairs, in the morning or with night clearance.
+    One aggression roll per free squad, then the best claim target nobody of the faction
+    holds or heads for; one send per pass. A base over its cap rolls once and leaves the
+    rest of the pass to step_overflow.
+]]
+    if not (ctx.morning or ctx.night_clear) or ctx.ff.use_bases_not_resources then
+        return false
+    end
+
+    local smart, faction = ctx.smart, ctx.faction
+    local squads = warfare_release.squads_for(smart, faction, "claim")
+    if not (squads) then
+        return false
+    end
+
+    local claim_targets = warfare_targeting.find_claim_targets(smart, faction)
+    if (#claim_targets == 0) then
+        return false
+    end
+
+    local rolls = ctx.over_cap and 1 or #squads
+    for i = 1, rolls do
+        if (math.random(100) < ctx.ff.expansion_aggression) then
+            for j = 1, #claim_targets do
+                local target_id = claim_targets[j][2]
+                local other = target_id and alife_object(target_id)
+                if (other) and (squad_count(other, faction) < 1) then
+                    warfare_release.send(smart, squads[i], target_id, "claim",
+                        "score=" .. tostring(claim_targets[j][1]))
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+
+local function step_overflow(ctx)
+--[[
+    A base over its cap rolls for an invasion (plan its own, else join another), at any hour.
+    Relocating the surplus is rebalance_surplus's job. Needs one free squad on the base;
+    a base staging an invasion only ends the pass.
+]]
+    if not (ctx.over_cap) then
+        return false
+    end
+    local smart, faction = ctx.smart, ctx.faction
+    if (#warfare_release.free_squads(smart, faction, "claim") == 0) then
+        return false
+    end
+
+    warfare_log.debug("process_base_squads: overflow smart=%s faction=%s", smart:name(), faction)
+    if (ctx.mode == "normal") and (math.random(100) <= ctx.ff.expansion_aggression) then
+        local inv_target = get_invasion_target(smart)
+        if inv_target then
+            create_invasion_plan(smart, inv_target)
+        end
+        if not invasions[smart.id] and not supporting_invasion[smart.id] then
+            contribute_to_other_invasion(smart)
+        end
+    end
+    return true
+end
+
+
+-- process_base_squads' own-squad steps, in order; the first that returns true ends the pass.
+local BASE_STEPS = { step_rebalance, step_claim, step_overflow }
+
+
+local function evict_squatters(ctx)
+--[[
+    Squads of other (non-independent) factions idling on this base go back to their own
+    bases: in the morning, 15:00-20:00, or with night clearance. The zombied and monsters
+    hold no main base, so they are left alone.
+]]
+    local h = ctx.hour
+    if not (ctx.morning or (h > 15 and h < 20) or ctx.night_clear) then
+        return
+    end
+
+    local smart, faction = ctx.smart, ctx.faction
+    local squatters = {}
+    for sid,_ in pairs(SIMBOARD.smarts[smart.id].squads) do
+        local squad = resolve_roster_squad(smart.id, sid)
+        local community = squad and squad:get_squad_community()
+        if squad and (community ~= faction) and squad_is_commandable(squad, true) and (squad.current_action == 1)
+        and not sim_squad_warfare.squad_is_settled(squad)
+        and not warfare_behavior.is_independent(community)
+        and (community ~= "monster") and (community ~= "zombied") then
+            squatters[#squatters + 1] = squad
+        end
+    end
+    for i = 1, #squatters do
+        process_overflow_squad(smart, squatters[i])
+    end
+end
+
+
 function process_base_squads(smart)
 --[[
-    Normal unified factions will send their squads out to resources during the day.
-    However, they will not send squads to resources further than the closest hostile base (in case they get attacked).
-    In the morning, a base draining its surplus (rebalance_surplus) sends that first, before any claim.
-    An over-cap base rolls for an invasion at any hour; it never relocates its own squads here.
-    Only operates on non-loner non-ecolog squads.
-    Squatter squads from other factions will be sent back to their own faction's bases (via `process_overflow_squad()` helper function).
+    The unified base dispatcher, for factions whose dispatch_model is unified. One pass:
+      1. gates: throttle, surge, base_can_send (warfare_release "dispatch")
+      2. a base supporting an invasion forwards its spares there and stops
+      3. BASE_STEPS for the owner's squads: rebalance, claim, overflow (first send ends them)
+      4. squatter eviction
+
+    Every own-squad send goes through warfare_release: a step names its purpose, and
+    POLICY decides whether the base's mode allows it and how many squads it may take.
 
     Inputs:
         smart: base smart terrain
@@ -1356,144 +1482,41 @@ function process_base_squads(smart)
         return
     end
 
-    -- supporting another base's invasion: send available squads there, don't assign to resources
-    if supporting_invasion[smart.id] then
-        local inv_base_id = supporting_invasion[smart.id]
-        if invasions[inv_base_id] then
-            local regular_squads,_,stationary_sq_num = squad_count_detailed(smart, smart.owning_faction)
-            local guards = math.max(guard_size, stationary_sq_num)
-            if (regular_squads + stationary_sq_num > guards) then
-                local squads = SIMBOARD.smarts[smart.id].squads
-                for sid,_ in pairs(squads) do
-                    local squad = resolve_roster_squad(smart.id, sid)
-                    if (squad) and squad_is_commandable(squad, true) and (squad.current_action == 1) and (squad:get_squad_community() == smart.owning_faction) and not random_patrols[squad.id] then
-                        warfare_log.debug("process_base_squads: support_invasion smart=%s squad=%s -> inv_base=%s",
-                            smart:name(), tostring(squad.id), tostring(inv_base_id))
-                        sim_squad_warfare.set_target(squad, inv_base_id)
-                        regular_squads = regular_squads - 1
-                        if (regular_squads + stationary_sq_num <= guards) then
-                            break  -- keep guard minimum
-                        end
-                    end
-                end
-            end
-            return  -- don't assign squads to resources while supporting invasion
-        else
-            warfare_log.debug("process_base_squads: clearing stale supporting_invasion smart=%s", smart:name())
-            supporting_invasion[smart.id] = nil  -- invasion ended
-        end
+    local faction = smart.owning_faction
+    local mode = warfare_release.base_mode(smart)
+    if (mode == "supporting") then
+        support_forward(smart, faction)
+        return
     end
 
-    local faction = smart.owning_faction
-    -- Independent factions run their own dispatcher instead
     if warfare_behavior.is_independent(faction) then
         return
     end
 
-    local invading_faction_props = warfare_options.options.factions[faction]
-    if not (invading_faction_props) then
+    local ff = warfare_options.options.factions[faction]
+    if not (ff) then
         return
     end
 
-    local aggression = invading_faction_props.expansion_aggression
-    local isMorning = (warfare_utils.get_warfare_hour() > 7 and warfare_utils.get_warfare_hour() < 15)  -- In the morning, squads at base are given new targets or sent out for invasion
+    local hour = warfare_utils.get_warfare_hour()
+    local ctx = {
+        smart = smart,
+        faction = faction,
+        ff = ff,
+        mode = mode,
+        hour = hour,
+        morning = (hour > 7) and (hour < 15),
+        night_clear = (night_activity_allowed[smart.id] == 1),
+        over_cap = not base_has_vacancy(smart, faction),
+    }
 
-    if isMorning and rebalance_surplus(smart, faction) then
-        return
-    end
-
-    local claim_targets = nil   -- ranked claimable ground, built lazily once per call
-    local regular_squads, _, stationary_sq_num = squad_count_detailed(smart, faction)  -- Get squad counts of the smart terrain owner. Does NOT count random patrol squads
-    local squads = SIMBOARD.smarts[smart.id].squads
-
-    for sid,_ in pairs(squads) do
-        local squad = resolve_roster_squad(smart.id, sid) -- Look at each squad individually
-        -- First criterion: Operate only on valid idle squads at base. Random patrol squads are included
-        if (squad) and squad_is_commandable(squad, true) and (squad.current_action == 1)
-        and not sim_squad_warfare.squad_is_settled(squad) then
-            -- Different actions between squads that own the smart terrain vs those that do not (squatters)
-            if (squad:get_squad_community() == faction) then
-                -- Second criterion: Squad movement happens in the morning. An invasion will have already been sent out via `process_targets()`, which happens before this function
-                local squad_sent = false
-                if isMorning or (night_activity_allowed[smart.id] == 1) then
-                    -- If squad is the last squad on the base, do not command them
-                    if (regular_squads + stationary_sq_num == guard_size) then
-                        break
-                    end
-                    -- Send squads to resources unless faction doesn't care about resources
-                    if not (warfare_options.options.factions[faction] and warfare_options.options.factions[faction].use_bases_not_resources) then
-                        if not (claim_targets) then
-                            claim_targets = warfare_targeting.find_claim_targets(smart, faction)
-                        end
-
-                        -- Expansion stays aggression-gated, but as one roll per squad
-                        -- followed by "take the best target". It used to roll per
-                        -- candidate and walk the list until a roll succeeded, which
-                        -- turned a low aggression score into a bias towards distant
-                        -- targets rather than into less expansion.
-                        if (#claim_targets > 0) and (math.random(100) < aggression) then
-                            for i = 1, #claim_targets do
-                                local target_id = claim_targets[i][2]
-                                local other = target_id and alife_object(target_id)
-
-                                if (other) and (squad_count(other, faction) < 1) then
-                                    warfare_log.debug("process_base_squads: send squad to claim smart=%s squad=%s -> target=%s score=%s",
-                                        smart:name(), tostring(squad.id), other:name(), tostring(claim_targets[i][1]))
-                                    sim_squad_warfare.set_target(squad, target_id)
-                                    squad_sent = true
-                                    regular_squads = regular_squads - 1  -- Keep count of squads remaining at base
-                                    break
-                                end
-                            end
-                        end
-
-                        -- Only send one squad per update of this function, to allow other bases to also send squads
-                        if squad_sent then
-                            break
-                        end
-                    end
-
-                end
-
-                -- Overflow: try invasion (runs at any time of day); relocating the surplus is rebalance_surplus's job
-                if not squad_sent and not base_has_vacancy(smart, faction) then
-                    warfare_log.debug("process_base_squads: overflow smart=%s faction=%s", smart:name(), faction)
-                    if supporting_invasion[smart.id] then
-                        -- committed to supporting another base's invasion: send overflow squad there
-                        local inv_base_id = supporting_invasion[smart.id]
-                        if invasions[inv_base_id] then
-                            warfare_log.debug("process_base_squads: overflow -> supporting inv smart=%s -> %s",
-                                smart:name(), tostring(inv_base_id))
-                            sim_squad_warfare.set_target(squad, inv_base_id)
-                        else
-                            supporting_invasion[smart.id] = nil  -- invasion ended
-                        end
-                    elseif not invasions[smart.id] and (math.random(100) <= aggression) then
-                        -- try planning own invasion or contributing to another (aggression gated)
-                        local inv_target = get_invasion_target(smart)
-                        if inv_target then
-                            create_invasion_plan(smart, inv_target)
-                        end
-                        if not invasions[smart.id] and not supporting_invasion[smart.id] then
-                            contribute_to_other_invasion(smart)
-                        end
-                    end
-                    break  -- limit to one action per cycle
-                end
-            else
-                local squatter_faction = squad:get_squad_community()
-                if not warfare_behavior.is_independent(squatter_faction)
-                and (squatter_faction ~= "monster") and (squatter_faction ~= "zombied") then
-                    -- Squads squatting on bases they don't own are moved back to their own bases.
-                    -- The zombied are exempt for the same reason they are in process_nonbase_squads: they hold no
-                    -- main base, so the eviction can only ever fail and it repeats on every pass.
-                    if isMorning or (warfare_utils.get_warfare_hour() > 15 and warfare_utils.get_warfare_hour() < 20) or (night_activity_allowed[smart.id] == 1) then
-                        process_overflow_squad(smart, squad)
-                    end
-                end
-            end
+    for i = 1, #BASE_STEPS do
+        if BASE_STEPS[i](ctx) then
+            break
         end
     end
+
+    evict_squatters(ctx)
 end
 
 
@@ -1757,7 +1780,7 @@ end
 -- Occupancy cap for a base. Invasion staging and stationary guards can raise it above
 -- max_population. Shared by base_has_vacancy and base_can_accept so the two predicates
 -- can never drift apart.
-local function base_max_allowable(smart, stationary_sq_num)
+function base_max_allowable(smart, stationary_sq_num)
     local invasion_force_size = invasions[smart.id] and invasions[smart.id][2] or 0
     local guards = math.max(guard_size, stationary_sq_num)
     return math.max((invasion_force_size + guards), smart.max_population)    -- invasion prep allows temporary overflow at a given base
@@ -2006,8 +2029,9 @@ function rebalance_surplus(smart, faction)
     sending each squad to the best find_reinforce_targets entry (own or empty base with
     room, this level or linked, neediest and nearest first).
 
-    The caller gates on the morning window and base_can_send. A base staging an invasion
-    never drains: supporters keep feeding it, so a drain would hand squads straight back.
+    The caller gates on the morning window. Which base modes may drain and how the
+    surplus is counted is warfare_release POLICY.rebalance; a base staging an invasion
+    never drains.
 
     Inputs:
         smart: base smart terrain owned by `faction`
@@ -2015,12 +2039,10 @@ function rebalance_surplus(smart, faction)
     Returns:
         true if a squad was sent
 ]]
-    if invasions[smart.id] then
+    local surplus = warfare_release.release_count(smart, faction, "rebalance")
+    if not (surplus) then
         return false
     end
-
-    local regular, _, stationary = squad_count_detailed(smart, faction)
-    local surplus = regular + stationary - base_max_allowable(smart, stationary)
 
     if (rebalance_drain[smart.id] ~= nil) and (rebalance_drain[smart.id] ~= faction) then
         warfare_log.debug("rebalance_surplus: drop drain smart=%s, owner %s -> %s",
@@ -2052,25 +2074,20 @@ function rebalance_surplus(smart, faction)
     end
     local target_id = targets[1][2]
 
-    for sid,_ in pairs(SIMBOARD.smarts[smart.id].squads) do
-        local squad = resolve_roster_squad(smart.id, sid)
-        if squad and squad_is_commandable(squad) and (squad.current_action == 1)
-        and (squad:get_squad_community() == faction) and (squad.current_target_id == smart.id)
-        and not sim_squad_warfare.squad_is_settled(squad) then
-            sim_squad_warfare.set_target(squad, target_id)
-            if (squad.current_action == 0) then
-                local ranked = {}
-                for i = 1, math.min(#targets, 3) do
-                    ranked[#ranked + 1] = targets[i][2] .. ":" .. math.floor(targets[i][1])
-                end
-                warfare_log.debug("rebalance_surplus: smart=%s faction=%s surplus=%s squad=%s -> %s (top %s)",
-                    smart:name(), faction, surplus, squad.id, target_id, table.concat(ranked, " "))
-                if (surplus <= 1) then
-                    warfare_log.debug("rebalance_surplus: drained smart=%s faction=%s", smart:name(), faction)
-                    rebalance_drain[smart.id] = nil
-                end
-                return true
+    local ranked = {}
+    for i = 1, math.min(#targets, 3) do
+        ranked[#ranked + 1] = targets[i][2] .. ":" .. math.floor(targets[i][1])
+    end
+    local detail = "surplus=" .. surplus .. " top=" .. table.concat(ranked, ",")
+
+    local squads = warfare_release.free_squads(smart, faction, "rebalance")
+    for i = 1, #squads do
+        if warfare_release.send(smart, squads[i], target_id, "rebalance", detail) then
+            if (surplus <= 1) then
+                warfare_log.debug("rebalance_surplus: drained smart=%s faction=%s", smart:name(), faction)
+                rebalance_drain[smart.id] = nil
             end
+            return true
         end
     end
 
@@ -2262,22 +2279,18 @@ function process_invasion_departure(smart)
     end
 
     -- don't send out invasions during emissions or when under attack
-    if takeover_possible and not under_attack[smart.id] then
+    if takeover_possible and warfare_release.may_send(smart, smart.owning_faction, "invasion_departure") then
         local numSent = 0
-        local squads = SIMBOARD.smarts[smart.id].squads
+        local squads = warfare_release.free_squads(smart, smart.owning_faction, "invasion_departure")
         warfare_log.info("process_invasion_departure: launching invasion smart=%s -> target=%s size=%s",
             smart:name(), target and target:name() or "?", tostring(invasion_size))
 
-        for sid,_ in pairs(squads) do
-            local squad = resolve_roster_squad(smart.id, sid)
+        for i = 1, #squads do
+            numSent = numSent + 1
+            warfare_release.send(smart, squads[i], target.id, "invasion_departure")
 
-            if squad_is_commandable(squad) and (squad:get_squad_community() == smart.owning_faction) and (squad.current_action == 1) then
-                numSent = numSent + 1
-                sim_squad_warfare.set_target(squad, target.id)
-
-                if (numSent == invasion_size) then
-                    break
-                end
+            if (numSent == invasion_size) then
+                break
             end
         end
 
@@ -2613,27 +2626,9 @@ end
 function capture_empty_location_simple(smart, target)
     warfare_log.trace("capture_empty_location_simple: smart=%s target=%s",
         smart:name(), target and target:name() or "?")
-    -- disable this feature if manual control is turned on
-    if (smart.owning_faction == warfare.actor_faction) and (pda_actor.manual_control) then
-        return
-    end
-
-    local regular_squads,_,stationary_sq_num = squad_count_detailed(smart, smart.owning_faction)
-    local squads_available = regular_squads + stationary_sq_num - guard_size
-    if (squads_available > 0) and not under_attack[smart.id] then
-        local ally_squads = SIMBOARD.smarts[smart.id].squads
-        for sid,_ in pairs(ally_squads) do
-            local squad = resolve_roster_squad(smart.id, sid)
-            local faction = squad and squad:get_squad_community()
-            -- only check for idle squads of same faction
-            if squad_is_commandable(squad) and (faction == smart.owning_faction) and (squad.current_action == 1) then
-                -- send the available squad
-                warfare_log.debug("capture_empty_location_simple: dispatch squad=%s -> target=%s",
-                    tostring(squad.id), target and target:name() or "?")
-                sim_squad_warfare.set_target(squad, target.id)
-                return    -- exit function after sending one squad
-            end
-        end
+    local squads = warfare_release.squads_for(smart, smart.owning_faction, "capture_empty")
+    if squads then
+        warfare_release.send(smart, squads[1], target.id, "capture_empty")
     end
 end
 
@@ -2837,63 +2832,52 @@ function contribute_to_other_invasion(smart, skip_aggression)
     warfare_log.trace("contribute_to_other_invasion: smart=%s skip_aggr=%s",
         smart:name(), tostring(skip_aggression))
 
-    -- disable this feature if manual control is turned on
-    if (smart.owning_faction == warfare.actor_faction) and (pda_actor.manual_control) then
+    if not warfare_release.may_send(smart, smart.owning_faction, "contribute") then
         return
     end
-
-    local regular_squads,_,stationary_sq_num = squad_count_detailed(smart, smart.owning_faction)
-    local squads_available = regular_squads - math.max(guard_size, stationary_sq_num)
     local aggression = warfare_options.options.factions[smart.owning_faction].expansion_aggression
 
-    if (squads_available > 0) and not under_attack[smart.id] then
-        local level_info = warfare_levels.level_information[smart.level_id]
-        local ally_locations = {}
+    local level_info = warfare_levels.level_information[smart.level_id]
+    local ally_locations = {}
 
-        for i,sm in pairs(level_info.smarts) do
-            local other = sm and alife_object(sm)
+    for i,sm in pairs(level_info.smarts) do
+        local other = sm and alife_object(sm)
 
-            -- only consider points with active invasion plans
-            if (other.owning_faction == smart.owning_faction) and (invasions[other.id]) then
-                local invasion_target = invasions[other.id][1] and alife_object(invasions[other.id][1])
-                local invasion_base_to_target = fetch_smart_distance(other, invasion_target)
-                local support_base_to_target = fetch_smart_distance(smart, invasion_target)
-                local reinforce_dist = fetch_smart_distance(smart, other)
-                local other_sq_reg,_,sq_stat = squad_count_detailed(other, other.owning_faction)
-                local squads_needed = invasions[other.id][2] + math.max(guard_size, sq_stat) - other_sq_reg - sq_stat
+        -- only consider points with active invasion plans
+        if (other.owning_faction == smart.owning_faction) and (invasions[other.id]) then
+            local invasion_target = invasions[other.id][1] and alife_object(invasions[other.id][1])
+            local invasion_base_to_target = fetch_smart_distance(other, invasion_target)
+            local support_base_to_target = fetch_smart_distance(smart, invasion_target)
+            local reinforce_dist = fetch_smart_distance(smart, other)
+            local other_sq_reg,_,sq_stat = squad_count_detailed(other, other.owning_faction)
+            local squads_needed = invasions[other.id][2] + math.max(guard_size, sq_stat) - other_sq_reg - sq_stat
 
-                -- only contribute if invasion base is closer to enemy target than support base, and squads are still needed
-                if (invasion_base_to_target < support_base_to_target) and (squads_needed > 0) then
-                    ally_locations[#ally_locations+1] = { squads_needed * reinforce_dist * reinforce_dist, other.id, reinforce_dist }
-                end
+            -- only contribute if invasion base is closer to enemy target than support base, and squads are still needed
+            if (invasion_base_to_target < support_base_to_target) and (squads_needed > 0) then
+                ally_locations[#ally_locations+1] = { squads_needed * reinforce_dist * reinforce_dist, other.id, reinforce_dist }
             end
         end
+    end
 
-        -- Sort by priority: invasions closest to reaching target size and nearest distance first
-        table.sort(ally_locations, function(a, b)
-            return math.abs(a[1]) < math.abs(b[1])
-        end)
+    -- Sort by priority: invasions closest to reaching target size and nearest distance first
+    table.sort(ally_locations, function(a, b)
+        return math.abs(a[1]) < math.abs(b[1])
+    end)
 
-        if (#ally_locations > 0) then
-            for i=1,#ally_locations do
-                local other = ally_locations[i][2] and alife_object(ally_locations[i][2])
-                -- skip_aggression: base wanted to invade the same target, contribute unconditionally
-                -- otherwise: aggression roll determines willingness to contribute
-                if (other and other.owning_faction) and (skip_aggression or (math.random(150) < aggression)) then
-                    -- re-check how many squads the invasion base still needs
-                    local other_sq_reg,_,sq_stat = squad_count_detailed(other, other.owning_faction)
-                    local squads_needed = invasions[other.id][2] + math.max(guard_size, sq_stat) - other_sq_reg - sq_stat
-                    if squads_needed > 0 then
-                        local squads = SIMBOARD.smarts[smart.id].squads
-                        for sid,_ in pairs(squads) do
-                            local squad = resolve_roster_squad(smart.id, sid)
-                            if (squads_available > 0) and squad_is_commandable(squad) and (squad:get_squad_community() == smart.owning_faction) and (squad.current_action == 1) then
-                                warfare_log.debug("contribute_to_other_invasion: smart=%s squad=%s -> base=%s",
-                                    smart:name(), tostring(squad.id), other:name())
-                                sim_squad_warfare.set_target(squad, other.id)
-                                return  -- limit to one squad per tick
-                            end
-                        end
+    if (#ally_locations > 0) then
+        for i=1,#ally_locations do
+            local other = ally_locations[i][2] and alife_object(ally_locations[i][2])
+            -- skip_aggression: base wanted to invade the same target, contribute unconditionally
+            -- otherwise: aggression roll determines willingness to contribute
+            if (other and other.owning_faction) and (skip_aggression or (math.random(150) < aggression)) then
+                -- re-check how many squads the invasion base still needs
+                local other_sq_reg,_,sq_stat = squad_count_detailed(other, other.owning_faction)
+                local squads_needed = invasions[other.id][2] + math.max(guard_size, sq_stat) - other_sq_reg - sq_stat
+                if squads_needed > 0 then
+                    local squad = warfare_release.free_squads(smart, smart.owning_faction, "contribute")[1]
+                    if squad then
+                        warfare_release.send(smart, squad, other.id, "contribute")
+                        return  -- limit to one squad per tick
                     end
                 end
             end
@@ -3106,36 +3090,20 @@ function process_invasion_defense(smart)
             local other = ally_locations[i][2] and alife_object(ally_locations[i][2])
 
             if (other and other.owning_faction) then
-                local regular_squads,_,stationary_sq_num = squad_count_detailed(other,defending_faction)
-                local ally_squads = SIMBOARD.smarts[other.id].squads
-                local squads_available = 0
-
-                -- bases need to keep at least one squad on them. resources and territories can send all squads
-                if (other.props.base > 0) then
-                    squads_available = regular_squads - guard_size + stationary_sq_num
-                else
-                    squads_available = regular_squads
-                end
-
-                if (squads_available > 0) then
-                    for sid,_ in pairs(ally_squads) do
-                        local squad = resolve_roster_squad(other.id, sid)
-                        local faction = squad and squad:get_squad_community()
-
-                        -- only check for idle squads of same faction
-                        if squad_is_commandable(squad) and (faction == defending_faction) and (squad.current_action == 1) and (squads_available > 0) then
-                            -- send the available squad and re-calculate the power disparity
-                            local ally_squad_power = sim_offline_combat.calculate_squad_power(squad)
-                            warfare_log.debug("process_invasion_defense: reinforce smart=%s from %s squad=%s",
-                                smart:name(), other:name(), tostring(squad.id))
-                            sim_squad_warfare.set_target(squad, smart.id)
-                            squads_available = squads_available - 1
-                            power_disparity = power_disparity - ally_squad_power
-                            squads_sent = true
-                            if (power_disparity < 0) then
-                                return                -- once power disparity is made up, stop sending squads
-                            end
-                        end
+                local donors, squads_available = warfare_release.squads_for(other, defending_faction, "defend_ally")
+                for j = 1, donors and #donors or 0 do
+                    local squad = donors[j]
+                    -- send the available squad and re-calculate the power disparity
+                    local ally_squad_power = sim_offline_combat.calculate_squad_power(squad)
+                    warfare_release.send(other, squad, smart.id, "defend_ally", "defending=" .. smart:name())
+                    squads_available = squads_available - 1
+                    power_disparity = power_disparity - ally_squad_power
+                    squads_sent = true
+                    if (power_disparity < 0) then
+                        return                -- once power disparity is made up, stop sending squads
+                    end
+                    if (squads_available <= 0) then
+                        break
                     end
                 end
             end
@@ -3152,13 +3120,9 @@ function process_invasion_defense(smart)
                 for i=1,#ally_locations do
                     local other = ally_locations[i][2] and alife_object(ally_locations[i][2])
                     -- Send all squads on the current point to the closest ally location
-                    local ally_squads = SIMBOARD.smarts[smart.id].squads
-                    for sid,_ in pairs(ally_squads) do
-                        local squad = resolve_roster_squad(smart.id, sid)
-                        local faction = squad and squad:get_squad_community()
-                        if squad_is_commandable(squad) and (faction == defending_faction) and (squad.current_action == 1) then
-                            sim_squad_warfare.set_target(squad, other.id)
-                        end
+                    local squads = warfare_release.squads_for(smart, defending_faction, "retreat") or {}
+                    for j = 1, #squads do
+                        warfare_release.send(smart, squads[j], other.id, "retreat")
                     end
                     break  -- Send all squads to the closest ally location
                 end
@@ -5396,15 +5360,9 @@ function squad_count_targeting(smart, faction)
 end
 
 
+-- May this base release any of its owner's squads at all (warfare_release "dispatch").
 function base_can_send(smart)
-    if under_attack[smart.id] then return false end
-    if not smart.owning_faction or not warfare.registered_squads[smart.owning_faction] then return false end
-    local regular, _, stationary = squad_count_detailed(smart, smart.owning_faction)
-    local guards = math.max(guard_size, stationary)
-    if invasions[smart.id] then
-        if regular + stationary <= invasions[smart.id][2] + guards then return false end
-    end
-    return regular > guards
+    return warfare_release.may_send(smart, smart.owning_faction, "dispatch")
 end
 
 function squad_is_commandable(squad, random_patrol_override)
@@ -5625,6 +5583,7 @@ function check_owner(smart)
             invasions[smart.id] = nil
             smart:show()
         end
+        supporting_invasion[smart.id] = nil
     end
 
     if (previous_owner[smart.id]) and (smart.owning_faction ~= "none") and (previous_owner[smart.id] ~= smart.owning_faction) then

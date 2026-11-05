@@ -1,0 +1,244 @@
+--[[ warfare_release.script -- which of a smart's own squads may leave it, and for what.
+
+    Every sender that takes a faction's squads off a smart it holds asks this file first:
+
+        local squads = warfare_release.squads_for(smart, faction, "claim")
+        if squads then
+            warfare_release.send(smart, squads[1], target_id, "claim")
+        end
+
+    POLICY lists every purpose a squad can be sent for. Per purpose:
+        modes    the base modes (base_mode) it may send from; any other mode refuses
+        manual   false = refused for the actor's faction under PDA manual control
+        release  function(counts, mode) -> how many squads the purpose may take; false = no limit
+        squads   which of the owner's arrived squads count as free (see free_squads)
+
+    A purpose missing from POLICY may not send at all. A new sender adds its row here,
+    which means deciding what it does while its base is besieged, staging an invasion or
+    supporting one.
+]]
+
+
+-- What a smart is doing right now, in precedence order:
+--   besieged    under_attack
+--   supporting  feeding another base's live invasion (a stale entry is cleared here)
+--   staging     gathering its own invasion
+--   normal      none of the above
+function base_mode(smart)
+    local stw = smart_terrain_warfare
+    local id = smart.id
+
+    if stw.under_attack[id] then
+        return "besieged"
+    end
+
+    local inv_base_id = stw.supporting_invasion[id]
+    if inv_base_id then
+        if stw.invasions[inv_base_id] then
+            return "supporting"
+        end
+        warfare_log.debug("base_mode: clearing stale supporting_invasion smart=%s", smart:name())
+        stw.supporting_invasion[id] = nil
+    end
+
+    if stw.invasions[id] then
+        return "staging"
+    end
+
+    return "normal"
+end
+
+
+-- Squad sets a purpose can draw from. All are own-faction, commandable, arrived squads.
+--   random_patrols  include the faction's random patrols parked here
+--   rested          skip squads still inside their post-arrival rest
+--   at_smart        only squads whose current target is this smart
+local ANY = {}
+local ANY_RESTED = { random_patrols = true, rested = true }
+local GARRISON_RESTED = { at_smart = true, rested = true }
+
+
+-- counts fields: regular (arrived commandable own squads), stationary, guards
+-- (max(guard_size, stationary)), invasion (own planned invasion size, 0 if none), cap
+-- (base_max_allowable), is_base.
+POLICY = {
+    -- "May this base release anything at all": process_base_squads' gate, AlifePlus
+    -- lending, loner bases (base_can_send).
+    dispatch = {
+        modes = { normal = true, supporting = true, staging = true },
+        release = function(c, mode)
+            if (mode == "staging") and (c.regular + c.stationary <= c.invasion + c.guards) then
+                return 0
+            end
+            return c.regular - c.guards
+        end,
+    },
+
+    -- Forward spare squads to the invasion this base supports.
+    support_forward = {
+        modes = { supporting = true },
+        release = function(c) return c.regular + c.stationary - c.guards end,
+        squads = ANY,
+    },
+
+    -- Morning drain of a base over its cap (rebalance_surplus).
+    rebalance = {
+        modes = { normal = true },
+        release = function(c) return c.regular + c.stationary - c.cap end,
+        squads = GARRISON_RESTED,
+    },
+
+    -- Morning expansion onto resources, territories and lairs.
+    claim = {
+        modes = { normal = true, staging = true },
+        release = function(c) return c.regular + c.stationary - smart_terrain_warfare.guard_size end,
+        squads = ANY_RESTED,
+    },
+
+    -- Join a nearby same-faction base's invasion (contribute_to_other_invasion).
+    contribute = {
+        modes = { normal = true },
+        manual = false,
+        release = function(c) return c.regular - c.guards end,
+        squads = ANY,
+    },
+
+    -- Send one squad at an empty targeted base (capture_empty_location_simple).
+    capture_empty = {
+        modes = { normal = true, staging = true },
+        manual = false,
+        release = function(c) return c.regular + c.stationary - smart_terrain_warfare.guard_size end,
+        squads = ANY,
+    },
+
+    -- Launch the gathered invasion force.
+    invasion_departure = {
+        modes = { staging = true },
+        release = function(c) return c.invasion end,
+        squads = ANY,
+    },
+
+    -- Donate squads to a same-faction smart under invasion (any owned smart, not only bases).
+    defend_ally = {
+        modes = { normal = true, supporting = true, staging = true },
+        manual = false,
+        release = function(c)
+            if c.is_base then
+                return c.regular - smart_terrain_warfare.guard_size + c.stationary
+            end
+            return c.regular
+        end,
+        squads = ANY,
+    },
+
+    -- Abandon a smart that is losing its defense: every squad leaves.
+    retreat = {
+        modes = { besieged = true },
+        manual = false,
+        release = false,
+        squads = ANY,
+    },
+}
+
+
+function counts(smart, faction)
+    local stw = smart_terrain_warfare
+    local regular, _, stationary = stw.squad_count_detailed(smart, faction)
+    local inv = stw.invasions[smart.id]
+    return {
+        regular = regular,
+        stationary = stationary,
+        guards = math.max(stw.guard_size, stationary),
+        invasion = inv and inv[2] or 0,
+        cap = stw.base_max_allowable(smart, stationary),
+        is_base = (smart.props ~= nil) and (smart.props.base > 0),
+    }
+end
+
+
+-- How many squads `purpose` may take from `smart` for `faction` right now: nil when the
+-- policy refuses outright (mode, manual control, unknown purpose), else a number that
+-- may be zero or negative (math.huge for an unlimited purpose).
+function release_count(smart, faction, purpose)
+    local p = POLICY[purpose]
+    if not (p) then
+        warfare_log.err("warfare_release: unknown purpose %s", purpose)
+        return nil
+    end
+
+    if not (faction and warfare.registered_squads[faction]) then
+        return nil
+    end
+
+    if (p.manual == false) and (faction == warfare.actor_faction) and pda_actor.manual_control then
+        return nil
+    end
+
+    local mode = base_mode(smart)
+    if not (p.modes[mode]) then
+        return nil
+    end
+
+    if (p.release == false) then
+        return math.huge
+    end
+
+    return p.release(counts(smart, faction), mode)
+end
+
+
+function may_send(smart, faction, purpose)
+    local n = release_count(smart, faction, purpose)
+    return (n ~= nil) and (n > 0)
+end
+
+
+-- The squads `purpose` may draw from at `smart`, in roster order, as a list. Ignores the
+-- release count; pair with release_count or may_send.
+function free_squads(smart, faction, purpose)
+    local spec = POLICY[purpose].squads
+    local list = {}
+    local roster = SIMBOARD.smarts[smart.id]
+    if not (roster) then
+        return list
+    end
+
+    for sid,_ in pairs(roster.squads) do
+        local squad = smart_terrain_warfare.resolve_roster_squad(smart.id, sid)
+        if squad and smart_terrain_warfare.squad_is_commandable(squad, spec.random_patrols)
+        and (squad.current_action == 1) and (squad:get_squad_community() == faction)
+        and ((not spec.at_smart) or (squad.current_target_id == smart.id))
+        and ((not spec.rested) or not sim_squad_warfare.squad_is_settled(squad)) then
+            list[#list + 1] = squad
+        end
+    end
+    return list
+end
+
+
+-- free_squads when the policy lets `purpose` send at least one squad, else nil; the
+-- second value is the release count.
+function squads_for(smart, faction, purpose)
+    local n = release_count(smart, faction, purpose)
+    if not (n and n > 0) then
+        return nil, n
+    end
+    local list = free_squads(smart, faction, purpose)
+    if (#list == 0) then
+        return nil, n
+    end
+    return list, n
+end
+
+
+-- Move `squad` off `smart` to `target_id` for `purpose`. Returns true when set_target
+-- accepted it (it refuses player-controlled, task-held, fighting and story squads).
+function send(smart, squad, target_id, purpose, detail)
+    if not (sim_squad_warfare.set_target(squad, target_id)) then
+        return false
+    end
+    warfare_log.debug("dispatch: %s smart=%s faction=%s squad=%s -> %s%s",
+        purpose, smart:name(), squad:get_squad_community(), squad.id, target_id,
+        detail and (" " .. detail) or "")
+    return true
+end

@@ -848,7 +848,7 @@ function set_target(squad, target, force)
     -- added xQd's fix for not being able to dismiss companions
     if not (squad) or axr_companions.companion_squads[squad.id] then
 
-        return
+        return false
     end
 
     -- Player-controlled squads only accept orders from the player (force=true). The AI
@@ -856,26 +856,26 @@ function set_target(squad, target, force)
     -- an in-flight target still completes (this only blocks new assignments).
     if not force and warfare_squad_command.is_controlled(squad.id) then
         warfare_log.trace("set_target: skip player-controlled squad=%s", squad.id)
-        return
+        return false
     end
 
 
     if squad.stay_time then
         -- check if the squad has stay_time initialized(used to check if the squad are targeted by a "capture territory" task, so that the squad won't move resulting in failing of the task)
         warfare_log.trace("set_target: skip stay_time squad=%s", squad.id)
-        return
+        return false
     end
 
     -- Don't pull squads away while they are engaged in offline combat
     if sim_offline_combat and sim_offline_combat.opponents[squad.id] then
         warfare_log.trace("set_target: skip engaged-in-combat squad=%s opponent=%s", squad.id, sim_offline_combat.opponents[squad.id])
-        return
+        return false
     end
 
     local owned, reason = warfare.owns_section(squad:section_name(), true)
     if not owned then
         warfare_log.trace("set_target: skip squad=%s section=%s reason=%s", squad.id, squad:section_name(), reason)
-        return
+        return false
     end
 
     local obj = target and alife_object(target)
@@ -914,8 +914,10 @@ function set_target(squad, target, force)
         end
     else
         warfare_log.trace("set_target: no obj for target=%s squad=%s", target, squad and squad.id or "?")
+        return false
     end
 
+    return true
 end
 
 -- Added by xQd. A function exclusively for warfare traders/mechanics squads to help them target the smart terrain they spawned to;
