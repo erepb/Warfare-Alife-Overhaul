@@ -217,6 +217,13 @@ dispatch_timer = {}                 -- [model][smart.id] = CTime of the last ind
 dispatch_next_update = {}           -- [model][smart.id] = game seconds until the next tick
 night_flag_timer = {}
 night_flag_next_update = {}
+base_strength = {}                  -- [smart_id] = { f = owner, p = garrison power } at the last snapshot
+strength_top = {}                   -- [faction] = highest p of that faction's bases in the last snapshot
+strength_day = nil                  -- day key (YYYYMMDD of now - STRENGTH_HOUR) of the last snapshot
+rebalance_drain = {}                -- [smart_id] = owner faction while the base drains its surplus to cap
+
+local STRENGTH_HOUR = 3             -- game hour the daily strength snapshot belongs to
+local REBALANCE_SURPLUS = 3         -- squads over cap that start a drain
 
 function dispatch_timers(model)
     dispatch_timer[model] = dispatch_timer[model] or {}
@@ -1323,7 +1330,8 @@ function process_base_squads(smart)
 --[[
     Normal unified factions will send their squads out to resources during the day.
     However, they will not send squads to resources further than the closest hostile base (in case they get attacked).
-    This function also deals with overflow and random patrol squads (via `process_overflow_squad()` helper function).
+    In the morning, a base draining its surplus (rebalance_surplus) sends that first, before any claim.
+    An over-cap base rolls for an invasion at any hour; it never relocates its own squads here.
     Only operates on non-loner non-ecolog squads.
     Squatter squads from other factions will be sent back to their own faction's bases (via `process_overflow_squad()` helper function).
 
@@ -1390,6 +1398,10 @@ function process_base_squads(smart)
     local aggression = invading_faction_props.expansion_aggression
     local isMorning = (warfare_utils.get_warfare_hour() > 7 and warfare_utils.get_warfare_hour() < 15)  -- In the morning, squads at base are given new targets or sent out for invasion
 
+    if isMorning and rebalance_surplus(smart, faction) then
+        return
+    end
+
     local claim_targets = nil   -- ranked claimable ground, built lazily once per call
     local regular_squads, _, stationary_sq_num = squad_count_detailed(smart, faction)  -- Get squad counts of the smart terrain owner. Does NOT count random patrol squads
     local squads = SIMBOARD.smarts[smart.id].squads
@@ -1443,7 +1455,7 @@ function process_base_squads(smart)
 
                 end
 
-                -- Overflow: try invasion then redirect excess to ally base (runs at any time of day)
+                -- Overflow: try invasion (runs at any time of day); relocating the surplus is rebalance_surplus's job
                 if not squad_sent and not base_has_vacancy(smart, faction) then
                     warfare_log.debug("process_base_squads: overflow smart=%s faction=%s", smart:name(), faction)
                     if supporting_invasion[smart.id] then
@@ -1466,10 +1478,6 @@ function process_base_squads(smart)
                             contribute_to_other_invasion(smart)
                         end
                     end
-                    -- overflow to nearest ally base if not committed to an invasion
-                    if not invasions[smart.id] and not supporting_invasion[smart.id] then
-                        process_overflow_squad(smart, squad)
-                    end
                     break  -- limit to one action per cycle
                 end
             else
@@ -1491,11 +1499,16 @@ end
 
 function recall_squad_to_base(from_smart, squad, caller)
 --[[
-    Send a displaced/idle faction squad home, in priority order:
+    Send a displaced faction squad home, in priority order:
       1. best own-faction or empty base with intake room on this level
-      2. same, searching directly linked levels only -- recall never crosses the Zone
-      3. last resort: the faction's closest own-held or empty main base (HQ), any level
-      4. nothing eligible: leave the squad where it is
+      2. same, searching this level and the directly linked ones
+      3. best own base on this level or a linked one, full or not
+      4. the closest own base anywhere, or an own main base lying empty, full or not
+      5. nothing eligible: leave the squad where it is
+
+    Callers never start on a base of the squad's own faction (relocating a base's surplus
+    is rebalance_surplus's job), so the capacity-free steps cannot bounce a squad between
+    two full bases.
 ]]
     local faction = squad:get_squad_community()
     caller = caller or "recall_squad_to_base"
@@ -1518,7 +1531,15 @@ function recall_squad_to_base(from_smart, squad, caller)
         return true
     end
 
-    if send_to_main_base(from_smart, squad, faction, caller, incoming) then
+    local full = warfare_targeting.find_fallback_targets(from_smart, faction)
+    if (#full > 0) then
+        warfare_log.debug("recall_squad_to_base: squad=%s -> base=%s nearby, over cap (%s)",
+            squad.id, full[1][2], caller)
+        sim_squad_warfare.set_target(squad, full[1][2])
+        return true
+    end
+
+    if send_to_nearest_base(from_smart, squad, faction, caller) then
         return true
     end
 
@@ -1528,42 +1549,54 @@ function recall_squad_to_base(from_smart, squad, caller)
 end
 
 
-function send_to_main_base(from_smart, squad, faction, caller, incoming)
+function send_to_nearest_base(from_smart, squad, faction, caller)
 --[[
-    Last resort placement: head for the faction's closest main base that it still holds
-    or that is empty (capturable). Every faction has a main base, so a failure here is
-    unexpected.
+    Last resort placement, for a faction that holds nothing near the squad: head for the
+    closest base it owns on any level, or one of its main bases lying empty. Capacity is
+    not checked; storyline travel gates and quest locks are.
 
     Inputs:
         from_smart: smart the squad is leaving
         squad: alife object of the squad
         faction: squad's faction
         caller: caller name, for the log line only
-        incoming: optional build_incoming_map(faction) result the caller already has
     Returns:
-        true if a target was set, false if the faction holds no reachable main base
+        true if a target was set, false if the faction has no reachable base at all
 ]]
-    local main_bases = get_main_bases(faction)
-    if not (main_bases) then
-        return false
+    local src_level = from_smart.level_id or game_graph():vertex(from_smart.m_game_vertex_id):level_id()
+    local best, best_dist
+
+    local function consider(other)
+        if (other.id == from_smart.id) or not (other.level_id) then
+            return
+        end
+        if not is_travel_allowed(src_level, other.level_id, faction) or is_quest_locked(other, faction) then
+            return
+        end
+        local d = fetch_smart_distance(from_smart, other)
+        if (not best_dist) or (d < best_dist) then
+            best, best_dist = other, d
+        end
     end
 
-    incoming = incoming or build_incoming_map(faction)
+    local pool = base_smart_collection or {}
+    for i = 1, #pool do
+        local other = alife_object(pool[i])
+        if other and other.props and (other.owning_faction == faction) then
+            consider(other)
+        end
+    end
 
-    local best, best_dist
+    local main_bases = get_main_bases(faction) or {}
     for i = 1, #main_bases do
         local other = alife():story_object(main_bases[i])
-        local owner = other and (other.owning_faction or "none")
-        if other and (owner == faction or owner == "none") and base_can_accept(other, faction, incoming) then
-            local d = fetch_smart_distance(from_smart, other)
-            if (not best_dist) or (d < best_dist) then
-                best, best_dist = other, d
-            end
+        if other and ((other.owning_faction or "none") == "none") then
+            consider(other)
         end
     end
 
     if best then
-        warfare_log.debug("%s: squad=%s -> main_base=%s last-resort", caller, squad.id, best.id)
+        warfare_log.debug("%s: squad=%s -> base=%s nearest anywhere, last resort", caller, squad.id, best:name())
         sim_squad_warfare.set_target(squad, best.id)
         return true
     end
@@ -1631,11 +1664,9 @@ function process_nonbase_squads(smart, always_recall, keep_one)
     dispatch (process_independent) and the last two have no main base in
     main_base_data, so recall_squad_to_base could never place them anyway and every
     attempt was a wasted search.
-    If no base of this faction can take the squad, it stays where it is -- see
-    recall_squad_to_base. The previous fallbacks documented here (nearest neutral base,
-    then attacking the weakest hostile base on the level) were the source of the
-    recall/arrival ping-pong; the second was never implemented at all.
-    This does not account for vacancy of the base. Base vacancy/overflow is handled by `process_base_squads()`.
+    With no base with room nearby, the squad goes to a nearby own base over cap; it stays
+    where it is only when the faction holds no reachable base -- see recall_squad_to_base.
+    A base pushed over cap this way is drained by rebalance_surplus the next morning.
 
     Inputs:
         smart: non-base smart terrain (resource, territory, or lair)
@@ -1707,8 +1738,8 @@ end
 
 function process_overflow_squad(smart, squad)
 --[[
-    Move a squad off a base that is over capacity, or a squatter off a base its faction
-    does not own.
+    Move a squatter off a base its faction does not own. Must not be used for a squad on
+    its own faction's base: see recall_squad_to_base.
 
     A squad that cannot be placed is left where it is, never deleted
 ]]
@@ -1869,6 +1900,182 @@ end
 
 
 
+
+
+local function strength_day_key(now)
+    local t = warfare_utils.subtract_time(now, STRENGTH_HOUR * 3600)
+    local Y, M, D, h, m, s, ms = 0, 0, 0, 0, 0, 0, 0
+    Y, M, D, h, m, s, ms = t:get(Y, M, D, h, m, s, ms)
+    return Y * 10000 + M * 100 + D
+end
+
+
+-- Summed power of the owner's squads garrisoned at `smart`, stationary included, patrols
+-- not. Rank and faction multiplier only: the OCS distance multiplier is left out. Read-only
+-- (unlike the squad_count_* family, it never unregisters squads).
+local function garrison_power(smart, owner)
+    local roster = SIMBOARD.smarts[smart.id]
+    local registered = warfare.registered_squads[owner]
+    if not (roster and registered) then
+        return 0
+    end
+
+    local power = 0
+    for sid,_ in pairs(roster.squads) do
+        local squad = registered[sid] and resolve_roster_squad(smart.id, sid)
+        if squad and (squad:clsid() == clsid.online_offline_group_s)
+        and (squad:get_squad_community() == owner) and (squad.current_action == 1)
+        and (squad.current_target_id == smart.id) and (squad:npc_count() > 0)
+        and not axr_companions.companion_squads[squad.id]
+        and not random_patrols[squad.id] and not squad.patrol_table then
+            power = power + (sim_offline_combat.calculate_squad_power(squad, owner, false, true) or 0)
+        end
+    end
+    return power
+end
+
+
+function refresh_base_strength(now)
+--[[
+    Take the daily garrison-strength snapshot rebalance_surplus ranks destinations by.
+
+    Called every warfare tick; snapshots when the day key (date of now - STRENGTH_HOUR)
+    differs from the stored one. That is the STRENGTH_HOUR tick when awake, the first tick
+    after a sleep or load that skipped it, and the first tick of a game with no snapshot.
+
+    Inputs:
+        now: CTime of the current warfare tick
+]]
+    if not (base_smart_collection) then
+        return
+    end
+
+    local day = strength_day_key(now)
+    if (day == strength_day) then
+        return
+    end
+
+    local strength, top, count = {}, {}, 0
+    for i = 1, #base_smart_collection do
+        local smart = alife_object(base_smart_collection[i])
+        local owner = smart and smart.owning_faction
+        if owner and (owner ~= "none") then
+            local p = garrison_power(smart, owner)
+            strength[smart.id] = { f = owner, p = p }
+            if (p > (top[owner] or 0)) then
+                top[owner] = p
+            end
+            count = count + 1
+        end
+    end
+    base_strength, strength_top, strength_day = strength, top, day
+
+    for id, f in pairs(rebalance_drain) do
+        local smart = alife_object(id)
+        if not (smart and smart.owning_faction == f) then
+            warfare_log.debug("refresh_base_strength: drop drain smart=%s, owner %s -> %s",
+                smart and smart:name() or id, f, smart and smart.owning_faction or "gone")
+            rebalance_drain[id] = nil
+        end
+    end
+
+    warfare_log.info("refresh_base_strength: day=%s owned_bases=%s", day, count)
+end
+
+
+function base_need(other, faction)
+--[[
+    How short of garrison `other` was at the last snapshot, for `faction`: 0 = as strong as
+    the faction's strongest base, 1 = empty, lost since, or never seen. 1 everywhere while
+    the faction's snapshot is empty (new game).
+]]
+    local top = strength_top[faction] or 0
+    if (top <= 0) then
+        return 1
+    end
+    local rec = base_strength[other.id]
+    local p = (rec and rec.f == faction and other.owning_faction == faction) and rec.p or 0
+    return 1 - math.min(p / top, 1)
+end
+
+
+function rebalance_surplus(smart, faction)
+--[[
+    Morning drain of an over-full base. A base REBALANCE_SURPLUS or more squads over its
+    cap starts draining and keeps going, one squad per call, until it is back at cap,
+    sending each squad to the best find_reinforce_targets entry (own or empty base with
+    room, this level or linked, neediest and nearest first).
+
+    The caller gates on the morning window and base_can_send. A base staging an invasion
+    never drains: supporters keep feeding it, so a drain would hand squads straight back.
+
+    Inputs:
+        smart: base smart terrain owned by `faction`
+        faction: owner faction
+    Returns:
+        true if a squad was sent
+]]
+    if invasions[smart.id] then
+        return false
+    end
+
+    local regular, _, stationary = squad_count_detailed(smart, faction)
+    local surplus = regular + stationary - base_max_allowable(smart, stationary)
+
+    if (rebalance_drain[smart.id] ~= nil) and (rebalance_drain[smart.id] ~= faction) then
+        warfare_log.debug("rebalance_surplus: drop drain smart=%s, owner %s -> %s",
+            smart:name(), rebalance_drain[smart.id], faction)
+        rebalance_drain[smart.id] = nil
+    end
+
+    if (surplus <= 0) then
+        if rebalance_drain[smart.id] then
+            warfare_log.debug("rebalance_surplus: drained smart=%s faction=%s", smart:name(), faction)
+            rebalance_drain[smart.id] = nil
+        end
+        return false
+    end
+
+    if not (rebalance_drain[smart.id]) then
+        if (surplus < REBALANCE_SURPLUS) then
+            return false
+        end
+        rebalance_drain[smart.id] = faction
+        warfare_log.debug("rebalance_surplus: start drain smart=%s faction=%s surplus=%s",
+            smart:name(), faction, surplus)
+    end
+
+    local targets = warfare_targeting.find_reinforce_targets(smart, faction)
+    if (#targets == 0) then
+        warfare_log.trace("rebalance_surplus: no destination with room smart=%s faction=%s", smart:name(), faction)
+        return false
+    end
+    local target_id = targets[1][2]
+
+    for sid,_ in pairs(SIMBOARD.smarts[smart.id].squads) do
+        local squad = resolve_roster_squad(smart.id, sid)
+        if squad and squad_is_commandable(squad) and (squad.current_action == 1)
+        and (squad:get_squad_community() == faction) and (squad.current_target_id == smart.id)
+        and not sim_squad_warfare.squad_is_settled(squad) then
+            sim_squad_warfare.set_target(squad, target_id)
+            if (squad.current_action == 0) then
+                local ranked = {}
+                for i = 1, math.min(#targets, 3) do
+                    ranked[#ranked + 1] = targets[i][2] .. ":" .. math.floor(targets[i][1])
+                end
+                warfare_log.debug("rebalance_surplus: smart=%s faction=%s surplus=%s squad=%s -> %s (top %s)",
+                    smart:name(), faction, surplus, squad.id, target_id, table.concat(ranked, " "))
+                if (surplus <= 1) then
+                    warfare_log.debug("rebalance_surplus: drained smart=%s faction=%s", smart:name(), faction)
+                    rebalance_drain[smart.id] = nil
+                end
+                return true
+            end
+        end
+    end
+
+    return false
+end
 
 
 function surge_behavior(smart)

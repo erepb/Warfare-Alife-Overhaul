@@ -525,6 +525,10 @@ function save_state(m_data)
     m_data.warfare.smart_terrain_distances = smart_terrain_warfare.smart_terrain_distances
     m_data.warfare.under_attack = smart_terrain_warfare.under_attack
     m_data.warfare.last_seen = smart_terrain_warfare.last_seen
+    m_data.warfare.base_strength = smart_terrain_warfare.base_strength
+    m_data.warfare.strength_top = smart_terrain_warfare.strength_top
+    m_data.warfare.strength_day = smart_terrain_warfare.strength_day
+    m_data.warfare.rebalance_drain = smart_terrain_warfare.rebalance_drain
 
     m_data.warfare.relation_anchors = warfare_relations.anchors
     m_data.warfare.relation_pending = warfare_relations.pending
@@ -653,6 +657,10 @@ function load_state(m_data)
     smart_terrain_warfare.smart_terrain_distances = m_data.warfare and m_data.warfare.smart_terrain_distances or {}
     smart_terrain_warfare.under_attack = m_data.warfare and m_data.warfare.under_attack or {}
     smart_terrain_warfare.last_seen = m_data.warfare and m_data.warfare.last_seen or {}
+    smart_terrain_warfare.base_strength = m_data.warfare and m_data.warfare.base_strength or {}
+    smart_terrain_warfare.strength_top = m_data.warfare and m_data.warfare.strength_top or {}
+    smart_terrain_warfare.strength_day = m_data.warfare and m_data.warfare.strength_day
+    smart_terrain_warfare.rebalance_drain = m_data.warfare and m_data.warfare.rebalance_drain or {}
     -- heal records whose CTime came back as a closure (saves written while the seeding shared one
     -- CTime object across records)
     for id, rec in pairs(smart_terrain_warfare.last_seen) do
@@ -850,6 +858,7 @@ function actor_on_update()
     warfare_levels.update()
     warfare_factions.update()
     stagger_spawn_timers()   -- no-op unless armed; needs the base counts the two updates produce
+    smart_terrain_warfare.refresh_base_strength(tg)
 
     local new_surge_cnt = game_statistics.actor_statistics["emissions"].count or 0
     if (not old_surge_cnt) then

@@ -187,6 +187,7 @@ function find_candidates(smart, faction, eligible, opts)
                         predicates that reject every non-base anyway
             min_score: discard candidates scoring at or below this (nil = keep all)
             ctx: shared per-call state handed to the predicate
+            score: scorer(smart, other, faction, ff) replacing `score`; nil return drops the candidate
     Returns:
         list of { score, smart_id }, best first; empty when nothing qualifies
 ]]
@@ -215,6 +216,7 @@ function find_candidates(smart, faction, eligible, opts)
 
     local ctx = opts.ctx
     local min_score = opts.min_score
+    local scorer = opts.score or score
     local targets = {}
 
     for i = 1, #collection do
@@ -254,7 +256,7 @@ function find_candidates(smart, faction, eligible, opts)
         end
 
         do
-            local priority = score(smart, other, faction, ff)
+            local priority = scorer(smart, other, faction, ff)
             if (priority) and ((not min_score) or (priority > min_score)) then
                 targets[#targets + 1] = { priority, other.id }
             end
@@ -295,6 +297,67 @@ function find_rest_targets(smart, faction, cross_level, incoming)
         ctx = { incoming = incoming or smart_terrain_warfare.build_incoming_map(faction) },
     })
 end
+
+function is_fallback_target(smart, other, faction, ctx)
+--[[
+    Eligibility for the capacity-free recall fallback: any base this faction owns.
+
+    No intake test: a full destination runs over cap until rebalance_surplus drains it.
+    Callers never start on a base of the squad's own faction. Own bases only, so
+    can_garrison holds.
+]]
+    local props = other.props
+    return (props ~= nil) and (props.base >= 1) and (other.owning_faction == faction)
+end
+
+
+function find_fallback_targets(smart, faction)
+--[[
+    Own bases on this level and the linked ones, full or not, best first by `score`.
+]]
+    return find_candidates(smart, faction, is_fallback_target, {
+        cross_level = true,
+        bases_only = true,
+    })
+end
+
+
+-- Metres of travel one full unit of base need is worth (see reinforce_score).
+REINFORCE_REACH = 3000
+
+function reinforce_score(smart, other, faction, ff)
+--[[
+    Desirability of `other` as a destination for a rebalanced surplus squad:
+
+        need(other) * REINFORCE_REACH - linear distance
+
+    need is 0 for a base as strong as the faction's strongest at the last 03:00 snapshot
+    and 1 for an empty, lost-since or unknown one, so a farther base wins only when its
+    need exceeds the nearer one's by (extra distance / REINFORCE_REACH).
+]]
+    return smart_terrain_warfare.base_need(other, faction) * REINFORCE_REACH
+        - smart_terrain_warfare.fetch_smart_distance_linear(smart, other)
+end
+
+
+function find_reinforce_targets(smart, faction, incoming)
+--[[
+    Own-or-empty bases with intake room on this level and the linked ones, neediest and
+    nearest first. Same eligibility as rest (is_rest_target), so a rebalanced squad never
+    lands where it would push the destination over cap. Only positive scores: a base
+    farther than need * REINFORCE_REACH is left out, and the surplus stays.
+
+    incoming: optional build_incoming_map(faction) result the caller already has.
+]]
+    return find_candidates(smart, faction, is_rest_target, {
+        cross_level = true,
+        bases_only = true,
+        ctx = { incoming = incoming or smart_terrain_warfare.build_incoming_map(faction) },
+        score = reinforce_score,
+        min_score = 0,
+    })
+end
+
 
 function is_claim_target(smart, other, faction, ctx)
 --[[
