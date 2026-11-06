@@ -17,10 +17,9 @@
     had no tools. Access itself is not the issue: bind_awr.access already returns true
     for the whole Zone while _G.WARFARE is set.
 
-    The fix: once the story owner is gone, source the tiers from
-    sim_default_<owning faction>_mechanic instead, keep the story owner's own tiers when
-    they were of the actor's faction, and label the workshop with the Warfare mechanic
-    who actually stands there.
+    The fix: once the story owner is gone, open the workshop through this callback, whose
+    tool flags warfare_tool_tiers fills from the vice's base, and label it with the
+    Warfare mechanic who actually stands there.
 
     Under Warfare a story mechanic's death frees his vice as in vanilla, but puts no
     mechanic spot on the vice and sends no "no longer need permission" news: every vice
@@ -28,8 +27,8 @@
 
     Skipped when this addon's GAMMA patch is installed. GAMMA ships its own bind_awr
     (from "G.A.M.M.A. Vices are free") whose access() carries an extra SMR clause;
-    taking the callback over would drop it, and GAMMA's workshop already counts toolkits
-    kept in a nearby stash, which makes the bench-supplied tiers far less important.
+    taking the callback over would drop it. Its workshops get their base's tools from
+    warfare_tool_tiers all the same.
 =======================================================================================
 
 --]]
@@ -90,15 +89,6 @@ local function garrison_mechanic_name(smart, faction)
     return nil
 end
 
-local function has_tier(mechanic, tier)
-    return db.actor:has_info(mechanic .. "_upgrade_tier_" .. tier)
-end
-
-local function has_drugkit(mechanic)
-    local done = ini_manager:r_string_ex("drugkit_access", mechanic)
-    return (done and db.actor:has_info(done)) and true or false
-end
-
 --------------------------------------------------------------------------------------
 -- Callback
 --------------------------------------------------------------------------------------
@@ -110,10 +100,11 @@ function physic_object_on_use_callback(obj, who)
 
     local name = obj:name()
     local story_mechanic = angles[name] and angles[name][1]
-    local story_obj = story_mechanic and get_story_object(story_mechanic)
+    local owner_id = story_mechanic and get_story_object_id(story_mechanic)
+    local se_owner = owner_id and alife_object(owner_id)
 
     -- The vice still has its owner: vanilla already reads the right tiers off him.
-    if story_obj and story_obj:alive() then
+    if se_owner and se_owner:alive() then
         return bind_awr.physic_object_on_use_callback(obj, who)
     end
 
@@ -125,30 +116,16 @@ function physic_object_on_use_callback(obj, who)
 
     local smart = warfare_base_props.smart_of_vice(obj:id()) or nearest_smart()
     local faction = mechanic_faction(smart)
-    local mechanic = MECHANIC_PREFIX .. faction .. MECHANIC_SUFFIX
-
-    local flag_1 = has_tier(mechanic, 1)
-    local flag_2 = has_tier(mechanic, 2)
-    local flag_3 = has_tier(mechanic, 3)
-    local flag_4 = has_drugkit(mechanic)
-
-    -- The fallen owner's own tiers still count when he served the actor's faction.
-    if story_obj and story_obj:character_community() == warfare.actor_faction then
-        flag_1 = flag_1 or has_tier(story_mechanic, 1)
-        flag_2 = flag_2 or has_tier(story_mechanic, 2)
-        flag_3 = flag_3 or has_tier(story_mechanic, 3)
-        flag_4 = flag_4 or has_drugkit(story_mechanic)
-    end
-
-    warfare_log.info("zz_warfare_mech_fix: vice=%s owner=%s tiers=%s/%s/%s drugkit=%s",
-        name, mechanic, tostring(flag_1), tostring(flag_2), tostring(flag_3), tostring(flag_4))
+    -- The tool flags are filled from the vice's base by warfare_tool_tiers when the UI opens.
+    local mechanic = story_mechanic or (MECHANIC_PREFIX .. faction .. MECHANIC_SUFFIX)
+    warfare_log.info("zz_warfare_mech_fix: vice=%s owner=%s", name, mechanic)
 
     local owner_name = garrison_mechanic_name(smart, faction)
             or game.translate_string("st_ui_workshop_owner_nobody")
 
     local function start_ui()
         local ui = ui_workshop and ui_workshop.get_workshop_ui(get_hud(), mechanic,
-            { flag_1, flag_2, flag_3, flag_4, false })
+            { false, false, false, false, false })
         if ui then
             ui:ShowDialog(true)
 

@@ -358,6 +358,18 @@ function smart_of_vice(id)
     end
 end
 
+--- The smart of the Warfare-created vice the actor stands at (within 2 m), or nil.
+function vice_near_actor()
+    local pos = db.actor and db.actor:position()
+    local st = alife_storage_manager.get_state()
+    for smart_name, ids in pairs(pos and st.warfare_base_props or {}) do
+        local se_obj = ids.vice and alife_object(ids.vice)
+        if se_obj and se_obj.position:distance_to(pos) < 2 then
+            return SIMBOARD.smarts_by_names[smart_name]
+        end
+    end
+end
+
 function on_game_start()
     RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
 end

@@ -1,0 +1,329 @@
+--[[
+
+=======================================================================================
+    Toolkit tiers and the drugkit belong to a base, not to a faction.
+
+    Every warfare mechanic of a faction shares one section (sim_default_<f>_mechanic), and
+    so do its medics, so their infoportions <section>_upgrade_tier_N and
+    <section>_drugkit_done can describe only one base at a time. This module keeps the
+    real values per base smart and writes them into those infoportions for the base whose
+    warfare mechanic or medic the actor deals with (sync): the upgrade service, its price
+    and the task preconditions read them there.
+
+    Story mechanics and medics keep their personal infoportions untouched. A dead one's
+    personal values count toward his home base.
+
+    Raised by:  completing a warfare mechanic or medic task (its on_complete grant).
+    Read by:    the synced infoportions; toolkit_task_done / drugkit_task_done for the
+                warfare NPC's trade stock; the workbench (ui_workshop.get_workshop_ui).
+=======================================================================================
+
+--]]
+
+-- smart name -> 1..3
+tool_tier = {}
+-- smart name -> true
+drugkit = {}
+-- The faction-wide infoportions of an older save were copied to the bases once.
+converted = false
+
+-- Story mechanic and medic sections (= their story ids) -> home smart.
+local STORY_MECHANICS = {
+    agr_smart_terrain_1_6_army_mechanic_stalker    = "agr_smart_terrain_1_6",
+    army_south_mechan_mlr                          = "esc_smart_terrain_3_16",
+    bar_visitors_stalker_mechanic                  = "bar_visitors",
+    cit_killers_merc_mechanic_stalker              = "cit_killers",
+    dasc_tech_mlr                                  = "ds2_domik_st",
+    esc_smart_terrain_5_7_loner_mechanic_stalker   = "esc_smart_terrain_5_7",
+    jup_b217_stalker_tech                          = "jup_a6",
+    jup_b6_scientist_tech                          = "jup_b41",
+    jup_cont_mech_bandit                           = "jup_a12",
+    jup_depo_isg_tech                              = "jup_b208",
+    mar_base_stalker_tech                          = "mar_smart_terrain_base",
+    mechanic_army_yan_mlr                          = "yan_smart_terrain_6_4",
+    mechanic_monolith_jup_depo                     = "jup_b208",
+    mechanic_monolith_kbo                          = "kbo_terrain",
+    merc_pri_a18_mech_mlr                          = "pri_a18_smart_terrain",
+    mil_smart_terrain_7_7_freedom_mechanic_stalker = "mil_smart_terrain_7_7",
+    pri_monolith_monolith_mechanic_stalker         = "pri_monolith",
+    red_greh_tech                                  = "red_smart_terrain_3_2",
+    trucks_cemetery_bandit_mechanic                = "trc_sim_20",
+    val_smart_terrain_7_3_bandit_mechanic_stalker  = "val_smart_terrain_7_3",
+    yan_ecolog_kruglov                             = "yan_smart_terrain_6_4",
+    zat_a2_stalker_mechanic                        = "jup_a6",
+    zat_stancia_mech_merc                          = "zat_b40_smart_terrain",
+    zat_tech_mlr                                   = "zat_stalker_base_smart",
+}
+
+local STORY_MEDICS = {
+    bandit_main_base_medic_mlr     = "val_smart_terrain_7_5",
+    bar_dolg_medic                 = "bar_dolg_general",
+    cit_killers_merc_medic_stalker = "cit_killers",
+    jup_a6_stalker_medik           = "jup_a6",
+    mar_smart_terrain_base_doctor  = "mar_smart_terrain_base",
+    mil_freedom_medic              = "mil_smart_terrain_7_7",
+    zat_b22_stalker_medic          = "zat_stalker_base_smart",
+}
+
+-- home smart -> { section, ... }
+local function by_home(t)
+    local out = {}
+    for section, home in pairs(t) do
+        out[home] = out[home] or {}
+        table.insert(out[home], section)
+    end
+    return out
+end
+local mechanics_at = by_home(STORY_MECHANICS)
+local medics_at = by_home(STORY_MEDICS)
+
+local function has_info(name)
+    return db.actor ~= nil and db.actor:has_info(name)
+end
+
+local function set_info(name, on)
+    if has_info(name) ~= on then
+        if on then
+            db.actor:give_info_portion(name)
+        else
+            db.actor:disable_info_portion(name)
+        end
+    end
+end
+
+local function personal_tier(section)
+    for tier = 3, 1, -1 do
+        if has_info(section .. "_upgrade_tier_" .. tier) then
+            return tier
+        end
+    end
+    return 0
+end
+
+-- True unless his story id resolves to a living object; one that never spawned counts as dead.
+local function story_dead(section)
+    local id = get_story_object_id(section)
+    if not id then
+        return true
+    end
+    local se_obj = alife_object(id)
+    return not (se_obj and se_obj:alive())
+end
+
+--- "mechanic" or "medic" for a warfare-spawned service section, else nil.
+local function warfare_role(section)
+    if not (section and _G.WARFARE) then
+        return nil
+    end
+    if section:find("^sim_default_%a+_mechanic$") then
+        return "mechanic"
+    elseif section:find("^sim_default_%a+_medic$") then
+        return "medic"
+    end
+end
+
+local function smart_name_of_squad(squad)
+    local smart = squad and squad.smart_id and alife_object(squad.smart_id)
+    return smart and smart:name()
+end
+
+local function nearest_smart_name()
+    local id = smart_terrain.nearest_to_actor_smart and smart_terrain.nearest_to_actor_smart.id
+    local smart = id and alife_object(id)
+    return smart and smart:name()
+end
+
+--- The base smart of an NPC (game or server object), or of the squad with this id.
+local function base_of(obj)
+    if not obj then
+        return nil
+    end
+    local is_squad = (type(obj.clsid) == "function") and obj:clsid() == clsid.online_offline_group_s
+    return smart_name_of_squad(is_squad and obj or get_object_squad(obj))
+end
+
+function effective_tier(base)
+    local tier = tool_tier[base] or 0
+    for _, section in ipairs(mechanics_at[base] or {}) do
+        if story_dead(section) then
+            tier = math.max(tier, personal_tier(section))
+        end
+    end
+    return tier
+end
+
+function effective_drugkit(base)
+    if drugkit[base] then
+        return true
+    end
+    for _, section in ipairs(medics_at[base] or {}) do
+        if story_dead(section) and has_info(section .. "_drugkit_done") then
+            return true
+        end
+    end
+    return false
+end
+
+--- Writes a warfare mechanic's or medic's base values into his section's infoportions.
+local function sync(npc)
+    local section = npc and npc:section()
+    local role = warfare_role(section)
+    local base = role and npc:alive() and base_of(npc)
+    if not base then
+        return
+    end
+    if role == "mechanic" then
+        local tier = effective_tier(base)
+        for n = 1, 3 do
+            set_info(section .. "_upgrade_tier_" .. n, n <= tier)
+        end
+        warfare_log.debug("warfare_tool_tiers: sync mechanic=%s base=%s tier=%s", section, base, tier)
+    else
+        local kit = effective_drugkit(base)
+        set_info(section .. "_drugkit_done", kit)
+        warfare_log.debug("warfare_tool_tiers: sync medic=%s base=%s drugkit=%s", section, base, tostring(kit))
+    end
+end
+
+--- Raises the giver's base by what a completed warfare mechanic or medic task granted.
+local function capture(task_id, giver_id)
+    local section = task_id:match("^(sim_default_%a+_mechanic)_task_") or task_id:match("^(sim_default_%a+_medic)_task_")
+    if not section then
+        return
+    end
+    local granted = task_manager.task_ini:r_string_ex(task_id, "on_complete") or ""
+    local tier = tonumber(granted:match("%+" .. section .. "_upgrade_tier_(%d)"))
+    local kit = granted:find("+" .. section .. "_drugkit_done", 1, true) ~= nil
+    if not (tier or kit) then
+        return
+    end
+
+    local base = base_of(giver_id and alife_object(giver_id)) or nearest_smart_name()
+    if not base then
+        warfare_log.warn("warfare_tool_tiers: no base for task=%s giver=%s", task_id, tostring(giver_id))
+        return
+    end
+    if tier and tier > (tool_tier[base] or 0) then
+        tool_tier[base] = tier
+    end
+    if kit then
+        drugkit[base] = true
+    end
+    warfare_log.info("warfare_tool_tiers: task=%s base=%s tier=%s drugkit=%s",
+        task_id, base, tostring(tool_tier[base]), tostring(drugkit[base]))
+end
+
+--- The base whose tools a workbench offers, or nil to leave its owner's own flags.
+--- `mechanic` is the section the vice script passes: its living story owner, a dead one,
+--- a warfare mechanic, or nil for a vice no story mechanic owns.
+local function vice_base(mechanic)
+    if mechanic and not warfare_role(mechanic) then
+        local home = STORY_MECHANICS[mechanic]
+        if home then
+            return story_dead(mechanic) and home or nil
+        end
+        -- an owner outside the table keeps his own flags while he is known to be alive
+        local id = get_story_object_id(mechanic)
+        local se_obj = id and alife_object(id)
+        if se_obj and se_obj:alive() then
+            return nil
+        end
+    end
+    local smart = warfare_base_props.vice_near_actor()
+    return smart and smart:name() or nearest_smart_name()
+end
+
+-- Older saves: copy each owner's faction-wide values to the bases it holds.
+local function convert()
+    for id, rec in pairs(SIMBOARD.smarts) do
+        local smart = rec.smrt
+        local owner = smart and (smart.owning_faction or smart_terrain_warfare.smart_owners[id])
+        if owner and owner ~= "none" then
+            local name = smart:name()
+            local tier = personal_tier("sim_default_" .. owner .. "_mechanic")
+            if tier > (tool_tier[name] or 0) then
+                tool_tier[name] = tier
+            end
+            if has_info("sim_default_" .. owner .. "_medic_drugkit_done") then
+                drugkit[name] = true
+            end
+        end
+    end
+    converted = true
+    local count = 0
+    for _ in pairs(tool_tier) do
+        count = count + 1
+    end
+    warfare_log.info("warfare_tool_tiers: converted faction tiers, bases with tools=%s", count)
+end
+
+--------------------------------------------------------------------------------------
+-- Hooks
+--------------------------------------------------------------------------------------
+
+local xr_conditions_toolkit_task_done = xr_conditions.toolkit_task_done
+function xr_conditions.toolkit_task_done(actor, npc, p)
+    local section = npc and npc:section()
+    if warfare_role(section) == "mechanic" then
+        local base = base_of(npc)
+        local tier = tonumber(p and p[1])
+        return (base ~= nil and tier ~= nil and effective_tier(base) >= tier)
+    end
+    return xr_conditions_toolkit_task_done(actor, npc, p)
+end
+
+local xr_conditions_drugkit_task_done = xr_conditions.drugkit_task_done
+function xr_conditions.drugkit_task_done(actor, npc, p)
+    local section = npc and npc:section()
+    if warfare_role(section) == "medic" then
+        local base = base_of(npc)
+        return base ~= nil and effective_drugkit(base)
+    end
+    return xr_conditions_drugkit_task_done(actor, npc, p)
+end
+
+local generate_available_tasks = axr_task_manager.generate_available_tasks
+function axr_task_manager.generate_available_tasks(npc, is_sim, ...)
+    sync(npc)
+    return generate_available_tasks(npc, is_sim, ...)
+end
+
+local task_callback = task_manager.task_callback
+function task_manager.task_callback(tsk, state, ...)
+    local id = _G.WARFARE and (state == task.completed) and tsk and tsk:get_id()
+    local rtask = id and task_manager.get_task_manager().task_info[id]
+    local giver_id = rtask and rtask.task_giver_id
+    local result = task_callback(tsk, state, ...)
+    if id then
+        capture(id, giver_id)
+    end
+    return result
+end
+
+local get_workshop_ui = ui_workshop.get_workshop_ui
+function ui_workshop.get_workshop_ui(hud, mechanic, flags, ...)
+    local base = _G.WARFARE and type(flags) == "table" and vice_base(mechanic)
+    if base then
+        local tier = effective_tier(base)
+        flags[1], flags[2], flags[3] = tier >= 1, tier >= 2, tier >= 3
+        flags[4] = effective_drugkit(base)
+        warfare_log.info("warfare_tool_tiers: workbench base=%s owner=%s tier=%s drugkit=%s",
+            base, tostring(mechanic), tier, tostring(flags[4]))
+    end
+    return get_workshop_ui(hud, mechanic, flags, ...)
+end
+
+local function npc_on_use(npc, who)
+    sync(npc)
+end
+
+local function actor_on_first_update()
+    if IsWarfare() and not converted then
+        convert()
+    end
+end
+
+function on_game_start()
+    RegisterScriptCallback("npc_on_use", npc_on_use)
+    RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
+end

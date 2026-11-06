@@ -25,7 +25,6 @@ local hqs = {
         capacity = 4,
         -- squad_descr_warfare.ltx; the trader and the mechanic are simulation.ltx's story squads
         service  = { "red_smart_terrain_3_2_greh_medic_squad", "red_smart_terrain_3_2_greh_barman_squad" },
-        story_mechanic = "red_greh_tech",                       -- Dazhbog
         available = function()
             return not warfare_redone_patch.moves_sin_base()
         end,
@@ -209,22 +208,4 @@ function current_hq()
     if hq then
         return hq.entry.faction, hq.smart
     end
-end
-
--- A Sin player who unlocked toolkit tiers with the warfare mechanic has them with the HQ's story
--- mechanic as well, and the other way round. Both read <section>_upgrade_tier_<n>.
-local toolkit_task_done = xr_conditions.toolkit_task_done
-function xr_conditions.toolkit_task_done(actor, npc, p)
-    if toolkit_task_done(actor, npc, p) then
-        return true
-    end
-    local tier = p and p[1]
-    if not (active and active.story_mechanic and npc and tier) then
-        return false
-    end
-    local section = npc:section()
-    local warfare_mechanic = "sim_default_" .. active.entry.faction .. "_mechanic"
-    local other = (section == active.story_mechanic and warfare_mechanic)
-        or (section == warfare_mechanic and active.story_mechanic)
-    return other and has_alife_info(other .. "_upgrade_tier_" .. tostring(tier)) or false
 end

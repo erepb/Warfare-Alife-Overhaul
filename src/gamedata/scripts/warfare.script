@@ -530,6 +530,9 @@ function save_state(m_data)
     m_data.warfare.strength_day = smart_terrain_warfare.strength_day
     m_data.warfare.rebalance_drain = smart_terrain_warfare.rebalance_drain
     m_data.warfare.night_clearance = smart_terrain_warfare.night_clearance
+    m_data.warfare.base_tool_tier = warfare_tool_tiers.tool_tier
+    m_data.warfare.base_drugkit = warfare_tool_tiers.drugkit
+    m_data.warfare.tool_tiers_converted = warfare_tool_tiers.converted
 
     m_data.warfare.relation_anchors = warfare_relations.anchors
     m_data.warfare.relation_pending = warfare_relations.pending
@@ -664,6 +667,9 @@ function load_state(m_data)
     smart_terrain_warfare.rebalance_drain = m_data.warfare and m_data.warfare.rebalance_drain or {}
     local nc = m_data.warfare and m_data.warfare.night_clearance
     smart_terrain_warfare.night_clearance = (nc and nc.squads) and nc or { squads = {} }
+    warfare_tool_tiers.tool_tier = m_data.warfare and m_data.warfare.base_tool_tier or {}
+    warfare_tool_tiers.drugkit = m_data.warfare and m_data.warfare.base_drugkit or {}
+    warfare_tool_tiers.converted = m_data.warfare and m_data.warfare.tool_tiers_converted or false
     -- heal records whose CTime came back as a closure (saves written while the seeding shared one
     -- CTime object across records)
     for id, rec in pairs(smart_terrain_warfare.last_seen) do
