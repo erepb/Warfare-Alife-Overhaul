@@ -6171,8 +6171,9 @@ local function service_role(unique, name)
 end
 
 -- Adds the service NPCs of the squads assigned to the smart to counts: each member by its section,
--- or the squad once by its name when no member section names a role.
-local function count_smart_service_npcs(unique, smart_id, counts)
+-- or the squad once by its name when no member section names a role. Squads of warfare-spawned
+-- service NPCs (sim_default_*) are also listed in generic[role].
+local function count_smart_service_npcs(unique, smart_id, counts, generic)
     local board = SIMBOARD.smarts[smart_id]
     if not board then
         return
@@ -6184,10 +6185,14 @@ local function count_smart_service_npcs(unique, smart_id, counts)
             local found = false
             for k in s:squad_members() do
                 local se_obj = k.object or k.id and sim:object(k.id)
-                local role = se_obj and service_role(unique, se_obj:section_name())
+                local section = se_obj and se_obj:section_name()
+                local role = section and service_role(unique, section)
                 if role then
                     counts[role] = counts[role] + 1
                     found = true
+                    if section:find("^sim_default_") then
+                        table.insert(generic[role], s)
+                    end
                 end
             end
             if not found then
@@ -6200,7 +6205,68 @@ local function count_smart_service_npcs(unique, smart_id, counts)
     end
 end
 
+-- The smart's service NPCs per role, and the squads of the warfare-spawned ones.
+local function service_census(smart, unique)
+    local counts = { trader = 0, mechanic = 0, medic = 0, barman = 0 }
+    local generic = { trader = {}, mechanic = {}, medic = {}, barman = {} }
+    count_smart_service_npcs(unique, smart.id, counts, generic)
+    local hosts = unique_npc_hosts[smart:name()]
+    if hosts then
+        for i = 1, #hosts do
+            local host = SIMBOARD.smarts_by_names[hosts[i]]
+            if host then
+                count_smart_service_npcs(unique, host.id, counts, generic)
+            end
+        end
+    end
+    return counts, generic
+end
+
+-- Releases warfare-spawned service NPCs over a role's slots (story NPCs fill them). Story NPCs are
+-- never removed.
+local function release_surplus_services(smart)
+    local sm_name = smart:name()
+    local tbl = uniques[sm_name]
+    if not tbl then
+        return
+    end
+    local faction = smart.owning_faction
+    if faction == nil or faction == "none" then
+        faction = "stalker"
+    elseif faction == "killer" then
+        faction = "merc"
+    end
+    local counts, generic = service_census(smart, warfare_utils.CheckUniqueSquad(faction))
+    local limits = { trader = tbl[1], mechanic = tbl[2], medic = tbl[3], barman = tbl[4] }
+    warfare_log.debug("check_unique_npcs: offline census smart=%s trader=%s/%s mechanic=%s/%s medic=%s/%s barman=%s/%s",
+        sm_name, counts.trader, limits.trader, counts.mechanic, limits.mechanic,
+        counts.medic, limits.medic, counts.barman, limits.barman)
+    for role, list in pairs(generic) do
+        local surplus = counts[role] - limits[role]
+        for i = #list, 1, -1 do
+            if surplus <= 0 then
+                break
+            end
+            local squad = list[i]
+            warfare_log.info("check_unique_npcs: release surplus %s squad=%s smart=%s count=%s slots=%s",
+                role, squad.id, sm_name, counts[role], limits[role])
+            sim_squad_warfare.remove_squad(squad)
+            squad:remove_squad()
+            surplus = surplus - 1
+        end
+    end
+end
+
 function check_unique_npcs(smart)
+
+    -- Surplus goes only while the smart is offline, so nobody vanishes in sight: at once when it
+    -- goes offline, then on every check below.
+    if smart.online then
+        smart.surplus_checked = nil
+    elseif not smart.surplus_checked then
+        smart.surplus_checked = true
+        release_surplus_services(smart)
+    end
 
     if not (smart.last_unique_check) then
         smart.last_unique_check = warfare.get_time()
@@ -6224,9 +6290,8 @@ function check_unique_npcs(smart)
     local sm_name = smart:name()
     local faction = smart.owning_faction
 
-
-
     if not (smart.online) then
+        release_surplus_services(smart)
         return
     end
 
@@ -6247,17 +6312,8 @@ function check_unique_npcs(smart)
         local maxMedics = tbl[3]
         local maxBarmen = tbl[4]
 
-        local counts = { trader = 0, mechanic = 0, medic = 0, barman = 0 }
-        count_smart_service_npcs(uniqueSquad, smart.id, counts)
-        local hosts = unique_npc_hosts[sm_name]
-        if hosts then
-            for i = 1, #hosts do
-                local host = SIMBOARD.smarts_by_names[hosts[i]]
-                if host then
-                    count_smart_service_npcs(uniqueSquad, host.id, counts)
-                end
-            end
-        end
+        local counts = service_census(smart, uniqueSquad)
+
         local traderCount = counts.trader
         local mechanicCount = counts.mechanic
         local medicCount = counts.medic
