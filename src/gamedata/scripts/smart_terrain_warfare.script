@@ -431,6 +431,11 @@ local unique_npc_hosts = {
     ["pri_a16"] = { "pri_a16_mlr_copy" },
 }
 
+-- smart id -> time of the last death within its respawn_radius (runtime only). Missing service
+-- roles are not refilled for SERVICE_CALM game seconds after it; an owner change clears it.
+local contested_at = {}
+local SERVICE_CALM = 1800
+
 -- Main bases, travel hubs and lab entrances come from misc\warfare_smarts.ltx (load_smart_roles
 -- below); level packs add theirs through DLTX, compatibility scripts through set_main_base.
 -- main_base_data: smart_name -> { faction, protect, resurrect, resurrect_also }
@@ -5429,6 +5434,7 @@ end
 -- detector, since the smart_owners branch writes both fields to the same value.
 local function announce_owner_change(smart, was)
     if smart.owning_faction ~= was then
+        contested_at[smart.id] = nil
         sim_offline_combat.on_smart_owner_changed(was, smart.owning_faction)
         -- the garrison reports its own loss; the memory record is refreshed without line of sight
         -- so the map does not keep claiming the smart
@@ -6257,6 +6263,43 @@ local function release_surplus_services(smart)
     end
 end
 
+-- squad_on_npc_death: a member dying within its squad's smart's respawn_radius marks that smart
+-- contested.
+local function mark_contested(squad, se_npc)
+    if not (IsWarfare() and squad and squad.smart_id and se_npc) then
+        return
+    end
+    local board = SIMBOARD.smarts[squad.smart_id]
+    local smart = board and board.smrt
+    if not smart then
+        return
+    end
+    local gg = game_graph()
+    local gvid = se_npc.m_game_vertex_id
+    if not (gvid and gg:valid_vertex_id(gvid))
+            or gg:vertex(gvid):level_id() ~= gg:vertex(smart.m_game_vertex_id):level_id() then
+        return
+    end
+    if se_npc.position:distance_to(smart.position) > (smart.respawn_radius or 150) then
+        return
+    end
+    contested_at[smart.id] = warfare.get_time()
+    warfare_log.debug("check_unique_npcs: contested smart=%s npc=%s squad=%s",
+        smart:name(), se_npc.id, squad.id)
+end
+
+local function service_respawn_held(smart)
+    local t = contested_at[smart.id]
+    if not t then
+        return false
+    end
+    if time_ref():diffSec(t) >= SERVICE_CALM then
+        contested_at[smart.id] = nil
+        return false
+    end
+    return true
+end
+
 function check_unique_npcs(smart)
 
     -- Surplus goes only while the smart is offline, so nobody vanishes in sight: at once when it
@@ -6318,6 +6361,13 @@ function check_unique_npcs(smart)
         local mechanicCount = counts.mechanic
         local medicCount = counts.medic
         local barmanCount = counts.barman
+
+        if (traderCount < maxTraders or mechanicCount < maxMechanics or medicCount < maxMedics
+                or barmanCount < maxBarmen) and service_respawn_held(smart) then
+            warfare_log.info("check_unique_npcs: hold respawn smart=%s faction=%s contested %ss ago",
+                sm_name, faction, time_ref():diffSec(contested_at[smart.id]))
+            return
+        end
 
         while traderCount < maxTraders do
             local squad = warfare.spawn_squad(uniqueSquad:trader_squad(), sm_name, "service")
@@ -6461,4 +6511,5 @@ function on_game_start()
     RegisterScriptCallback("on_localization_change",refresh_strings)
     RegisterScriptCallback("actor_on_update", reset_intel_memo)
     RegisterScriptCallback("actor_on_update", watch_pda)
+    RegisterScriptCallback("squad_on_npc_death", mark_contested)
 end
