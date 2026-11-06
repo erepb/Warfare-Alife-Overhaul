@@ -223,6 +223,10 @@ local function resting_on_patrol_table(squad)
     return pt and (not pt.attacking) and (pt.target == squad.current_target_id) and pt or nil
 end
 
+-- Rest after arriving for squads that are not patrols, game seconds (min, max).
+local ARRIVAL_REST_MIN = 1800
+local ARRIVAL_REST_MAX = 7200
+
 -- Rest after arriving, game seconds. A base patrol's rest starts here, in its saved
 -- patrol_table; a patrol re-arriving after a load keeps the rest it had.
 local function get_stay_time(squad, community)
@@ -236,10 +240,10 @@ local function get_stay_time(squad, community)
     end
 
     if (smart_terrain_warfare.random_patrols[squad.id]) then
-        return patrol_rest_time(community) or math.random(60, 360)
+        return patrol_rest_time(community) or math.random(ARRIVAL_REST_MIN, ARRIVAL_REST_MAX)
     end
 
-    return math.random(60, 360)
+    return math.random(ARRIVAL_REST_MIN, ARRIVAL_REST_MAX)
 end
 
 -- Modified generic_update for warfare. squad.__lock will cause generic_update not to run.
