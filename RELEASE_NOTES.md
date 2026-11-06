@@ -1,24 +1,22 @@
 ## What's Changed
 
 ### Features
-- Level packs: add-on levels can now join the war. Warfare works out how they connect to the Zone and which region they belong to, every faction gets a level priority slider for each of them, and level changers into add-on underground levels count as lab entrances. Level packs can also register their own main bases, travel hubs and lab entrances
-- Meadow joins the war when another mod links it to the rest of the Zone, with its own level priority slider for every faction
-- New Mutant off-level move chance setting (default 5%). Mutants that find nowhere to go on another level now roam their own level instead of standing still
-- Random patrols now rest at each stop for their faction's patrol rest time
-- Hovering a squad locked in offline combat now names the faction it is fighting
-
-### Improvements
-- Balanced and All Out War: resurgence chance is now 50%, with 12 to 24 in-game hours between attempts. These are also the new defaults. The resurgence wait sliders now move in one-hour steps, up to 10 and 20 days. Apply the preset again on an existing save
-- Changing the stalker or mutant population settings now resizes how many squads each place holds right away
+- Faction HQs: playing as Sin or UNISG gives your faction a furnished HQ with a trader, mechanic, medic and barman, at the Red Forest mine (Sin) and the Jupiter depot (UNISG), plus the UNISG faction tasks. The UNISG depot is only occupied at the start when you start there; from any other start it stands empty for you to capture. On GAMMA the HQs also get campfires, the Sin trader gets his own stock, the UNISG trader gives a GAMMA supply task, the UNISG trader and mechanic offer the Armor Exchange suit dialog, and no new dynamic anomalies appear at the HQs. Ported from GeroyAnekdotov's WALO-SIN-HQ and WALO-UNISG-Command-and-Operations, which are no longer needed.
+- Captured ecologist bunkers at Yanov and on Jupiter keep the science trade profile of their original trader, with stock tiers gated on your goodwill with the faction that holds them
+- Warfare medics and barmen of every faction now give the vanilla medic drug kit, Doctor's medical supplies and Barkeep tasks
+- Toolkits and the drug kit now belong to the base whose mechanic or medic received them, not to the whole faction: each base builds up its own, and they stay with the base when it is captured. A dead story mechanic's or medic's tools pass to his base, and story mechanics and medics keep their own tools while they live. Existing saves are converted on load: every held base gets its owner's current tools
+- Squads recalled home go to their faction's nearest base even when it is full, and each morning a base 3 or more squads over its capacity sends the extra squads to the nearby base that needs them most
+- Night activity is now rolled once per night for each squad instead of by each place for whoever happens to be there
+- Warfare traders, mechanics, medics and barmen beyond a base's service slots leave while the base is offline, so a story character never has to share his spot with a Warfare replacement
 
 ### Bug Fixes
-- Fix defeated factions coming back with hundreds of squads, which could fill the Zone, slow the game down and break saves. A faction is now only resurrected while it has fewer than 4 squads left, Resurgence Chance also applies with the new resurgence logic (0% turns resurgence off), and resurrections no longer keep picking from the same few levels
-- Fix a base spawning a burst of squads when it was retaken after standing empty, or when its faction had just lost most of its bases. A captured base now starts its spawn timers fresh for its new owner
-- Fix base patrols leaving before their rest time was up
-- Fix all-out war relations going back to normal after a load or level change
-- Fix invasions: a newly captured base now waits out the invasion cooldown before attacking, bases supporting an invasion keep that role after a load, and invasion odds are no longer miscalculated when one side has no squads
-- Fix squads staying locked in offline combat with a squad that no longer exists, and squads that are gone staying in your squad command list
-- Fix the bandit and renegade trader tasks not paying out, the Duty trader task's title, and the Clear Sky mechanic's second upgrade task failing when the wrong mechanic dies
-- Fix the PDA Warfare tab erroring in the first seconds of a new game, and its faction hover text showing wrong numbers
-- Fix hovering a target ring on the map not showing that place's info
-- Fix a crash when a patrol fails to spawn
+- Fix squads moving on almost as soon as they arrive: they now rest 30 to 120 in-game minutes first. Loner and ecologist squads also finish their rest before roaming on
+- Fix invasions: a staging base keeps its invasion reserve when it captures empty bases or defends allies, and a supporting base sends only what the invasion still lacks and stops once it has enough
+- Fix faction helicopters attacking mutants and ignoring hostile factions: they now pick targets by relations, the player included. Moving an owned helicopter to your level is now free instead of buying a new one
+- Fix the new-game Zone simulation giving ironman players extra lives: simulated time now counts as sleep
+- Fix service characters being miscounted at bases, and Yar's slot at the Pripyat base getting no job
+- Fix Warfare traders, mechanics, medics and barmen reappearing in the middle of a fight for their base: a missing one now returns 30 in-game minutes after the last death there, or right away once the base changes hands
+- Fix dead story traders, mechanics, medics and barmen lying at their base forever next to their Warfare replacement: once looted empty, their bodies are removed on the next level load
+- Fix a story mechanic's death marking his workbench and sending the workbench permission news in Warfare
+- Fix the old capture mode waiting far longer than its setting, and its countdown showing the wrong time
+- Fix mutants placed at lairs at the start of a random-start game ignoring their level's mutant settings and rare chance
