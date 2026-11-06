@@ -215,8 +215,7 @@ process_mutant_timers = {}
 process_mutant_next_update = {}
 dispatch_timer = {}                 -- [model][smart.id] = CTime of the last independent-dispatch tick
 dispatch_next_update = {}           -- [model][smart.id] = game seconds until the next tick
-night_flag_timer = {}
-night_flag_next_update = {}
+night_clearance = { squads = {} }   -- key = night key (YYYYMMDD of now - 12h), squads = [squad_id] = this night's roll
 base_strength = {}                  -- [smart_id] = { f = owner, p = garrison power } at the last snapshot
 strength_top = {}                   -- [faction] = highest p of that faction's bases in the last snapshot
 strength_day = nil                  -- day key (YYYYMMDD of now - STRENGTH_HOUR) of the last snapshot
@@ -305,7 +304,6 @@ invasion_defense_next_update = {}
 local base_recheck = {}                            -- used to keep track of base count of a faction. If they decrease compared to last time it was checked, targets are re-scanned
 local ceasefire_check = {}                        -- used to keep track if a faction changes from enemy to neutral across update cycles. Prevents immediate relation deterioration upon ceasefire
 reinforcements_requested = {}                      -- bases will only request reinforcements once per incoming attack to ease computational load
-local night_activity_allowed = {}                -- night activity is cleared once per night on a per-smart basis
 actor_informed = {}                              -- Players on the same level of an allied defending point will be notified one time about the attack
 
 
@@ -788,7 +786,6 @@ function bootstrap_smart(smart)
     sim_offline_combat.on_smart_owner_changed(nil, smart.owning_faction)
 
     set_max_population(smart)
-    night_activity_allowed[smart.id] = 0
 end
 
 --------------------------------------------------
@@ -855,8 +852,6 @@ function smart_terrain_on_update(smart)
     -- Process faction-owned smart terrain
     if (smart.owning_faction ~= "none" and warfare_options.options.factions[smart.owning_faction]) then
         if (smart.props) then
-            get_night_activity_flag(smart)
-
             -- Base updates
             if (smart.props.base > 0) then
                 update_resources(smart)
@@ -897,40 +892,50 @@ end
 
 
 
--- Check smart for clearance on night activity, once per night
-function get_night_activity_flag(smart)
-    if not (night_flag_timer[smart.id]) then
-        night_flag_timer[smart.id] = warfare.get_time()
-        night_flag_next_update[smart.id] = math.random(180, 540)
-        night_activity_allowed[smart.id] = 0
-        return
+-- A night (21:00-06:00) is keyed by the date of now - 12h. The shift must keep the key steady
+-- past 06:00, since is_night() reads an hour cached per update cycle that can lag the clock.
+local NIGHT_KEY_SHIFT = 12 * 3600
+
+function night_active(squad)
+--[[
+    May this squad act now? Always by day. At night the squad rolls its own faction's
+    night_activity_chance once, and the answer holds until dawn.
+]]
+    if not (warfare_utils.is_night()) then
+        return true
     end
 
-    if (time_ref():diffSec(night_flag_timer[smart.id]) >= night_flag_next_update[smart.id]) then
-        night_flag_timer[smart.id] = warfare.get_time()
-        night_flag_next_update[smart.id] = math.random(180, 540)
-    else
-        return
+    local t = warfare_utils.subtract_time(time_ref(), NIGHT_KEY_SHIFT)
+    local Y, M, D, h, m, s, ms = 0, 0, 0, 0, 0, 0, 0
+    Y, M, D, h, m, s, ms = t:get(Y, M, D, h, m, s, ms)
+    local key = Y * 10000 + M * 100 + D
+    if (night_clearance.key ~= key) then
+        night_clearance = { key = key, squads = {} }
     end
 
-    -- Check if smart is cleared for activity based on time of day
-    local isNight = warfare_utils.is_night()
-    local night_chance = warfare_options.options.factions[smart.owning_faction].night_activity_chance or 0
-    if isNight then
-        if (night_activity_allowed[smart.id] == 0) then
-            if (math.random(0,100) < night_chance) then
-                night_activity_allowed[smart.id] = 1
-                warfare_log.debug("get_night_activity_flag: night activity ALLOWED smart=%s faction=%s",
-                    smart:name(), tostring(smart.owning_faction))
-            else
-                night_activity_allowed[smart.id] = -1
-                warfare_log.trace("get_night_activity_flag: night activity denied smart=%s",
-                    smart:name())
-            end
+    local allowed = night_clearance.squads[squad.id]
+    if (allowed == nil) then
+        local community = squad:get_squad_community()
+        local fopts = warfare_options.options.factions[community]
+        allowed = math.random(100) <= (fopts and fopts.night_activity_chance or 0)
+        night_clearance.squads[squad.id] = allowed
+        if (allowed) then
+            warfare_log.debug("night_active: cleared squad=%s faction=%s", squad.id, community)
+        else
+            warfare_log.trace("night_active: denied squad=%s faction=%s", squad.id, community)
         end
-    else
-        night_activity_allowed[smart.id] = 0    -- reset for next night
     end
+    return allowed
+end
+
+local function night_active_squads(list)
+    local out = {}
+    for i = 1, #list do
+        if night_active(list[i]) then
+            out[#out + 1] = list[i]
+        end
+    end
+    return out
 end
 
 function is_capturable_type(smart)
@@ -1363,12 +1368,13 @@ end
 
 local function step_claim(ctx)
 --[[
-    Expansion onto resources, territories and lairs, in the morning or with night clearance.
+    Expansion onto resources, territories and lairs, in the morning, or at night by squads
+    cleared for the night (night_active).
     One aggression roll per free squad, then the best claim target nobody of the faction
     holds or heads for; one send per pass. A base over its cap rolls once and leaves the
     rest of the pass to step_overflow.
 ]]
-    if not (ctx.morning or ctx.night_clear) or ctx.ff.use_bases_not_resources then
+    if not (ctx.morning or ctx.night) or ctx.ff.use_bases_not_resources then
         return false
     end
 
@@ -1376,6 +1382,12 @@ local function step_claim(ctx)
     local squads = warfare_release.squads_for(smart, faction, "claim")
     if not (squads) then
         return false
+    end
+    if (ctx.night) then
+        squads = night_active_squads(squads)
+        if (#squads == 0) then
+            return false
+        end
     end
 
     local claim_targets = warfare_targeting.find_claim_targets(smart, faction)
@@ -1436,11 +1448,11 @@ local BASE_STEPS = { step_rebalance, step_claim, step_overflow }
 local function evict_squatters(ctx)
 --[[
     Squads of other (non-independent) factions idling on this base go back to their own
-    bases: in the morning, 15:00-20:00, or with night clearance. The zombied and monsters
-    hold no main base, so they are left alone.
+    bases: in the morning, 15:00-20:00, or at night if cleared for the night (night_active).
+    The zombied and monsters hold no main base, so they are left alone.
 ]]
     local h = ctx.hour
-    if not (ctx.morning or (h > 15 and h < 20) or ctx.night_clear) then
+    if not (ctx.morning or (h > 15 and h < 20) or ctx.night) then
         return
     end
 
@@ -1452,7 +1464,7 @@ local function evict_squatters(ctx)
         if squad and (community ~= faction) and squad_is_commandable(squad, true) and (squad.current_action == 1)
         and not sim_squad_warfare.squad_is_settled(squad)
         and not warfare_behavior.is_independent(community)
-        and (community ~= "monster") and (community ~= "zombied") then
+        and (community ~= "monster") and (community ~= "zombied") and night_active(squad) then
             squatters[#squatters + 1] = squad
         end
     end
@@ -1518,7 +1530,7 @@ function process_base_squads(smart)
         mode = mode,
         hour = hour,
         morning = (hour > 7) and (hour < 15),
-        night_clear = (night_activity_allowed[smart.id] == 1),
+        night = warfare_utils.is_night(),
         over_cap = not base_has_vacancy(smart, faction),
     }
 
@@ -1659,8 +1671,8 @@ function process_random_patrols(smart)
 --[[
     Retask idle random patrols sitting on this smart, 20% chance each per pass.
     Runs for every supported smart regardless of type or owner, so no smart can hold a
-    random patrol for good. At night patrols stay put unless the smart's night activity
-    roll succeeded. Loner/ecolog random patrols are left to process_independent.
+    random patrol for good. At night only patrols cleared for the night (night_active)
+    move. Loner/ecolog random patrols are left to process_independent.
 ]]
     if not (smart.patrol_retask_time) or (time_ref():diffSec(smart.patrol_retask_time) >= smart.next_patrol_retask_time) then
         smart.patrol_retask_time = warfare.get_time()
@@ -1669,16 +1681,13 @@ function process_random_patrols(smart)
         return
     end
 
-    if warfare_utils.is_night() and (night_activity_allowed[smart.id] ~= 1) then
-        return
-    end
-
     for sid,_ in pairs(SIMBOARD.smarts[smart.id].squads) do
         local faction = random_patrols[sid]
         if faction and not warfare_behavior.is_independent(faction) then
             local squad = resolve_roster_squad(smart.id, sid)
             if squad and squad_is_commandable(squad, true) and (squad.current_action == 1)
-            and not sim_squad_warfare.squad_is_settled(squad) and (math.random(100) <= 20) then
+            and not sim_squad_warfare.squad_is_settled(squad) and (math.random(100) <= 20)
+            and night_active(squad) then
                 local target = find_random_patrol_target(smart, faction, sid)
                 if target then
                     warfare_log.debug("process_random_patrols: retask squad=%s faction=%s smart=%s -> target=%s",
@@ -1694,11 +1703,10 @@ end
 function process_nonbase_squads(smart, always_recall, keep_one)
 --[[
     Recall non-patrol faction squads from non-base terrains to their nearest bases.
-    Resources and territories recall at night only. Lairs recall always (faction squads should not idle there).
-    Loners, ecologists, monsters and the zombied are exempt: the first two run their own
-    dispatch (process_independent) and the last two have no main base in
-    main_base_data, so recall_squad_to_base could never place them anyway and every
-    attempt was a wasted search.
+    Resources and territories recall at night only, and leave squads cleared for the night
+    (night_active) where they are. Lairs recall always (faction squads should not idle there).
+    Loners, ecologists, monsters and the zombied are exempt; loners and ecologists run their
+    own dispatch (process_independent).
     With no base with room nearby, the squad goes to a nearby own base over cap; it stays
     where it is only when the faction holds no reachable base -- see recall_squad_to_base.
     A base pushed over cap this way is drained by rebalance_surplus the next morning.
@@ -1721,10 +1729,8 @@ function process_nonbase_squads(smart, always_recall, keep_one)
         return    -- surge_behavior() overrides behavior here
     end
 
-    if not always_recall then
-        if not warfare_utils.is_night() or (night_activity_allowed[smart.id] == 1) then
-            return
-        end
+    if not always_recall and not warfare_utils.is_night() then
+        return
     end
 
     local squads = SIMBOARD.smarts[smart.id].squads
@@ -1757,6 +1763,8 @@ function process_nonbase_squads(smart, always_recall, keep_one)
         and (faction ~= "monster") and (faction ~= "zombied") then
             if squad.current_action ~= 1 then
                 -- already moving, skip
+            elseif (not always_recall) and night_active(squad) then
+                -- cleared for the night, stays
             else
                 -- Keep one squad behind at resources
                 if keep_one and (recalled >= eligible_count - 1) then
@@ -2344,16 +2352,6 @@ function process_targets(smart)
         return
     end
 
-    -- Allow planned invasions to depart even at night
-    local isNight = warfare_utils.is_night()
-    if isNight and (night_activity_allowed[smart.id] ~= 1) then
-        -- still let a gathered invasion force depart before blocking
-        if invasions[smart.id] then
-            process_invasion_departure(smart)
-        end
-        return
-    end
-
     local invading_faction_props = warfare_options.options.factions[smart.owning_faction]
     if not (invading_faction_props) then
         return
@@ -2635,11 +2633,13 @@ end
 
 
 -- simple version of empty capture, with no regard for smart distances (remove computation of searching tables)
+-- At night only a squad cleared for the night (night_active) goes.
 function capture_empty_location_simple(smart, target)
     warfare_log.trace("capture_empty_location_simple: smart=%s target=%s",
         smart:name(), target and target:name() or "?")
     local squads = warfare_release.squads_for(smart, smart.owning_faction, "capture_empty")
-    if squads then
+    squads = squads and night_active_squads(squads)
+    if squads and squads[1] then
         warfare_release.send(smart, squads[1], target.id, "capture_empty")
     end
 end
@@ -3365,41 +3365,36 @@ function spawn_patrols(smart)
             end
         end
 
-        local night_chance = warfare_options.options.factions[smart.owning_faction].night_activity_chance
-        local isNight = warfare_utils.is_night()
+        local tobj,is_squad = find_patrol_target(smart)
+        local new_table = nil
 
-        if (isNight and math.random(100) <= night_chance or not isNight) then
-            local tobj,is_squad = find_patrol_target(smart)
-            local new_table = nil
-
-            if (tobj) then
-                local section = faction_expansions.get_spawn_section(smart.owning_faction, smart.resource_count)
-                local squad = warfare.spawn_squad(section, smart:name())
-                if not squad then
-                    return
-                end
-
-                if (is_squad) then
-                    new_table = {
-                        target = tobj.id,
-                        attacking = true,
-                        stay_time = nil,
-                        arrive_time = nil
-                    }
-                else
-                    new_table = {
-                        target = tobj.id,
-                        stay_time = nil,
-                        arrive_time = nil
-                    }
-                end
-
-                warfare_log.info("spawn_patrols: spawned patrol smart=%s section=%s -> tobj=%s",
-                    smart:name(), tostring(section), tostring(tobj and (tobj.id or tobj:section_name())))
-                patrol_squads[smart.id][squad.id] = new_table
-                squad.patrol_table = new_table
-                sim_squad_warfare.set_target(squad, tobj.id)
+        if (tobj) then
+            local section = faction_expansions.get_spawn_section(smart.owning_faction, smart.resource_count)
+            local squad = warfare.spawn_squad(section, smart:name())
+            if not squad then
+                return
             end
+
+            if (is_squad) then
+                new_table = {
+                    target = tobj.id,
+                    attacking = true,
+                    stay_time = nil,
+                    arrive_time = nil
+                }
+            else
+                new_table = {
+                    target = tobj.id,
+                    stay_time = nil,
+                    arrive_time = nil
+                }
+            end
+
+            warfare_log.info("spawn_patrols: spawned patrol smart=%s section=%s -> tobj=%s",
+                smart:name(), tostring(section), tostring(tobj and (tobj.id or tobj:section_name())))
+            patrol_squads[smart.id][squad.id] = new_table
+            squad.patrol_table = new_table
+            sim_squad_warfare.set_target(squad, tobj.id)
         end
     end
 end
@@ -3621,10 +3616,7 @@ function process_patrols(smart)
                         patrol_squads[smart.id][squad_id].arrive_time = warfare.get_time()
                         patrol_squads[smart.id][squad_id].stay_time = sim_squad_warfare.patrol_rest_time(squad:get_squad_community()) or 0
                     elseif (find_target or time_ref():diffSec(sobj.arrive_time) >= sobj.stay_time) then
-                        local night_chance = warfare_options.options.factions[smart.owning_faction].night_activity_chance
-                        local isNight = warfare_utils.is_night()
-
-                        if (isNight and math.random(100) <= night_chance or not isNight) then
+                        if night_active(squad) then
                             local tobj,is_squad = find_patrol_target(smart, sobj, squad)
                             local new_table = nil
 
@@ -3650,8 +3642,8 @@ function process_patrols(smart)
                                 patrol_squads[smart.id][squad.id] = new_table
                                 squad.patrol_table = new_table
                             end
-                        elseif isNight then
-                            -- Night roll failed: reset idle timer until next check
+                        else
+                            -- Not cleared for the night: reset idle timer until next check
                             patrol_squads[smart.id][squad_id].arrive_time = warfare.get_time()
                             patrol_squads[smart.id][squad_id].stay_time = math.random(180, 540)
                         end
@@ -3926,7 +3918,6 @@ function process_independent(smart, model, spec)
 
         if faction and (warfare_behavior.dispatch_model(faction) == model) and squad_is_commandable(squad, true) and (squad.current_action == 1)
         and not sim_squad_warfare.squad_is_settled(squad) then
-            local night_chance = warfare_options.options.factions[faction].night_activity_chance
             local target_set = false
 
             -- By day a base sends squads out to resources; 10% sit this tick out.
@@ -3948,13 +3939,13 @@ function process_independent(smart, model, spec)
                     end
                 end
 
-            elseif at_resource and (isDaylight or (math.random(100) <= night_chance)) then
+            elseif at_resource and (isDaylight or (isNight and night_active(squad))) then
                 if (math.random(1, 10) < spec.stay_roll) then
                     target_set = find_resources(spec, smart, squad, faction, false)
                 end
                 target_set = target_set or find_resources(spec, smart, squad, faction, true)
 
-            elseif spec.hunts_lairs and is_pure_lair(smart) and (isDaylight or (math.random(100) <= night_chance)) then
+            elseif spec.hunts_lairs and is_pure_lair(smart) and (isDaylight or (isNight and night_active(squad))) then
                 target_set = find_lairs(smart, squad)
             end
 
