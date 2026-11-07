@@ -106,7 +106,7 @@
 		<text>Protect Original Main Bases from Attack</text>
 	</string>
 	<string id="ui_mm_alife_warfare_general_prevent_mainbase_attacks_desc">
-		<text>When enabled, no faction can ever target another faction's main base as long as it is still held by its original owner. For example, the Duty Base at Rostok cannot be targeted while Duty controls it, but becomes a valid target if another faction captures it. This prevents unique NPCs from being wiped out by early invasions. Disable this setting when using randomized starting locations.</text>
+		<text>When enabled, no faction can ever target another faction's main base as long as it is still held by its original owner. For example, the Duty Base at Rostok cannot be targeted while Duty controls it, but becomes a valid target if another faction captures it. This prevents unique NPCs from being wiped out by early invasions. Squads under your command are the exception: one you order to attack such a base fights its defenders and can capture it. Disable this setting when using randomized starting locations.</text>
 	</string>
 	<string id="ui_mm_alife_warfare_general_offline_combat_distance">
 		<text>Offline Combat Distance (Warfare ONLY)</text>

@@ -305,7 +305,8 @@ function squad_warfare_update(squad)
                         -- Rescue stuck squads: if the squad has physically reached an enemy
                         -- main base that is protected (held by its original faction), redirect
                         -- the squad home since offline combat will never engage here.
-                        if reached and not has_opponent then
+                        -- A player-controlled squad is not rescued: offline combat does engage it.
+                        if reached and not has_opponent and not warfare_squad_command.is_controlled(squad.id) then
                             local target_name = se_target.name and se_target:name()
                             local original_faction = target_name and smart_terrain_warfare.get_protected_base_faction(target_name)
                             if original_faction and original_faction == smartOwner
