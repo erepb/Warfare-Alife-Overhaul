@@ -42,5 +42,5 @@ local function install()
 end
 
 function on_game_start()
-    warfare.on_enabled(install)
+    warfare.on_sim(install)
 end

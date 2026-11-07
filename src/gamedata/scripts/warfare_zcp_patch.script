@@ -61,7 +61,7 @@ local function patch_squad_size()
     if smr_pop.adjust_squad_size then
         local orig = smr_pop.adjust_squad_size
         smr_pop.adjust_squad_size = function(squad, smart)
-            if _G.WARFARE and not zcp_sizes_squad(squad) then
+            if warfare.sim and not zcp_sizes_squad(squad) then
                 return
             end
             return orig(squad, smart)
@@ -70,7 +70,7 @@ local function patch_squad_size()
     if smr_squad and smr_squad.adjust_random_count then
         local orig = smr_squad.adjust_random_count
         smr_squad.adjust_random_count = function(squad, c)
-            if _G.WARFARE and not zcp_sizes_squad(squad) then
+            if warfare.sim and not zcp_sizes_squad(squad) then
                 return c
             end
             return orig(squad, c)
@@ -84,7 +84,7 @@ local function patch_member_filters_14()
     if smr_pop.remove_disabled_mutants_from_squad then
         local orig = smr_pop.remove_disabled_mutants_from_squad
         smr_pop.remove_disabled_mutants_from_squad = function(squad, spawn_smart)
-            if not _G.WARFARE then
+            if not warfare.sim then
                 return orig(squad, spawn_smart)
             end
             if bypass_filters() or not zcp_enabled() then
@@ -104,7 +104,7 @@ local function patch_member_filters_14()
     if smr_pop.replace_mutant_variants_in_squad then
         local orig = smr_pop.replace_mutant_variants_in_squad
         smr_pop.replace_mutant_variants_in_squad = function(squad, smart)
-            if not _G.WARFARE then
+            if not warfare.sim then
                 return orig(squad, smart)
             end
             if bypass_filters() then
@@ -279,7 +279,7 @@ function on_game_start()
     if not smr_pop then
         return
     end
-    warfare.on_enabled(function()
+    warfare.on_sim(function()
         warfare_log.info("zcp: ZCP detected, installing compatibility hooks")
         patch_squad_size()
         patch_member_filters_14()

@@ -799,11 +799,16 @@ function bootstrap_smart(smart)
     set_max_population(smart)
 end
 
+-- The actor plays for faction in a full warfare game; gates warfare's news to the actor.
+local function actor_side(faction)
+    return _G.WARFARE and warfare.actor_faction ~= nil and warfare.actor_faction == faction
+end
+
 --------------------------------------------------
 -- MAIN FUNCTION LOOP - EVERYTHING HAPPENS HERE --
 --------------------------------------------------
 function smart_terrain_on_update(smart)
-    if not (_G.WARFARE) then
+    if not (warfare.sim) then
         return
     end
     if warfare_log.tracing() then
@@ -856,7 +861,9 @@ function smart_terrain_on_update(smart)
         return
     end
 
-    process_manual_capture(smart)
+    if _G.WARFARE then
+        process_manual_capture(smart)
+    end
     surge_behavior(smart)
     process_random_patrols(smart)
 
@@ -2326,7 +2333,7 @@ function process_invasion_departure(smart)
         end
 
         -- inform actor, if on-level, about invasion
-        if (warfare.actor_faction) and (warfare.actor_faction == smart.owning_faction) and (target.is_on_actor_level) then
+        if actor_side(smart.owning_faction) and (target.is_on_actor_level) then
             local icon = smart.owning_faction
             local smart_translated = translate_smart_name(smart:name()) or smart:name()
             local target_translated = translate_smart_name(target:name()) or target:name()
@@ -3010,7 +3017,7 @@ function process_invasion_defense(smart)
     if (num_enemy_squads == 0) then
 
         -- if the terrain is no longer in danger, inform the actor if they were partaking in the defense
-        if (under_attack[smart.id] == true) and (warfare.actor_faction == defending_faction) and (smart.is_on_actor_level) and (actor_informed[smart.id]) and msg_allied_squad then
+        if (under_attack[smart.id] == true) and actor_side(defending_faction) and (smart.is_on_actor_level) and (actor_informed[smart.id]) and msg_allied_squad then
             local sender
             for guy in msg_allied_squad:squad_members() do
                 local person = guy.object or guy.id and alife():object(guy.id)
@@ -3073,7 +3080,7 @@ function process_invasion_defense(smart)
     if (reinforcements_requested[smart.id] == true) then
 
         -- if part of actor's faction and actor is on level, send them a message about the attack/reinforcements if they havent received one
-        if (warfare.actor_faction) and (warfare.actor_faction == defending_faction) and (smart.is_on_actor_level) and (1.5*smart.dist_to_actor < avg_enemy_dist) and (not actor_informed[smart.id]) then
+        if actor_side(defending_faction) and (smart.is_on_actor_level) and (1.5*smart.dist_to_actor < avg_enemy_dist) and (not actor_informed[smart.id]) then
             local icon = "patriarch"
             local smart_translated = translate_smart_name(smart:name()) or smart:name()
             local text = strformat(game.translate_string("st_wrfr_invasion_defense_incoming"), smart_translated)
@@ -3163,7 +3170,7 @@ function process_invasion_defense(smart)
         end
 
         -- if part of actor's faction and actor is on level, send them a message about the attack/reinforcements
-        if (warfare.actor_faction) and (warfare.actor_faction == defending_faction) and (smart.is_on_actor_level) and (1.5*smart.dist_to_actor < avg_enemy_dist) then
+        if actor_side(defending_faction) and (smart.is_on_actor_level) and (1.5*smart.dist_to_actor < avg_enemy_dist) then
             if (power_disparity < 0) then
                 local icon = "completionist"
                 local smart_translated = translate_smart_name(smart:name()) or smart:name()
@@ -3200,7 +3207,7 @@ function process_invasion_defense(smart)
     else
         -- if function has gotten to this point, then no reinforcements were in the vicinity
 
-        if (warfare.actor_faction) and (warfare.actor_faction == defending_faction) and (smart.is_on_actor_level) and (1.5*smart.dist_to_actor < avg_enemy_dist) then
+        if actor_side(defending_faction) and (smart.is_on_actor_level) and (1.5*smart.dist_to_actor < avg_enemy_dist) then
             local icon = "patriarch"
             local smart_translated = translate_smart_name(smart:name()) or smart:name()
             local text = strformat(game.translate_string("st_wrfr_invasion_defense_notreinforced"), smart_translated)
@@ -6263,7 +6270,7 @@ end
 -- squad_on_npc_death: a member dying within its squad's smart's respawn_radius marks that smart
 -- contested.
 local function mark_contested(squad, se_npc)
-    if not (_G.WARFARE and squad and squad.smart_id and se_npc) then
+    if not (warfare.sim and squad and squad.smart_id and se_npc) then
         return
     end
     local board = SIMBOARD.smarts[squad.smart_id]
@@ -6412,6 +6419,9 @@ end
 function notify_npc_created(squad_id, sm_name, faction, npc_type)
     warfare_log.debug("notify_npc_created: squad=%s smart=%s faction=%s type=%s",
         tostring(squad_id), tostring(sm_name), tostring(faction), tostring(npc_type))
+    if not _G.WARFARE then
+        return
+    end
     CreateTimeEvent("warfare_npc_created", squad_id .. "_" .. npc_type, math.random(1, 3), function()
         local tbl = utils_data.collect_translations("st_warfare_" .. faction .. "_created_", true)
         if not tbl then return true end
@@ -6505,10 +6515,12 @@ function on_game_start()
     warfare_log.info("smart_terrain_warfare.on_game_start")
     refresh_strings()
 
-    warfare.on_enabled(function()
+    warfare.on_sim(function()
         RegisterScriptCallback("on_localization_change",refresh_strings)
+        RegisterScriptCallback("squad_on_npc_death", mark_contested)
+    end)
+    warfare.on_enabled(function()
         RegisterScriptCallback("actor_on_update", reset_intel_memo)
         RegisterScriptCallback("actor_on_update", watch_pda)
-        RegisterScriptCallback("squad_on_npc_death", mark_contested)
     end)
 end

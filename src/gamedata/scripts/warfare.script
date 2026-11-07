@@ -341,7 +341,10 @@ function actor_on_first_update()
     actor_faction = get_actor_true_community() or alife():actor():community():sub(7)
     warfare_log.info("actor_on_first_update: actor_faction=%s", actor_faction)
     warfare_player_hqs.apply(actor_faction)
-    give_info("actor_made_wish_for_peace")
+    -- stops vanilla smart respawn for good; background war uses block_vanilla_respawn instead
+    if _G.WARFARE then
+        give_info("actor_made_wish_for_peace")
+    end
 end
 
 -- Runs from the actor_on_update one-shot init, after every actor_on_first_update handler:
@@ -748,7 +751,7 @@ function actor_on_update()
     warfare_log.tr_begin("warfare/actor_on_update")
     warfare_log.debug("actor_on_update")
 
-    if not _G.WARFARE then
+    if not sim then
         return
     end
 
@@ -831,7 +834,7 @@ function actor_on_update()
             warfare_log.info("actor_on_update: dynamic_relations detected")
         end
 
-        if (warfare_options.options.all_out_war) then
+        if (_G.WARFARE and warfare_options.options.all_out_war) then
             if (not all_out_war_applied) then
                 apply_all_out_war()
                 all_out_war_applied = true
@@ -960,7 +963,9 @@ function fill_start_position()
     arm_spawn_stagger("new game")
     warfare_presim.arm()
 
-    if (warfare_options.options.random_starting_locations) then
+    -- vanilla runs the random start (initialize_random_starting_locations) for warfare games only
+    local random_start = _G.WARFARE and warfare_options.options.random_starting_locations
+    if (random_start) then
         warfare_log.info("fill_start_position: random_starting_locations enabled, deferring")
         return
     end
@@ -1069,7 +1074,7 @@ function fill_start_position()
             if (smart) then
                 result, squad_section, count = setting_ini:r_line(section, li, "", "")
                 count = tonumber(count) or 1
-                if (is_story_section(squad_section) or not warfare_options.options.random_starting_locations) then
+                if (is_story_section(squad_section) or not random_start) then
                     local common = ini_sys:r_bool_ex(squad_section, "common")
                     local faction = ini_sys:r_string_ex(squad_section, "faction")
                     if common then
@@ -1113,7 +1118,8 @@ function fill_start_position()
 
                     local sf = get_squad_section_faction(squad_section)
 
-                    if (warfare_options.options.factions[sf].spawn_on_new_game) then
+                    -- background war spawns every faction: the check would also drop story squads
+                    if (not _G.WARFARE) or (warfare_options.options.factions[sf].spawn_on_new_game) then
                         for i = 1, count do
                             local squad
                             local squad_spawned = false
@@ -1486,13 +1492,36 @@ end
 -------------------------------
 -- Mode
 -------------------------------
--- _G.WARFARE is the mode flag every warfare script reads. It is set at on_game_start (right for a
--- new game) and again right before the load_state callbacks (right for a loaded save); objects
--- load only after that.
+-- mode is "off", "background" or "full". _G.WARFARE (read by vanilla) is set for "full" only;
+-- sim is set while warfare's simulation runs, in "background" and "full". Both are decided at
+-- on_game_start (right for a new game) and again right before the load_state callbacks (right for
+-- a loaded save); objects load only after that.
+mode = "off"
+sim = false
+
+local sim_hooks = {}
+local sim_ran = false
 local enable_hooks = {}
 local enabled_ran = false
 
--- fn runs once, as soon as the game is known to be a warfare game; never in a normal game.
+-- Background war: the new-game setting, else the save's flag. The twin of vanilla's IsWarfare().
+function is_background()
+    if axr_main.config and axr_main.config:r_value("character_creation", "new_game_warfare_background", 1) == true then
+        return true
+    end
+    return alife_storage_manager.get_state().warfare_background == true
+end
+
+-- fn runs once, as soon as warfare's simulation is known to run (background or full warfare).
+function on_sim(fn)
+    sim_hooks[#sim_hooks + 1] = fn
+    if sim_ran then
+        fn()
+    end
+end
+
+-- fn runs once, as soon as the game is known to be a full warfare game; never in a normal or
+-- background game.
 function on_enabled(fn)
     enable_hooks[#enable_hooks + 1] = fn
     if enabled_ran then
@@ -1501,13 +1530,35 @@ function on_enabled(fn)
 end
 
 local function sync_mode(source)
-    _G.WARFARE = IsWarfare() == true
-    warfare_log.info("mode: warfare=%s source=%s", _G.WARFARE, source)
+    if IsWarfare() == true then
+        mode = "full"
+    elseif is_background() then
+        mode = "background"
+    else
+        mode = "off"
+    end
+    _G.WARFARE = mode == "full"
+    sim = mode ~= "off"
+    warfare_log.info("mode: %s source=%s", mode, source)
+    if sim and not sim_ran then
+        sim_ran = true
+        for i = 1, #sim_hooks do
+            sim_hooks[i]()
+        end
+    end
     if _G.WARFARE and not enabled_ran then
         enabled_ran = true
         for i = 1, #enable_hooks do
             enable_hooks[i]()
         end
+    end
+end
+
+-- Background war: vanilla smart respawn reads _G.WARFARE as false there, so it is switched off on
+-- warfare's smarts here (on every smart until level admission is known).
+local function block_vanilla_respawn(smart, flags)
+    if mode == "background" and ((not initialized) or warfare_levels.is_smart_supported(smart)) then
+        flags.disabled = true
     end
 end
 
@@ -1533,12 +1584,13 @@ local function register_callbacks()
     RegisterScriptCallback("server_entity_on_unregister", squad_on_unregister)
     RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
     RegisterScriptCallback("on_game_load", on_game_load)
+    RegisterScriptCallback("on_try_respawn", block_vanilla_respawn)
 end
 
 function on_game_start()
     warfare_log.banner("Warfare ALife Overhaul %s", VERSION)
     warfare_options.update_settings()
-    on_enabled(register_callbacks)
+    on_sim(register_callbacks)
     install_mode_sync()
     sync_mode("on_game_start")
 end

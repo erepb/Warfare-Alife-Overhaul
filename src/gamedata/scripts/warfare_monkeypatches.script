@@ -501,7 +501,7 @@ end
 
 local tasks_assault_evaluate_smarts_squads = tasks_assault.evaluate_smarts_squads
 function tasks_assault.evaluate_smarts_squads(task_id, tbl, smart, squad_def, faction_def)
-    if (not smart or not _G.WARFARE) then
+    if (not smart or not warfare.sim) then
         tasks_assault_evaluate_smarts_squads(task_id, tbl, smart, squad_def, faction_def)
         return
     end
@@ -561,7 +561,7 @@ end
 
 local tasks_assault_evaluate_squads_smarts = tasks_assault.evaluate_squads_smarts
 function tasks_assault.evaluate_squads_smarts(task_id, var, squad, smart)
-    if not _G.WARFARE then
+    if not warfare.sim then
         return tasks_assault_evaluate_squads_smarts(task_id, var, squad, smart)
     end
 
@@ -609,7 +609,7 @@ end
 -- (trader, mechanic, ...) get one NPC. Other games keep the installed create_npc.
 local sim_squad_scripted_create_npc = sim_squad_scripted.sim_squad_scripted.create_npc
 function sim_squad_scripted.sim_squad_scripted.create_npc(self, spawn_smart, pos, lvid, gvid)
-    if not _G.WARFARE then
+    if not warfare.sim then
         return sim_squad_scripted_create_npc(self, spawn_smart, pos, lvid, gvid)
     end
 
@@ -694,7 +694,7 @@ function sim_squad_scripted.sim_squad_scripted.create_npc(self, spawn_smart, pos
         count[2] = count[2] and tonumber(count[2]) or count[1]
 
         -- Warfare's own spawns only: story squads keep their scripted npc_in_squad.
-        if _G.WARFARE and warfare.spawning_own then
+        if warfare.sim and warfare.spawning_own then
             local faction = ini_sys:r_string_ex(settings_id, "faction")
             if (warfare_options.options.factions[faction]) then
                 if (warfare_options.options.factions[faction].random_squad_count) then
@@ -752,7 +752,7 @@ end
 
 local tasks_smart_control_evaluate_smarts_squads = tasks_smart_control.evaluate_smarts_squads
 function tasks_smart_control.evaluate_smarts_squads(task_id, tbl, smart, squad_def, faction_def)
-    if (not smart or not _G.WARFARE) then
+    if (not smart or not warfare.sim) then
         tasks_smart_control_evaluate_smarts_squads(task_id, tbl, smart, squad_def, faction_def)
         return
     end
@@ -795,7 +795,7 @@ end
 
 local tasks_smart_control_evaluate_squads_smarts = tasks_smart_control.evaluate_squads_smarts
 function tasks_smart_control.evaluate_squads_smarts(task_id, var, smart, smrt)
-    if not _G.WARFARE then
+    if not warfare.sim then
         return tasks_smart_control_evaluate_squads_smarts(task_id, var, smart, smrt)
     end
 
@@ -850,7 +850,7 @@ local inherited_trade_goodwill = {}
 -- they test goodwill with the trader's own faction instead.
 local xr_conditions_actor_goodwill_ge = xr_conditions.actor_goodwill_ge
 function xr_conditions.actor_goodwill_ge(actor, npc, p)
-    if not _G.WARFARE then
+    if not warfare.sim then
         return xr_conditions_actor_goodwill_ge(actor, npc, p)
     end
     local id = npc and type(npc.id) == "function" and npc:id()
@@ -863,7 +863,8 @@ end
 
 local xr_logic_configure_schemes = xr_logic.configure_schemes
 function xr_logic.configure_schemes(npc, ini, ini_filename, stype, section_logic, gulag_name)
-    if not _G.WARFARE then
+    -- background war: only warfare's own service NPCs take this path
+    if not (_G.WARFARE or (warfare.sim and npc and warfare.is_warfare_trader(npc))) then
         return xr_logic_configure_schemes(npc, ini, ini_filename, stype, section_logic, gulag_name)
     end
     --printf("DEBUG: enable_scripts: npc:name()=%s", npc:name())
@@ -977,7 +978,7 @@ local warned_object = {}
 
 local global_position_from = global_position.from
 global_position.from = function(object_or_position, level_id)
-    if not _G.WARFARE then
+    if not warfare.sim then
         return global_position_from(object_or_position, level_id)
     end
     if (level_id == nil) then
@@ -1024,7 +1025,7 @@ end
 -- given the same warfare-aware treatment as generate_ongoing_tasks).
 local old_axr_generate_available_tasks = axr_task_manager.generate_available_tasks
 function axr_task_manager.generate_available_tasks(npc, is_sim)
-    if is_sim and _G.WARFARE and warfare.is_warfare_trader(npc) then
+    if is_sim and warfare.sim and warfare.is_warfare_trader(npc) then
         warfare_log.trace("generate_available_tasks: forcing non-sim for warfare trader npc=%s", tostring(npc:name()))
         is_sim = false
     end
@@ -1033,7 +1034,7 @@ end
 
 local old_task_objects_cgeneraltask_check_task = task_objects.CGeneralTask.check_task
 function task_objects.CGeneralTask.check_task(self, tm)
-    if not _G.WARFARE then
+    if not warfare.sim then
         old_task_objects_cgeneraltask_check_task(self, tm)
         return
     end
@@ -1067,7 +1068,7 @@ end
 -- warfare caches game time per frame; a time jump inside a frame must drop that cache
 local old_level_change_game_time = level.change_game_time
 function level.change_game_time(days, hours, minutes)
-    if not _G.WARFARE then
+    if not warfare.sim then
         return old_level_change_game_time(days, hours, minutes)
     end
     old_level_change_game_time(days, hours, minutes)
@@ -1147,4 +1148,4 @@ local function install_server_entity_index()
         return by_id[id]
     end
 end
-warfare.on_enabled(install_server_entity_index)
+warfare.on_sim(install_server_entity_index)

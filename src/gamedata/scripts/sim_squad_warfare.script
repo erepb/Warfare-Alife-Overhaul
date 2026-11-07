@@ -70,7 +70,7 @@ function squad_on_update(squad)
         warfare_log.trace("sqw.squad_on_update: squad=%s", squad and squad:name() or "?")
     end
 
-    if not (_G.WARFARE) then
+    if not (warfare.sim) then
         return
     end
 
@@ -366,7 +366,7 @@ end
 function squad_on_npc_death(squad, npc, killer)
     warfare_log.debug("squad_on_npc_death: squad=%s npc=%s killer=%s", squad and squad.id or "?", npc and npc.id or "?", killer and killer.id or "?")
 
-    if (squad.registered_with_warfare) then
+    if (_G.WARFARE and squad.registered_with_warfare) then
         if killer and (killer.id == AC_ID) then
             local f = squad:get_squad_community()
 
@@ -546,7 +546,7 @@ end
 
 local prev_show, prev_hide
 
--- Warfare owns show()/hide() only for squads it registered. Everything else goes to whatever the
+-- Warfare owns show()/hide() only for squads it registered, in a full warfare game. Everything else goes to whatever the
 -- class had when this runs: vanilla, or an addon that replaced it at file load (Milspec PDA's
 -- zzz_sim_squad_scripted_milpda). Must run from on_game_start so it wraps such addons.
 local function install_map_spot_router()
@@ -564,7 +564,7 @@ local function install_map_spot_router()
             warfare_log.debug("map_spot_router: active, first show squad=%s registered=%s prev_show=%s",
                 tostring(self.id), tostring(self.registered_with_warfare), tostring(prev_show))
         end
-        if self.registered_with_warfare then
+        if self.registered_with_warfare and _G.WARFARE then
             if self.spot_section then
                 prev_hide(self)
                 if self.spot_section then -- addon spot keyed by squad id, which vanilla hide() skips

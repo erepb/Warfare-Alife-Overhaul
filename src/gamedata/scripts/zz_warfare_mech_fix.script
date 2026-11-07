@@ -94,7 +94,7 @@ end
 --------------------------------------------------------------------------------------
 
 function physic_object_on_use_callback(obj, who)
-    if not (_G.WARFARE and obj and string.match(obj:name(), "awr_tiski")) then
+    if not (warfare.sim and obj and string.match(obj:name(), "awr_tiski")) then
         return bind_awr.physic_object_on_use_callback(obj, who)
     end
 

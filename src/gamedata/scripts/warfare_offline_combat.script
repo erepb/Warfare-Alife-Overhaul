@@ -77,6 +77,11 @@ end
 
 -- Shared with vanilla. task_squads is not aliased: vanilla's load_state replaces that table.
 local task_giver_squads = {}
+
+-- Background war keeps vanilla's exemption: task squads and task givers never fight offline.
+local function task_exempt(id)
+    return warfare.mode == "background" and (sim_offline_combat.task_squads[id] or task_giver_squads[id]) and true or false
+end
 story_id_communities = sim_offline_combat.story_id_communities
 ignore_list = sim_offline_combat.ignore_list
 stationary_squads = {}
@@ -273,7 +278,7 @@ local function smart_terrain_on_update(smart)
 
                 --                if (not task_squads[id_1]) and (not task_giver_squads[id_1]) then
                 -- disable offline combat for ignore list when Warfare is active
-                if not _G.WARFARE or (_G.WARFARE and not ignore_list[section]) then
+                if not warfare.sim or (warfare.sim and not ignore_list[section]) then
                     -- If squad already have an opponent, no need for full scan
                     local id_t = opponents[id_1]
                     if id_t and squads_by_level[lid_1][id_t] then
@@ -354,7 +359,7 @@ local function squad_on_update(squad_1)
         -- Only simulate for non-task squads
         --        if (not task_squads[id_1]) and (not task_giver_squads[id_1]) then
         -- disable offline combat for ignore list when Warfare is active
-        if not _G.WARFARE or (_G.WARFARE and not ignore_list[section]) then
+        if not warfare.sim or (warfare.sim and not ignore_list[section]) then
             -- If squad already have an opponent, no need for full scan
             local id_t = opponents[id_1]
             if id_t and squads_by_level[lid_1][id_t] then
@@ -499,7 +504,7 @@ end
 
 function calculate_distance_combat_multiplier(pos, community)
     warfare_log.trace("calculate_distance_combat_multiplier: community=%s", community)
-    if not _G.WARFARE then
+    if not warfare.sim then
         return 1.0 -- No modification if warfare is not active
     end
 
@@ -575,7 +580,7 @@ local function calculate_squad_distance_multiplier(squad, community)
 end
 
 local function coordinator()
-    warfare_log.debug("coordinator: tick start old_state=%s warfare=%s", old_state, _G.WARFARE and "on" or "off")
+    warfare_log.debug("coordinator: tick start old_state=%s mode=%s", old_state, warfare.mode)
 
     -- Toggle feature
 
@@ -657,8 +662,8 @@ local function coordinator()
         local section = squad and squad:section_name()
         local sid = get_object_story_id(id)
         if squad and section
-                and ((_G.WARFARE and warfare.is_owned(squad))
-                or ((not _G.WARFARE) and (not sid) and ini_sys:r_bool_ex(section, "common")))
+                and ((warfare.sim and warfare.is_owned(squad))
+                or ((not warfare.sim) and (not sid) and ini_sys:r_bool_ex(section, "common")))
         --        and (not task_squads[id])
         then
             local lid = gg:vertex(squad.m_game_vertex_id):level_id()
@@ -676,9 +681,14 @@ local function coordinator()
     local pop_factor = (stalker_pop_factor + monster_pop_factor) / 2
 
     -- Options by mode
-    if _G.WARFARE then
+    if warfare.sim then
         opt_dist = math.pow(ui_options.get("alife/warfare/general/offline_combat_distance") or 50, 2)
-        opt_exclude = EXCLUDE_STORY_ID_WARFARE
+        -- background war keeps vanilla's story-squad protection
+        if _G.WARFARE then
+            opt_exclude = EXCLUDE_STORY_ID_WARFARE
+        else
+            opt_exclude = EXCLUDE_STORY_ID
+        end
         can_fight_mutant = warfare_options.options.enable_mutant_offline_combat
         species_relations = true
 
@@ -851,6 +861,10 @@ function validate_enemy(sim, lid, squad_1, id_1, id_2, community_1, pos_1)
         return false
     end
 
+    if task_exempt(id_1) or task_exempt(id_2) then
+        return false
+    end
+
     -- target is not occupied
     local occupied_by = opponents[id_2]
     if (occupied_by ~= nil) and (occupied_by ~= id_1) then
@@ -874,7 +888,7 @@ function validate_enemy(sim, lid, squad_1, id_1, id_2, community_1, pos_1)
         return false
     end
 
-    if _G.WARFARE and ignore_list[squad_2:section_name()] then
+    if warfare.sim and ignore_list[squad_2:section_name()] then
         return false
     end
 
@@ -953,7 +967,7 @@ function validate_enemy(sim, lid, squad_1, id_1, id_2, community_1, pos_1)
     -- is just passing through, not attacking.
     -- Only protect when the main base is held by its original faction.
     -- If another faction captured it, combat should proceed normally.
-    if _G.WARFARE and warfare_options and warfare_options.options.prevent_mainbase_attacks then
+    if warfare.sim and warfare_options and warfare_options.options.prevent_mainbase_attacks then
         local sm1 = squad_1.assigned_target_id and alife_object(squad_1.assigned_target_id)
         if sm1 and sm1.owning_faction == community_1 then
             local sm1_name = sm1.name and sm1:name()
@@ -1199,7 +1213,7 @@ end
 
 function remove_squad_info(squad_2, id_2, id_1, lid)
     warfare_log.debug("remove_squad_info: squad=%s opponent=%s lid=%s", id_2 or (squad_2 and squad_2.id), id_1, lid)
-    if _G.WARFARE then
+    if warfare.sim then
         sim_squad_warfare.remove_squad(squad_2)
     end
 
@@ -1386,5 +1400,5 @@ local function install_warfare()
 end
 
 function on_game_start()
-    warfare.on_enabled(install_warfare)
+    warfare.on_sim(install_warfare)
 end

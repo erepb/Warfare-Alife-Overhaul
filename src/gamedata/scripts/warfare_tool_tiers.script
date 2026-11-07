@@ -112,7 +112,7 @@ end
 
 --- "mechanic" or "medic" for a warfare-spawned service section, else nil.
 local function warfare_role(section)
-    if not (section and _G.WARFARE) then
+    if not (section and warfare.sim) then
         return nil
     end
     if section:find("^sim_default_%a+_mechanic$") then
@@ -291,7 +291,7 @@ local function install_hooks()
 
     local task_callback = task_manager.task_callback
     function task_manager.task_callback(tsk, state, ...)
-        local id = _G.WARFARE and (state == task.completed) and tsk and tsk:get_id()
+        local id = warfare.sim and (state == task.completed) and tsk and tsk:get_id()
         local rtask = id and task_manager.get_task_manager().task_info[id]
         local giver_id = rtask and rtask.task_giver_id
         local result = task_callback(tsk, state, ...)
@@ -303,7 +303,8 @@ local function install_hooks()
 
     local get_workshop_ui = ui_workshop.get_workshop_ui
     function ui_workshop.get_workshop_ui(hud, mechanic, flags, ...)
-        local base = _G.WARFARE and type(flags) == "table" and vice_base(mechanic)
+        -- background war: an ownerless bench stays with warfare_base_props, as in a normal game
+        local base = warfare.sim and (_G.WARFARE or mechanic) and type(flags) == "table" and vice_base(mechanic)
         if base then
             local tier = effective_tier(base)
             flags[1], flags[2], flags[3] = tier >= 1, tier >= 2, tier >= 3
@@ -326,8 +327,8 @@ local function actor_on_first_update()
 end
 
 function on_game_start()
-    warfare.on_enabled(install_hooks)
-    warfare.on_enabled(function()
+    warfare.on_sim(install_hooks)
+    warfare.on_sim(function()
         RegisterScriptCallback("npc_on_use", npc_on_use)
         RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
     end)

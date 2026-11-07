@@ -46,7 +46,7 @@ local function leftover_loot(sim, se_npc)
 end
 
 local function actor_on_first_update()
-    if not _G.WARFARE then
+    if not warfare.sim then
         return
     end
 
@@ -83,7 +83,7 @@ local function actor_on_first_update()
 end
 
 function on_game_start()
-    warfare.on_enabled(function()
+    warfare.on_sim(function()
         RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
     end)
 end

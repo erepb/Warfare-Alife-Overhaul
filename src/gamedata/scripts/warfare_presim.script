@@ -548,7 +548,7 @@ end
 -- itms_manager gives start_equippment_handled right before the new-game autosave; the timeout
 -- covers test mode and builds without it.
 local function ready_to_run(now)
-    if not (_G.WARFARE and warfare.initialized) then
+    if not (warfare.sim and warfare.initialized) then
         return false
     end
     local st = storage()
@@ -621,7 +621,7 @@ local function on_game_load()
 end
 
 function on_game_start()
-    warfare.on_enabled(function()
+    warfare.on_sim(function()
         RegisterScriptCallback("actor_on_update", actor_on_update)
         RegisterScriptCallback("on_loading_screen_dismissed", on_loading_screen_dismissed)
         RegisterScriptCallback("on_before_save_input", on_before_save_input)

@@ -40,5 +40,5 @@ local function apply()
 end
 
 function on_game_start()
-    warfare.on_enabled(apply)
+    warfare.on_sim(apply)
 end

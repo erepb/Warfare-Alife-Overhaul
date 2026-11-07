@@ -453,7 +453,7 @@ function sim_squad_scripted.sim_squad_scripted.check_online_status(self)
         b = true
     elseif (self.assigned_target_id and is_squad_monster[self.player_id]) then
         -- warfare's frame clock is only kept up to date in a warfare game
-        local hour = _G.WARFARE and warfare_utils.get_warfare_hour() or level.get_time_hours()
+        local hour = warfare.sim and warfare_utils.get_warfare_hour() or level.get_time_hours()
         if (self.player_id == "monster_predatory_day") then
             -- Monster will not come online during the hours of (9PM till 5AM)
             if (hour <= 5 or hour >= 22) then
@@ -489,7 +489,7 @@ function sim_squad_scripted.sim_squad_scripted.check_online_status(self)
 end
 
 function on_game_start()
-    warfare.on_enabled(function()
+    warfare.on_sim(function()
         warfare_log.debug("warfare_options.on_game_start: registering on_option_change handler")
         RegisterScriptCallback("on_option_change", update_settings)
     end)

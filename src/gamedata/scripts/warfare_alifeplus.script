@@ -132,7 +132,7 @@ function on_game_start()
         warfare_log.info("warfare_alifeplus: AlifePlus not present, interop disabled")
         return
     end
-    warfare.on_enabled(function()
+    warfare.on_sim(function()
         ap_enabled = true
         warfare_log.info("warfare_alifeplus: AlifePlus detected, registering owner handler")
 
