@@ -1,0 +1,19 @@
+-- Warfare's relations grid (ui_pda_relations_warfare) takes the place of vanilla's matrix: its
+-- frame lines go and the backdrop grows to the grid. Only in a warfare game; the PDA is built after
+-- the mode is known. DXML calls on_xml_read only in scripts named modxml_*.
+function on_xml_read()
+    RegisterScriptCallback("on_xml_read", function(xml_file_name, xml_obj)
+        if not (_G.WARFARE and string.find(xml_file_name, "pda_relations_16.xml", 1, true)) then
+            return
+        end
+        local lines = xml_obj:query("tab > auto_frameline")
+        for i = 1, #lines do
+            xml_obj:removeElement(lines[i])
+        end
+        local bg = xml_obj:query("center_background")[1]
+        if bg then
+            xml_obj:setElementAttr(bg, { y = 164, width = 684, height = 364 })
+        end
+        warfare_log.debug("modxml_warfare_relations: %s frame lines removed from %s", #lines, xml_file_name)
+    end)
+end
