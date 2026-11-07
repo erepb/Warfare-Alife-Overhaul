@@ -435,11 +435,9 @@ local function _install_hijacks()
     _wrap_all_in(game,  "game.")
 end
 
--- Caller is a warfare script if its basename contains "warfare", with two
--- manual exceptions:
---   * "warfare_log" — this file; its callbacks are infra and would recurse.
---   * "sim_offline_combat" — part of warfare but lacks "warfare" in filename.
-local _WARFARE_EXTRA   = { sim_offline_combat = true }
+-- Caller is a warfare script if its basename contains "warfare", except
+-- "warfare_log" — this file; its callbacks are infra and would recurse.
+local _WARFARE_EXTRA   = {}
 local _WARFARE_EXCLUDE = { warfare_log        = true }
 
 local _reg_hijacks_installed = false

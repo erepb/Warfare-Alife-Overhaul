@@ -191,7 +191,7 @@ function owns_section(section, warfare_origin)
     if sim_offline_combat.get_ignore_list()[section] then
         return false, "ignore"
     end
-    if sim_offline_combat.stationary_squads[section] then
+    if warfare_offline_combat.stationary_squads[section] then
         return true, "stationary"
     end
     local t = traits_of(section)
@@ -216,7 +216,7 @@ function is_story_section(section)
     if sim_offline_combat.get_ignore_list()[section] then
         return true
     end
-    if sim_offline_combat.stationary_squads[section] then
+    if warfare_offline_combat.stationary_squads[section] then
         return false
     end
     return traits_of(section).story
@@ -844,7 +844,7 @@ function actor_on_update()
 
         build_level_information()
         -- level admission is final only now; drop owned/supported smart lists built before it
-        sim_offline_combat.invalidate_distance_cache()
+        warfare_offline_combat.invalidate_distance_cache()
         initialize()
         warfare_squad_command.prune_missing()
         warfare_levels.update()
@@ -1457,7 +1457,7 @@ function squad_on_unregister(squad, type_name)
         warfare_log.debug("squad_on_unregister: squad=%s id=%s faction=%s", squad:name(), squad.id, faction)
 
         -- Every release path ends here; the engine reuses freed ids, so nothing may keep this one.
-        sim_offline_combat.forget_squad(squad)
+        warfare_offline_combat.forget_squad(squad)
         warfare_squad_command.on_squad_removed(squad)
 
         if (registered_squads[faction]) then

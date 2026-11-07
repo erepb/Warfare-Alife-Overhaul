@@ -794,7 +794,7 @@ function bootstrap_smart(smart)
         smart.owning_faction = "none"
         smart.last_owner = "none"
     end
-    sim_offline_combat.on_smart_owner_changed(nil, smart.owning_faction)
+    warfare_offline_combat.on_smart_owner_changed(nil, smart.owning_faction)
 
     set_max_population(smart)
 end
@@ -2788,7 +2788,7 @@ function create_invasion_plan(smart, target)
             end
         end
 
-        total_allied_power = total_allied_power * sim_offline_combat.calculate_distance_combat_multiplier(global_position.from(target), smart.owning_faction)-- compare average enemy squad power to the attacking faction's average squad power
+        total_allied_power = total_allied_power * warfare_offline_combat.calculate_distance_combat_multiplier(global_position.from(target), smart.owning_faction)-- compare average enemy squad power to the attacking faction's average squad power
         local avg_allied_squad_power = total_allied_power / math.max(num_allied_squads, 1)
         local avg_enemy_squad_power = total_enemy_power / math.max(num_enemy_squads, 1)
         local power_ratio = 1        -- how many times more powerful are enemy squads than allied squads; even odds when either side has no power
@@ -3573,7 +3573,7 @@ function process_patrols(smart)
     for squad_id, sobj in pairs(squads) do
         local squad = squad_id and alife_object(squad_id)
 
-        if (squad and squad:clsid() == clsid.online_offline_group_s) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
+        if (squad and squad:clsid() == clsid.online_offline_group_s) and (not warfare_offline_combat.stationary_squads[squad:section_name()]) then
             squad.patrol_owner = smart.id
             squad.patrol_table = patrol_squads[smart.id][squad_id]
 
@@ -4044,7 +4044,7 @@ function spawn_mutants(smart)
             local squad = resolve_roster_squad(smart.id, sid)
             if squad then
                 local faction = squad:get_squad_community()
-                if (faction == "monster") and warfare.is_owned(squad) and (not sim_offline_combat.stationary_squads[squad:section_name()]) and (squad.current_action == 1) then
+                if (faction == "monster") and warfare.is_owned(squad) and (not warfare_offline_combat.stationary_squads[squad:section_name()]) and (squad.current_action == 1) then
                     -- get squad section name
                     local section = squad:section_name()
                     local new_squad = warfare.spawn_squad(section, smart:name())    -- create identical section
@@ -4131,7 +4131,7 @@ function process_mutants(smart)
         local squad = resolve_roster_squad(smart.id, sid)
         if squad then
             local faction = squad:get_squad_community()
-            if (faction == "monster") and warfare.is_owned(squad) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
+            if (faction == "monster") and warfare.is_owned(squad) and (not warfare_offline_combat.stationary_squads[squad:section_name()]) then
                 if (squad.current_action == 1) then            -- mutant squad is idle
                     if not (squad.wait_time) then
                         squad.wait_time = math.random(60, 360)
@@ -4147,7 +4147,7 @@ function process_mutants(smart)
         local squad = resolve_roster_squad(smart.id, sid)
         if squad then
             local faction = squad:get_squad_community()
-            if (faction == "monster") and warfare.is_owned(squad) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
+            if (faction == "monster") and warfare.is_owned(squad) and (not warfare_offline_combat.stationary_squads[squad:section_name()]) then
                 if (squad.arrive_time and squad.wait_time) then
                     -- force a mutant squad to move off if they exceed the terrain capacity
                     if (time_ref():diffSec(squad.arrive_time) >= squad.wait_time) or (mutant_squad_count > smart.max_population) then
@@ -5301,7 +5301,7 @@ function squad_count_detailed(smart, faction)
                         squadPower = squadPower + power
                     end
                 end
-            elseif squad and (squad:clsid() == clsid.online_offline_group_s) and warfare.registered_squads[faction][sid] and (sim_offline_combat.stationary_squads[squad:section_name()]) and (not random_patrols[squad.id]) then
+            elseif squad and (squad:clsid() == clsid.online_offline_group_s) and warfare.registered_squads[faction][sid] and (warfare_offline_combat.stationary_squads[squad:section_name()]) and (not random_patrols[squad.id]) then
                 if (squad:get_squad_community() == faction and squad.current_action == 1) and (not axr_companions.companion_squads[squad.id]) then
                     stationary = stationary + 1
                 end
@@ -5394,7 +5394,7 @@ function squad_is_commandable(squad, random_patrol_override)
     if squad
     and squad.registered_with_warfare
     and (squad:clsid() == clsid.online_offline_group_s)
-    and (not sim_offline_combat.stationary_squads[squad:section_name()])
+    and (not warfare_offline_combat.stationary_squads[squad:section_name()])
     and (not squad.patrol_table)
     and (not axr_companions.companion_squads[squad.id]) then
         if warfare_alifeplus.is_ap_controlled(squad) then
@@ -5432,7 +5432,7 @@ end
 local function announce_owner_change(smart, was)
     if smart.owning_faction ~= was then
         contested_at[smart.id] = nil
-        sim_offline_combat.on_smart_owner_changed(was, smart.owning_faction)
+        warfare_offline_combat.on_smart_owner_changed(was, smart.owning_faction)
         -- the garrison reports its own loss; the memory record is refreshed without line of sight
         -- so the map does not keep claiming the smart
         if was == warfare.actor_faction and not actor_blind() then
@@ -5570,7 +5570,7 @@ function check_owner(smart)
             for squad_id, target_id in pairs(squads) do
                 local squad = squad_id and alife_object(squad_id)
 
-                if (squad and squad:clsid() == clsid.online_offline_group_s) and (not sim_offline_combat.stationary_squads[squad:section_name()]) then
+                if (squad and squad:clsid() == clsid.online_offline_group_s) and (not warfare_offline_combat.stationary_squads[squad:section_name()]) then
                     if (squad:get_squad_community() ~= smart.owning_faction) then
                         -- Convert orphaned patrol to random patrol
                         local faction = squad:get_squad_community()

@@ -560,7 +560,7 @@ function render_mutant_smart_info(smart)
             local squad = sid and alife_object(sid)
             if squad and squad:get_squad_community() == "monster" and 
                warfare.is_owned(squad) and 
-               not sim_offline_combat.stationary_squads[squad:section_name()] then
+               not warfare_offline_combat.stationary_squads[squad:section_name()] then
                 table.insert(mutant_squads, squad:section_name())
             end
         end
@@ -618,7 +618,7 @@ function render_mutant_smart_info(smart)
             local squad = sid and alife_object(sid)
             if squad and squad:get_squad_community() == "monster" and 
                warfare.is_owned(squad) and 
-               not sim_offline_combat.stationary_squads[squad:section_name()] then
+               not warfare_offline_combat.stationary_squads[squad:section_name()] then
                 
                 total_mutants = total_mutants + 1
                 

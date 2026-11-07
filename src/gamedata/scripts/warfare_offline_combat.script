@@ -20,6 +20,11 @@
     In addition, dominators will get more rank, and their kill stats will be recorded
 =======================================================================================
 
+    Warfare's offline combat. Vanilla sim_offline_combat.script runs in every game; in a warfare
+    game install_warfare() blocks vanilla's coordinator and replaces the functions in REPLACED on
+    the sim_offline_combat table. The shared tables (opponents, ocs_power, squads_by_level,
+    ignore_list, story_id_communities, task_squads) are always vanilla's.
+
 --]]
 
 -- timer for rescanning squads and updating info [game seconds]
@@ -70,17 +75,15 @@ local function distance_to_xz_sqr(a, b)
     return dx * dx + dz * dz
 end
 
--- Ignore list
-task_squads = {}
+-- Shared with vanilla. task_squads is not aliased: vanilla's load_state replaces that table.
 local task_giver_squads = {}
-story_id_communities = {}
-ignore_list = {}
+story_id_communities = sim_offline_combat.story_id_communities
+ignore_list = sim_offline_combat.ignore_list
 stationary_squads = {}
 
--- Storage
-ocs_power = {}
-opponents = {}
-squads_by_level = {}
+ocs_power = sim_offline_combat.ocs_power
+opponents = sim_offline_combat.opponents
+squads_by_level = sim_offline_combat.squads_by_level
 local faction_power = {}
 local last_combat_time = {}    -- [squad_id] = CTime of last combat round
 local skirmish_decline = {}    -- [pair_key] = CTime a pair declined to engage
@@ -292,20 +295,13 @@ local function smart_terrain_on_update(smart)
                         disengage_combat(id_1, squad_1, id_t, sq_t)
                     end
 
-                    -- Otherwise, scan for squads in the same map
+                    -- Otherwise, scan the squads at this smart. last_x is only kept by the full-mode
+                    -- squad_on_update, so validate_enemy checks the distance with live positions.
                     local pos_1 = squad_1.position
-                    local x1, z1 = pos_1.x, pos_1.z
-                    -- No last_x: online (validate_enemy rejects it) or not yet updated (picked up once it has).
                     for j, id_2 in pairs(tbl_smart) do
-                        local x2 = last_x[id_2]
-                        if x2 then
-                            local dx, dz = x2 - x1, last_z[id_2] - z1
-                            if (dx * dx + dz * dz < opt_dist) then
-                                in_combat = validate_enemy(sim, lid_1, squad_1, id_1, id_2, community_1, pos_1)
-                                if in_combat then
-                                    return
-                                end
-                            end
+                        in_combat = validate_enemy(sim, lid_1, squad_1, id_1, id_2, community_1, pos_1)
+                        if in_combat then
+                            return
                         end
                     end
                 end
@@ -497,18 +493,8 @@ local function owned_smart_ids(faction)
     return ids
 end
 
--- Precedence chain, not independent flags: a base that also produces is scored as a base.
 local function curve_for(curves, props)
-    if props.base and props.base > 0 then
-        return curves.base
-    elseif props.resource and props.resource > 0 then
-        return curves.resource
-    elseif props.territory and props.territory > 0 then
-        return curves.territory
-    elseif props.lair and props.lair > 0 then
-        return curves.lair
-    end
-    return curves.other
+    return curves[warfare_utils.smart_kind(props) or "other"]
 end
 
 function calculate_distance_combat_multiplier(pos, community)
@@ -645,6 +631,7 @@ local function coordinator()
     end
 
     -- Get rid of non-existing task squads cache
+    local task_squads = sim_offline_combat.task_squads
     for id, v in pairs(task_squads) do
         local squad = sim:object(id)
         if (not squad) then
@@ -1321,36 +1308,7 @@ function get_random_npc(squad)
     return squad_npcs[math_random(#squad_npcs)]
 end
 
-function get_num_squads_on_level(lvl, faction, mode)
-    warfare_log.trace("get_num_squads_on_level: lvl=%s faction=%s mode=%s", lvl, faction, mode)
-    -- mode: true (active), false (inactive)
-    if (squads_by_level[lvl]) then
-        local count = 0
-
-        for s, _ in pairs(squads_by_level[lvl]) do
-            local squad = alife_object(s)
-
-            if (squad) then
-
-                if (squad.get_squad_community and squad:get_squad_community() == faction) then
-                    if (mode == nil)
-                            or ((mode == true) and (squad.current_action == 0))
-                            or ((mode == false) and (squad.current_action == 1))
-                    then
-                        count = count + 1
-                    end
-                end
-            end
-        end
-
-        return count
-    else
-    end
-
-    return 0
-end
-
--- Combined version: returns active and inactive counts in a single pass
+-- Combined version of vanilla's get_num_squads_on_level: returns active and inactive counts in a single pass
 function get_num_squads_on_level_both(lvl, faction)
     warfare_log.trace("get_num_squads_on_level_both: lvl=%s faction=%s", lvl, faction)
     if not squads_by_level[lvl] then
@@ -1374,82 +1332,59 @@ end
 -------------------------------
 -- Prepare
 -------------------------------
-function get_ignore_list()
-    if is_empty(ignore_list) then
-        init_settings()
-    end
-    return ignore_list
-end
-
-function init_settings()
-    warfare_log.info("init_settings: loading misc/offline_combat_simulator.ltx")
-    ini_ocs = ini_file("misc\\offline_combat_simulator.ltx")
-
-    local n = ini_ocs:line_count("story_communities")
+local function load_stationary_squads()
+    local ini = ini_file("misc\\offline_combat_simulator.ltx")
+    local n = ini:line_count("stationary_squads")
     for i = 0, n - 1 do
-        local _, id, value = ini_ocs:r_line_ex("story_communities", i, "", "")
-        if id and value then
-            story_id_communities[id] = value
-        end
-    end
-    warfare_log.debug("init_settings: loaded %s story_communities", n)
-
-    n = ini_ocs:line_count("ignore_list")
-    for i = 0, n - 1 do
-        local _, id = ini_ocs:r_line_ex("ignore_list", i, "", "")
-        if id then
-            ignore_list[id] = true
-        end
-    end
-    warfare_log.debug("init_settings: loaded %s ignore_list entries", n)
-
-    n = ini_ocs:line_count("stationary_squads")
-    for i = 0, n - 1 do
-        local _, id = ini_ocs:r_line_ex("stationary_squads", i, "", "")
+        local _, id = ini:r_line_ex("stationary_squads", i, "", "")
         if id then
             stationary_squads[id] = true
         end
     end
-    warfare_log.debug("init_settings: loaded %s stationary_squads", n)
+    warfare_log.debug("load_stationary_squads: loaded %s stationary_squads", n)
 end
+load_stationary_squads()
 
 
 -------------------------------
--- Callbacks
+-- Install
 -------------------------------
-local function _count_keys(t)
-    if not t then return 0 end
-    local n = 0
-    for _ in pairs(t) do n = n + 1 end
-    return n
+-- Vanilla functions this module replaces in a warfare game.
+local REPLACED = {
+    validate_enemy = validate_enemy,
+    simulate_battle = simulate_battle,
+    set_battle_outcome = set_battle_outcome,
+    remove_squad_info = remove_squad_info,
+    calculate_npc_power = calculate_npc_power,
+    calculate_squad_power = calculate_squad_power,
+    get_random_npc = get_random_npc,
+}
+
+-- Holds the ("cycle", "ocs") event id. CreateTimeEvent never replaces an existing id pair, so
+-- vanilla's on_game_load cannot schedule its coordinator.
+local function hold_vanilla_coordinator()
+    ResetTimeEvent("cycle", "ocs", 3600)
+    return false
 end
 
-local function load_state(m_data)
-    warfare_log.info("ocs.load_state: loading task_squads (count=%s)", _count_keys(m_data.offline_task_squads))
-    --ocs_power = m_data.offline_power or {}
-    task_squads = m_data.offline_task_squads or {}
+local function on_game_load()
+    warfare_log.info("warfare_offline_combat.on_game_load: registering try_coordinator")
+    -- Ownership from the previous session is gone; bootstrap_smart only bumps factions that own something.
+    invalidate_distance_cache()
+    RegisterScriptCallback("actor_on_update", try_coordinator)
 end
 
-local function save_state(m_data)
-    warfare_log.info("ocs.save_state: saving task_squads (count=%s)", _count_keys(task_squads))
-    --m_data.offline_power = ocs_power
-    m_data.offline_task_squads = task_squads
+local function install_warfare()
+    CreateTimeEvent("cycle", "ocs", 3600, hold_vanilla_coordinator)
+    warfare_log.info("warfare_offline_combat: vanilla coordinator blocked")
+
+    sim_offline_combat.get_ignore_list()
+    for name, fn in pairs(REPLACED) do
+        sim_offline_combat[name] = fn
+    end
+    RegisterScriptCallback("on_game_load", on_game_load)
 end
 
 function on_game_start()
-    warfare_log.info("sim_offline_combat.on_game_start")
-    if is_empty(ignore_list) or is_empty(story_id_communities) then
-        init_settings()
-    end
-
-    local function on_game_load()
-        warfare_log.info("sim_offline_combat.on_game_load: registering try_coordinator + save_state")
-        -- Ownership from the previous session is gone; bootstrap_smart only bumps factions that own something.
-        invalidate_distance_cache()
-        RegisterScriptCallback("actor_on_update", try_coordinator)
-        RegisterScriptCallback("save_state", save_state)
-    end
-
-    RegisterScriptCallback("on_game_load", on_game_load)
-    RegisterScriptCallback("load_state", load_state)
+    warfare.on_enabled(install_warfare)
 end

@@ -961,7 +961,7 @@ end
 
 -- global_position.from() can return nil from two different places and callers feed the result
 -- straight into vector math, so the nil surfaces as a crash several frames away from its origin
--- (see sim_offline_combat.calculate_distance_combat_multiplier). Both branches are logged so the
+-- (see warfare_offline_combat.calculate_distance_combat_multiplier). Both branches are logged so the
 -- offending object and the branch that produced the nil land in the log ahead of any such crash.
 --
 -- Object path (level_id nil): vanilla from() falls off the end when an object has no .position or
