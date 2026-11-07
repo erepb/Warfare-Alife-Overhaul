@@ -1,0 +1,11 @@
+; Under warfare, setup_task_target_anomaly (warfare_monkeypatches) stores a target anomaly for these
+; story escorts, but their fail and cancel handlers never clear it. task_target_anomaly is shared by
+; both escort squads, so it is left alone while the other escort is still running.
+
+![mar_base_owl_stalker_trader_task_3]
+on_fail = {=is_warfare !squad_exist(ecolog_companion_task_2)} %=fail_task_dec_goodwill(25:ecolog:csky) =remove_special_task_squad(ecolog_companion_task_1) =drx_sl_unregister_task_giver(mar_base_owl_stalker_trader_task_3) =drx_sl_reset_stored_task(mar_base_owl_stalker_trader_task_3) =reset_task_target_anomaly%, %=fail_task_dec_goodwill(25:ecolog:csky) =remove_special_task_squad(ecolog_companion_task_1) =drx_sl_unregister_task_giver(mar_base_owl_stalker_trader_task_3) =drx_sl_reset_stored_task(mar_base_owl_stalker_trader_task_3)%
+on_cancel = {=is_warfare !squad_exist(ecolog_companion_task_2)} %=reset_task_target_anomaly%
+
+![jup_b6_scientist_tech_task_1]
+on_fail = {=is_warfare !squad_exist(ecolog_companion_task_1)} %=fail_task_dec_goodwill(25:ecolog) =remove_special_task_squad(ecolog_companion_task_2) =drx_sl_unregister_task_giver(jup_b6_scientist_tech_task_1) =drx_sl_reset_stored_task(jup_b6_scientist_tech_task_1) =reset_task_target_anomaly%, %=fail_task_dec_goodwill(25:ecolog) =remove_special_task_squad(ecolog_companion_task_2) =drx_sl_unregister_task_giver(jup_b6_scientist_tech_task_1) =drx_sl_reset_stored_task(jup_b6_scientist_tech_task_1)%
+on_cancel = {=is_warfare !squad_exist(ecolog_companion_task_1)} %=reset_task_target_anomaly%
