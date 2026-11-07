@@ -290,7 +290,11 @@ function current_value(id, v)
         value = axr_main.config:r_value(OPT_SECTION, id, v.val)
     end
     if value == nil then
-        value = (type(v.def) == "table") and ui_options.exec(unpack(v.def)) or v.def
+        if type(v.def) == "table" then
+            value = ui_options.exec(unpack(v.def))
+        else
+            value = v.def
+        end
     end
     return value
 end
