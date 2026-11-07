@@ -390,6 +390,22 @@ function squad_on_npc_death(squad, npc, killer)
     end
 end
 
+local service_spots = {
+    "ui_pda2_special_location", "ui_pda2_trader_location", "ui_pda2_mechanic_location",
+    "ui_pda2_scout_location", "ui_pda2_quest_npc_location", "ui_pda2_barman_location",
+    "ui_pda2_medic_location",
+}
+
+local function has_service_spot(self)
+    local id = self:commander_id()
+    for i = 1, #service_spots do
+        if level.map_has_object_spot(id, service_spots[i]) ~= 0 then
+            return true
+        end
+    end
+    return false
+end
+
 -- Show warfare icon. Warfare-registered squads only; installed on the class by
 -- install_map_spot_router, which sends every other squad to the show() the class had before.
 local function warfare_show(self)
@@ -400,13 +416,7 @@ local function warfare_show(self)
         return
     end
 
-    if (level.map_has_object_spot(self:commander_id(), "ui_pda2_special_location") ~= 0) or
-            (level.map_has_object_spot(self:commander_id(), "ui_pda2_trader_location") ~= 0) or
-            (level.map_has_object_spot(self:commander_id(), "ui_pda2_mechanic_location") ~= 0) or
-            (level.map_has_object_spot(self:commander_id(), "ui_pda2_scout_location") ~= 0) or
-            (level.map_has_object_spot(self:commander_id(), "ui_pda2_quest_npc_location") ~= 0) or
-            (level.map_has_object_spot(self:commander_id(), "ui_pda2_barman_location") ~= 0) or
-            (level.map_has_object_spot(self:commander_id(), "ui_pda2_medic_location") ~= 0) then
+    if has_service_spot(self) then
         self.show_disabled = true
         return
     end
@@ -566,6 +576,9 @@ local function install_map_spot_router()
         end
         if self.warfare_spot then
             warfare_hide(self)
+        end
+        if not self.show_disabled and has_service_spot(self) then
+            self.show_disabled = true -- the class's show() hides on this flag
         end
         return prev_show(self)
     end
