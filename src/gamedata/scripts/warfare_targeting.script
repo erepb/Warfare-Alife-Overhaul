@@ -251,6 +251,10 @@ function find_candidates(smart, faction, eligible, opts)
             end
         end
 
+        if smart_terrain_warfare.is_story_closed(other, faction) then
+            goto continue
+        end
+
         if not (eligible(smart, other, faction, ctx)) then
             goto continue
         end

@@ -3510,7 +3510,8 @@ function find_patrol_target(smart,patrol_table,squad)
         if (neighbor) and (neighbor.props)
         and ((neighbor.props.territory > 0 or neighbor.props.lair > 0) and neighbor.props.resource < 1 and neighbor.props.base < 1)
         and (not patrol_table or patrol_table.target ~= neighbor_id)
-        and not is_quest_locked(neighbor, smart.owning_faction) then
+        and not is_quest_locked(neighbor, smart.owning_faction)
+        and not is_story_closed(neighbor, smart.owning_faction) then
             local dist = warfare.distance_to_xz_sqr(base_position, global_position.from(neighbor))
             candidates[#candidates + 1] = { neighbor, (dist > 1) and dist or 1 }
         end
@@ -3711,7 +3712,8 @@ local function pick(smart, squad, purpose, ...)
     for i = 1, select("#", ...) do
         local open = {}
         for _, other in ipairs(select(i, ...)) do
-            if not is_quest_locked(other, faction) then
+            if not is_quest_locked(other, faction)
+                    and not is_story_closed(other, faction) then
                 open[#open + 1] = other
             end
         end
@@ -5433,6 +5435,56 @@ function get_max_power_mult(smart)
     return kind and opts["distance_combat_max_multiplier_" .. kind] or 1
 end
 
+-- Story posts: background war only.
+function story_hold_active()
+    return warfare.mode == "background"
+end
+
+-- The NPC communities of the story squads posted on the smart (story_id or ignore-list sections
+-- warfare does not own; mutants and companions excluded), nil when there are none. The members'
+-- own communities decide, not the squad's faction: quest givers in ecolog squads are traders.
+local function find_story_communities(smart)
+    if not story_hold_active() then
+        return nil
+    end
+    local board = SIMBOARD.smarts[smart.id]
+    local found
+    for sid in pairs(board and board.squads or {}) do
+        local squad = alife_object(sid)
+        if squad and (squad:clsid() == clsid.online_offline_group_s) and (squad:npc_count() > 0)
+                and not is_squad_monster[squad.player_id]
+                and not axr_companions.companion_squads[sid] and not warfare.is_owned(squad) then
+            local owned, reason = warfare.owns_section(squad:section_name())
+            if (not owned) and (reason == "story_id" or reason == "ignore") then
+                for k in squad:squad_members() do
+                    local community = k.object and k.object:community()
+                    if community then
+                        found = found or {}
+                        found[community] = true
+                    end
+                end
+            end
+        end
+    end
+    return found
+end
+
+-- Closed to a faction hostile to one of the story NPCs posted there: its garrison would fight them
+-- online, and offline the shared-post rule deletes it on arrival. Ownership is not affected.
+function is_story_closed(smart, faction)
+    local communities = smart and smart.story_communities
+    if not (communities and faction) then
+        return false
+    end
+    for community in pairs(communities) do
+        if (community ~= faction)
+                and (is_factions_enemies(faction, community) or is_factions_enemies(community, faction)) then
+            return true
+        end
+    end
+    return false
+end
+
 -- The distance combat multiplier caches per faction, so every owner change has to be announced.
 -- Compared against the value on entry: the smart.last_owner test further down is not a change
 -- detector, since the smart_owners branch writes both fields to the same value.
@@ -5476,6 +5528,8 @@ function check_owner(smart)
     end
 
     local squadCount, squadPowers = squad_count_defending_all(smart)
+
+    smart.story_communities = find_story_communities(smart)
 
     -- Two different concessions, so they gate on two different traits: an open-holdings owner gives
     -- up its non-base points for free, a displaceable one gives up a base to whoever brings more
@@ -5867,7 +5921,7 @@ function find_random_patrol_target(smart, faction, sid)
 
         -- main base protection: never target or spawn on a base still held by its original faction
         local other_faction_rp = other.owning_faction or "none"
-        if prevent_mainbase and other_faction_rp == get_protected_base_faction(other:name()) then
+        if (prevent_mainbase and other_faction_rp == get_protected_base_faction(other:name())) or is_story_closed(other, faction) then
             priority = -1000
         end
 
@@ -6024,7 +6078,7 @@ function find_targets(smart)
         end
 
         -- main base protection: never target a base still held by its original faction
-        if prevent_mainbase and other_faction == get_protected_base_faction(other:name()) then
+        if (prevent_mainbase and other_faction == get_protected_base_faction(other:name())) or is_story_closed(other, faction) then
             goto continue
         end
 

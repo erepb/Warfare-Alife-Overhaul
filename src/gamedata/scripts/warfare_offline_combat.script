@@ -903,8 +903,9 @@ function validate_enemy(sim, lid, squad_1, id_1, id_2, community_1, pos_1)
     end
 
     if opt_exclude then
-        local sid_1 = not squad_1.common
-        local sid_2 = not squad_2.common
+        -- warfare's own squads fight like common ones, whatever their section's common flag
+        local sid_1 = not squad_1.common and not warfare.is_owned(squad_1)
+        local sid_2 = not squad_2.common and not warfare.is_owned(squad_2)
 
         -- If both are story squads, don't simulate battle
         if sid_1 and sid_2 then
