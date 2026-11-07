@@ -90,9 +90,6 @@ local function actor_on_update()
     end
     next_update = now + UPDATE_MS
 
-    if not IsWarfare() then
-        return
-    end
     if not level_spots then
         build_level_spots()
     end

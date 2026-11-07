@@ -315,11 +315,9 @@ local function release_unlisted(smart_name, list, ids, signatures)
     end
 end
 
+-- Runs in every game: the renegade base's service squads spawn in every game (simulation.ltx), and
+-- warfare_player_hqs.allows keeps the faction HQs to warfare games.
 local function actor_on_first_update()
-    if not IsWarfare() then
-        return
-    end
-
     local st = alife_storage_manager.get_state()
     st.warfare_base_props = st.warfare_base_props or {}
     st.warfare_base_props_poses = st.warfare_base_props_poses or {}
@@ -368,6 +366,45 @@ function vice_near_actor()
             return SIMBOARD.smarts_by_names[smart_name]
         end
     end
+end
+
+-- The base's service mechanic section (sim_default_<faction>_mechanic), or nil.
+local function service_mechanic(smart)
+    local board = SIMBOARD.smarts[smart.id]
+    for sid in pairs(board and board.squads or {}) do
+        local squad = alife_object(sid)
+        local commander = squad and alife_object(squad:commander_id())
+        local section = commander and commander:section_name()
+        if section and section:find("^sim_default_.+_mechanic$") then
+            return section
+        end
+    end
+end
+
+-- A Warfare-created vice has no [workshop_angles] row, which bind_awr.access indexes outside warfare.
+local bind_awr_access = bind_awr.access
+function bind_awr.access(obj)
+    if obj and smart_of_vice(obj:id()) then
+        return true
+    end
+    return bind_awr_access(obj)
+end
+
+-- Outside warfare bind_awr opens a Warfare-created vice with no owner; it answers to the base's
+-- mechanic, with the tiers his infoportions record (warfare_tool_tiers owns this in warfare).
+local get_workshop_ui = ui_workshop.get_workshop_ui
+function ui_workshop.get_workshop_ui(hud, mechanic, flags, ...)
+    if not (_G.WARFARE or mechanic) and type(flags) == "table" then
+        local smart = vice_near_actor()
+        mechanic = smart and service_mechanic(smart)
+        if mechanic then
+            for tier = 1, 3 do
+                flags[tier] = has_alife_info(mechanic .. "_upgrade_tier_" .. tier)
+            end
+            warfare_log.info("warfare_base_props: workbench smart=%s owner=%s", smart:name(), mechanic)
+        end
+    end
+    return get_workshop_ui(hud, mechanic, flags, ...)
 end
 
 function on_game_start()

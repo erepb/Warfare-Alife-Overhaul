@@ -38,12 +38,7 @@ local function to_vector(p)
 end
 
 local function actor_on_first_update()
-    level_anchors = nil
     seats = {}
-    if not IsWarfare() then
-        return
-    end
-
     level_anchors = {}
     for _, a in ipairs(anchors) do
         local smart = warfare_utils.smart_on_actor_level(a.smart)
