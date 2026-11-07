@@ -835,4 +835,21 @@
 	<string id="ui_mm_alife_warfare_zcp_pop_factor_desc">
 		<text>While ZCP is enabled, warfare uses this factor instead of Anomaly's A-Life population setting. With ZCP off, warfare uses Anomaly's setting.</text>
 	</string>
+	<string id="st_wrfr_ng_mode_off">
+		<text>Off</text>
+	</string>
+	<string id="st_wrfr_ng_mode_background">
+		<text>Background</text>
+	</string>
+	<string id="st_wrfr_ng_mode_full">
+		<text>Full</text>
+	</string>
+	<string id="st_mm_list_warfare_mode_desc">
+		<text>%c[ui_gray_2]Warfare mode for this playthrough. It cannot be changed once the game has started.\n \n
+		%c[pda_white]Off: %c[ui_gray_2]the standard game.\n \n
+		%c[pda_white]Background: %c[ui_gray_2]a normal game in which the factions fight over bases and territories on their own. Traders, mechanics, medics and barmen lost at a base are replaced. No faction command, no Warfare PDA tab, no Warfare map icons or news.\n \n
+		%c[pda_white]Full: %c[ui_gray_2]the full Warfare mode. Lead your faction through the PDA map.\n \n
+		%c[ui_red]• %c[ui_gray_2]Background and Full are NOT compatible with Survival mode.
+		</text>
+	</string>
 </string_table>

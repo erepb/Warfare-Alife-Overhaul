@@ -556,12 +556,132 @@ function ui_mm_faction_select.UINewGame:OnCheckSetWarfare()
     self:LoadMap()
 end
 
+-- New-game warfare mode: an Off / Background / Full combo where the warfare checkbox was. The
+-- checkbox stays, hidden, ticked for Full only: vanilla and other mods read it as "a warfare game".
+local MODES = { "off", "background", "full" }
+local MODE_TEXT = {
+    off = "st_wrfr_ng_mode_off",
+    background = "st_wrfr_ng_mode_background",
+    full = "st_wrfr_ng_mode_full",
+}
+
+local function show_warfare_mode(self, mode)
+    self.warfare_mode = mode
+    self.list_warfare_mode:SetText(game.translate_string(MODE_TEXT[mode]))
+end
+
+local function on_select_warfare_mode(self)
+    local mode = MODES[self.list_warfare_mode:CurrentID()]
+    if not (self.access and mode) then
+        show_warfare_mode(self, self.warfare_mode)
+        return
+    end
+    show_warfare_mode(self, mode)
+    self.ck_warfare:SetCheck(mode == "full")
+    if mode == "full" then
+        self:OnCheckSetWarfare()
+        return
+    end
+    if mode == "background" then
+        self.ck_survival:SetCheck(false)
+        self.ck_states["ck_survival"] = false
+    end
+    self:LoadMap()
+end
+
+-- Where the combo goes: the checkbox's row, shifted like the panel's own lives combo sits against
+-- the hardcore checkbox, when both are in the warfare checkbox's column. Returns x, y and the
+-- caption gap after the combo (nil: no sibling to copy it from).
+local function warfare_mode_anchor(self, ck)
+    local pos = ck:GetWndPos()
+    local list, row_ck, list_cap = self.list_hardcore_lives, self.ck_hardcore, self.list_hardcore_lives_cap
+    if not (list and row_ck) then
+        return pos.x, pos.y
+    end
+    local list_pos, row_pos = list:GetWndPos(), row_ck:GetWndPos()
+    local w = ck:GetWidth()
+    if math.abs(row_pos.x - pos.x) >= w or math.abs(list_pos.x - row_pos.x) >= w then
+        return pos.x, pos.y
+    end
+    local gap = list_cap and (list_cap:GetWndPos().x - (list_pos.x + list:GetWidth()))
+    return pos.x + (list_pos.x - row_pos.x), pos.y, gap
+end
+
+-- Takes the live checkbox's place, so a modpack layout that moves it is followed.
+local function place_warfare_mode(self)
+    local ck, parent = self.ck_warfare, self.templ_options
+    if not (ck and parent and self.ck_survival and self.ck_states) then
+        warfare_log.warn("modxml_warfare: no warfare checkbox on the new-game screen, background war unavailable")
+        return
+    end
+    local xml = CScriptXmlInit()
+    xml:ParseFile("ui_warfare_new_game.xml")
+    local combo = xml:InitComboBox("warfare_mode", parent)
+    combo:SetAutoDelete(true)
+    for i, mode in ipairs(MODES) do
+        combo:AddItem(game.translate_string(MODE_TEXT[mode]), i)
+    end
+
+    local x, y, gap = warfare_mode_anchor(self, ck)
+    combo:SetWndPos(vector2():set(x, y))
+    local cap = self.ck_warfare_cap
+    if cap then
+        local cap_pos = cap:GetWndPos()
+        local cap_x = gap and (x + combo:GetWidth() + gap) or (cap_pos.x + combo:GetWidth() - ck:GetWidth())
+        cap:SetWndPos(vector2():set(cap_x, cap_pos.y))
+    end
+    ck:Show(false)
+
+    self.list_warfare_mode = combo
+    self.ck_states["list_warfare_mode"] = false
+    self:Register(combo, "list_warfare_mode")
+    self:AddCallback("list_warfare_mode", ui_events.LIST_ITEM_SELECT, on_select_warfare_mode, self)
+    show_warfare_mode(self, ck:GetCheck() and "full" or "off")
+end
+
+local old_main_controls = ui_mm_faction_select.UINewGame.Main_Controls
+function ui_mm_faction_select.UINewGame:Main_Controls()
+    old_main_controls(self)
+    place_warfare_mode(self)
+end
+
+-- Vanilla's survival check clears warfare; Background is not compatible with survival either.
+local old_on_check_set_survival = ui_mm_faction_select.UINewGame.OnCheckSetSurvival
+function ui_mm_faction_select.UINewGame:OnCheckSetSurvival()
+    old_on_check_set_survival(self)
+    if not self.list_warfare_mode then
+        return
+    end
+    if (self.warfare_mode == "full" and not self.ck_warfare:GetCheck())
+            or (self.warfare_mode == "background" and self.ck_survival:GetCheck()) then
+        show_warfare_mode(self, "off")
+    end
+end
+
+local old_on_start_game = ui_mm_faction_select.UINewGame.OnStartGame
+function ui_mm_faction_select.UINewGame:OnStartGame()
+    if self.access and axr_main and axr_main.config then
+        local background = self.warfare_mode == "background"
+            and not (self.ck_warfare and self.ck_warfare:GetCheck())
+            and not (self.ck_survival and self.ck_survival:GetCheck())
+        axr_main.config:w_value("character_creation", "new_game_warfare_background", background or nil)
+    end
+    return old_on_start_game(self)
+end
+
 local old_on_game_load = ui_mm_faction_select.on_game_load
 function ui_mm_faction_select.on_game_load(binder)
+    -- the twin of vanilla's new_game_warfare -> enable_warfare_mode hand-over
+    local config = axr_main.config
+    if config and config:r_value("character_creation", "new_game_warfare_background", 1) == true then
+        alife_storage_manager.get_state().warfare_background = true
+        config:w_value("character_creation", "new_game_warfare_background")
+        config:save()
+        warfare_log.info("modxml_warfare.on_game_load: background war stored in the save")
+    end
     if not _G.WARFARE then
         return old_on_game_load(binder)
     end
-    local config = axr_main.config
     if not (config) then
         warfare_log.warn("modxml_warfare.on_game_load: axr_main.config nil")
         return

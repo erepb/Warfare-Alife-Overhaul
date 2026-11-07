@@ -833,4 +833,21 @@
 	<string id="ui_mm_alife_warfare_zcp_pop_factor_desc">
 		<text>Пока ZCP включён, Warfare берёт этот множитель вместо настройки населения A-Life из Anomaly. Если ZCP выключен, Warfare берёт настройку Anomaly.</text>
 	</string>
+	<string id="st_wrfr_ng_mode_off">
+		<text>Нет</text>
+	</string>
+	<string id="st_wrfr_ng_mode_background">
+		<text>Фоновая</text>
+	</string>
+	<string id="st_wrfr_ng_mode_full">
+		<text>Полная</text>
+	</string>
+	<string id="st_mm_list_warfare_mode_desc">
+		<text>%c[ui_gray_2]Режим войны группировок на всё прохождение. После начала игры его уже не поменять.\n \n
+		%c[pda_white]Нет: %c[ui_gray_2]обычная игра.\n \n
+		%c[pda_white]Фоновая: %c[ui_gray_2]обычная игра, только группировки сами воюют за базы и территории. Погибших на базе торговцев, техников, медиков и барменов сменяют новые. Ни командования группировкой, ни вкладки Warfare в КПК, ни её меток на карте и новостей.\n \n
+		%c[pda_white]Полная: %c[ui_gray_2]полноценный режим Warfare. Ведите свою группировку через карту КПК.\n \n
+		%c[ui_red]• %c[ui_gray_2]Фоновая и полная война несовместимы с режимом «Выживание».
+		</text>
+	</string>
 </string_table>
