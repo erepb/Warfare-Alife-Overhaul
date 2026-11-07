@@ -202,6 +202,32 @@ function smart_on_actor_level(smart_name)
     end
 end
 
+-- Smart roles as warfare reads them, one role per smart: base > resource > lair > territory.
+-- Vanilla lairs also carry territory; that only lets factions visit them, so they stay lairs.
+local function role(props, key)
+    return props and tonumber(props[key]) or 0
+end
+
+function smart_kind(props)
+    if role(props, "base") > 0 then
+        return "base"
+    elseif role(props, "resource") > 0 then
+        return "resource"
+    elseif role(props, "lair") > 0 then
+        return "lair"
+    elseif role(props, "territory") > 0 then
+        return "territory"
+    end
+end
+
+function is_lair(props)
+    return smart_kind(props) == "lair"
+end
+
+function is_territory(props)
+    return smart_kind(props) == "territory"
+end
+
 --We need this class to allocate memory for string constants only once per whole loop
 class "CheckUniqueSquad"
 function CheckUniqueSquad:__init(faction)

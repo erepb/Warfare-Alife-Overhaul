@@ -430,15 +430,14 @@ function render_mutant_smart_info(smart)
     ImGui.Text("Mutant Smart Terrain:")
     
     -- Check if this smart can spawn mutants
-    local can_spawn_mutants = not ((smart.props.base > 0) or (smart.props.territory > 0) or (smart.props.lair < 1))
+    local kind = warfare_utils.smart_kind(smart.props)
+    local can_spawn_mutants = kind == "lair"
     ImGui.Text("  Can Spawn Mutants: " .. (can_spawn_mutants and "Yes" or "No"))
     
     if not can_spawn_mutants then
-        if smart.props.base > 0 then
-            ImGui.Text("  Reason: Is a base location")
-        elseif smart.props.territory > 0 then
-            ImGui.Text("  Reason: Is a territory location")
-        elseif smart.props.lair < 1 then
+        if kind then
+            ImGui.Text("  Reason: Is a " .. kind .. " location")
+        else
             ImGui.Text("  Reason: Not a lair location")
         end
         return

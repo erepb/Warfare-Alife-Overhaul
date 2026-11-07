@@ -462,7 +462,7 @@ function build_level_information()
                 if smart.props.base > 0 then
                     warfare_levels.level_information[smart.level_id].base_count = warfare_levels.level_information[smart.level_id].base_count + 1
                     base_count = base_count + 1
-                elseif smart.props.territory > 0 then
+                elseif warfare_utils.is_territory(smart.props) then
                     warfare_levels.level_information[smart.level_id].territory_count = warfare_levels.level_information[smart.level_id].territory_count + 1
                 end
 
@@ -1019,8 +1019,7 @@ function fill_start_position()
             smart.level_id = game_graph():vertex(smart.m_game_vertex_id):level_id()
         end
 
-        if (smart.props.lair > 0) and (smart.props.base < 1) and (smart.props.resource < 1) and (smart.props.territory < 1)
-                and not smart_terrain_warfare.is_smart_locked(smart) then
+        if warfare_utils.is_lair(smart.props) and not smart_terrain_warfare.is_smart_locked(smart) then
             -- stagger mutant spawn timer so lairs don't all fire at the same time
             smart_terrain_warfare.spawn_mutant_next_update[smart.id] = math.random(0, mutant_max) * speed_mult
             smart_terrain_warfare.spawn_mutant_timers[smart.id] = get_time()

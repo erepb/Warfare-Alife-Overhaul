@@ -123,12 +123,12 @@ function interest(other, faction, ff)
         usable = true
     end
 
-    if (props.territory > 0) and (props.resource < 1) and (props.base < 1) and (props.lair < 1) then
+    if warfare_utils.is_territory(props) then
         weight = weight + (props.territory * (ff.territory_priority or 0))
         usable = true
     end
 
-    if (props.lair > 0) and (props.base < 1) and (props.resource < 1) then
+    if warfare_utils.is_lair(props) then
         weight = weight + (props.lair * (ff.lair_priority or 0))
         usable = true
     end

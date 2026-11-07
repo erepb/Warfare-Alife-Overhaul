@@ -532,7 +532,7 @@ function update_level(lvl)
 				if (smart.props.base > 0) then
 					level_information[lvl].faction_stats[smart.owning_faction].base_count = level_information[lvl].faction_stats[smart.owning_faction].base_count + 1
 					level_information[lvl].faction_stats[smart.owning_faction].total_power = level_information[lvl].faction_stats[smart.owning_faction].total_power + dp
-				elseif (smart.props.territory > 0) then
+				elseif warfare_utils.is_territory(smart.props) then
 					level_information[lvl].faction_stats[smart.owning_faction].territory_count = level_information[lvl].faction_stats[smart.owning_faction].territory_count + 1
 					level_information[lvl].faction_stats[smart.owning_faction].total_power = level_information[lvl].faction_stats[smart.owning_faction].total_power + dp
 				end

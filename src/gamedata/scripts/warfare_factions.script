@@ -345,7 +345,7 @@ function update_faction(faction)
                                             if (smart.owning_faction == "none" or game_relations.is_factions_enemies(smart.owning_faction, faction)) then
                                                 targets[#targets + 1] = smart
                                             end
-                                        elseif (smart.props and smart.props.territory > 0 and (smart.props.resource == nil or smart.props.resource <= 0)) then
+                                        elseif warfare_utils.is_territory(smart.props) then
                                             spawns[#spawns + 1] = smart
                                         end
                                     end
@@ -521,7 +521,7 @@ function emergency_resurrection_spawn(faction)
                 if (smart) then
                     local is_valid_spawn = false
 
-                    if smart.props and smart.props.territory > 0 and smart.props.base < 1 and smart.props.resource < 1 then
+                    if warfare_utils.is_territory(smart.props) then
                         if smart.owning_faction == "none" or not game_relations.is_factions_enemies(smart.owning_faction, faction) then
                             is_valid_spawn = true
                         end
@@ -529,7 +529,7 @@ function emergency_resurrection_spawn(faction)
                         if smart.owning_faction == "none" or not game_relations.is_factions_enemies(smart.owning_faction, faction) then
                             is_valid_spawn = true
                         end
-                    elseif smart.props and smart.props.lair > 0 and smart.props.base < 1 and smart.props.resource < 1 and smart.props.territory < 1 then
+                    elseif warfare_utils.is_lair(smart.props) then
                         is_valid_spawn = true
                     end
 

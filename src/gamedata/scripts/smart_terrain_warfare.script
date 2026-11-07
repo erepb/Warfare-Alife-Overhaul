@@ -599,8 +599,7 @@ local function count_mutant_lairs(li)
     for _, sid in pairs(li.smarts or {}) do
         local smart = sid and alife_object(sid)
         local props = smart and smart.props
-        if (props) and (props.lair > 0) and (props.base < 1) and (props.resource < 1) and (props.territory < 1)
-                and not is_smart_locked(smart) then
+        if warfare_utils.is_lair(props) and not is_smart_locked(smart) then
             count = count + 1
         end
     end
@@ -729,11 +728,18 @@ function translate_smart_name(name)
     return (name and game.translate_string("st_" .. name .. "_name") or "")
 end
 
+-- Bases, resources and territories; lairs and role-less smarts are not worth holding.
+local function is_valuable(props)
+    local kind = warfare_utils.smart_kind(props)
+    return kind ~= nil and kind ~= "lair"
+end
+
 function set_max_population(smart)
     local stalker_pop_factor = warfare.get_stalker_pop_factor()
     local monster_pop_factor = warfare.get_monster_pop_factor()
 
-    if (smart.props and (smart.props.base > 0 or smart.props.resource > 0 or smart.props.territory > 0)) then
+    local kind = warfare_utils.smart_kind(smart.props)
+    if (kind and kind ~= "lair") then
         smart.max_population = round_idp(math.max(1, smart.default_max_population * stalker_pop_factor))
     else
         smart.max_population = round_idp(math.max(1, smart.default_max_population * monster_pop_factor))
@@ -869,11 +875,11 @@ function smart_terrain_on_update(smart)
             -- Pure resource point updates: keep at least one squad
             elseif (smart.props.resource > 0) then
                 process_nonbase_squads(smart, false, true)
-            elseif (smart.props.territory > 0 and smart.props.lair < 1) then
+            elseif warfare_utils.is_territory(smart.props) then
                 process_nonbase_squads(smart)
 
             -- Lair updates: always recall faction squads (they have no business idling here)
-            elseif (smart.props.lair and smart.props.lair > 0) then
+            elseif warfare_utils.is_lair(smart.props) then
                 process_nonbase_squads(smart, true)
             end
 
@@ -3723,7 +3729,7 @@ local function outguns(squad, other)
 end
 
 local function is_pure_lair(other)
-    return other.props and other.props.lair > 0 and other.props.base < 1 and other.props.resource < 1
+    return warfare_utils.is_lair(other.props)
 end
 
 local function find_resources(spec, smart, squad, faction, linked)
@@ -3793,7 +3799,7 @@ end
 local function find_territory(smart, squad)
     local all = {}
     scan_level(smart.level_id, function(other)
-        if other.props and other.props.territory > 0 then
+        if warfare_utils.is_territory(other.props) then
             all[#all + 1] = other
         end
     end)
@@ -3901,7 +3907,7 @@ function process_independent(smart, model, spec)
 
     local props = smart.props
     local at_base = props and props.base > 0
-    local at_resource = props and ((props.resource > 0 and props.base < 1) or props.territory > 0)
+    local at_resource = props and ((props.resource > 0 and props.base < 1) or warfare_utils.is_territory(props))
     local isNight = warfare_utils.is_night()
     local isDaylight = warfare_utils.is_daylight()
     local isSunset = warfare_utils.is_sunset()
@@ -3990,7 +3996,7 @@ function get_mutant_level_settings(level_id)
 end
 
 function spawn_mutants(smart)
-    if (smart.props.base > 0) or (smart.props.resource > 0) or (smart.props.territory > 0) or (smart.props.lair < 1) then
+    if not warfare_utils.is_lair(smart.props) then
         return
     end
     if is_smart_locked(smart) then
@@ -4505,7 +4511,7 @@ function smart_terrain.se_smart_terrain:show()
                 end
 
                 -- hide empty useless smarts within visible range
-                if (warfare_options.options.hide_lair_smarts) and (faction == "none") and (self.props.base + self.props.resource + self.props.territory < 1) then
+                if (warfare_options.options.hide_lair_smarts) and (faction == "none") and (not is_valuable(self.props)) then
                     visible = false
                 end
 
@@ -4557,7 +4563,7 @@ function smart_terrain.se_smart_terrain:show()
                                 level.map_remove_object_spot(self.id, pda_icons[self.warfare_spot])
                                 self.warfare_spot = nil
                             -- if hiding only lair smarts, remove spots from lairs but make 'unknown' spots on valuable nonvisible terrains
-                            elseif (warfare_options.options.hide_lair_smarts) and (self.props.base + self.props.resource + self.props.territory < 1) then
+                            elseif (warfare_options.options.hide_lair_smarts) and (not is_valuable(self.props)) then
                                 level.map_remove_object_spot(self.id, pda_icons[self.warfare_spot])
                                 self.warfare_spot = nil
                             -- neither option is being used
@@ -4577,7 +4583,7 @@ function smart_terrain.se_smart_terrain:show()
                                 -- hiding lair terrains
                                 if (warfare_options.options.hide_lair_smarts) then
                                     -- smart is a valuable nonvisible terrain: add 'unknown' spot
-                                    if (self.props.base + self.props.resource + self.props.territory > 0) then
+                                    if is_valuable(self.props) then
                                         add_smart_spot(self, display_key, "unknown")
                                     end
                                 -- not using either option, so need to add 'unknown' spots to all smarts
@@ -4684,7 +4690,7 @@ function smart_terrain.se_smart_terrain:show()
                         level.map_remove_object_spot(self.id, pda_icons[self.warfare_spot])
                         self.warfare_spot = nil
                     -- if hiding only lair smarts, remove spots from unoccupied (no stalker) lairs
-                    elseif (warfare_options.options.hide_lair_smarts) and (self.props.base + self.props.resource + self.props.territory < 1) and (faction == "none") then
+                    elseif (warfare_options.options.hide_lair_smarts) and (not is_valuable(self.props)) and (faction == "none") then
                         level.map_remove_object_spot(self.id, pda_icons[self.warfare_spot])
                         self.warfare_spot = nil
                     -- neither option is being used
@@ -4705,7 +4711,7 @@ function smart_terrain.se_smart_terrain:show()
                         -- hiding lair terrains
                         if (warfare_options.options.hide_lair_smarts) then
                             -- smart is a valuable nonvisible but occupied terrain: add faction spot
-                            if (self.props.base + self.props.resource + self.props.territory > 0) or (faction ~= "none") then
+                            if is_valuable(self.props) or (faction ~= "none") then
                                 add_smart_spot(self, display_key, "info")
                             end
                         -- not using either option, so need to add faction spots to all smarts
@@ -4813,9 +4819,9 @@ local function get_smart_base_info(smart, show_owner, show_counts)
             props = props .. " \\n" .. clr_gr .. str_wrfr[2] .. " \\n"
         elseif (smart.props.resource > 0) then
             props = props .. " \\n" .. clr_gr .. str_wrfr[3] .. " \\n"
-        elseif (smart.props.territory > 0) then
+        elseif warfare_utils.is_territory(smart.props) then
             props = props .. " \\n" .. clr_gr .. str_wrfr[4] .. " \\n"
-        elseif (smart.props.lair > 0) then
+        elseif warfare_utils.is_lair(smart.props) then
             props = props .. " \\n" .. clr_gr .. str_wrfr[5] .. " \\n"
         end
     end
@@ -5416,17 +5422,8 @@ function get_max_power_mult(smart)
         return 1
     end
 
-    if props.base and props.base > 0 then
-        return opts.distance_combat_max_multiplier_base
-    elseif props.resource and props.resource > 0 then
-        return opts.distance_combat_max_multiplier_resource
-    elseif props.territory and props.territory > 0 then
-        return opts.distance_combat_max_multiplier_territory
-    elseif props.lair and props.lair > 0 then
-        return opts.distance_combat_max_multiplier_lair
-    end
-
-    return 1
+    local kind = warfare_utils.smart_kind(props)
+    return kind and opts["distance_combat_max_multiplier_" .. kind] or 1
 end
 
 -- The distance combat multiplier caches per faction, so every owner change has to be announced.
@@ -5783,7 +5780,7 @@ function find_random_patrol_target(smart, faction, sid)
                         priority = priority + (other.props.resource * faction_options.resource_priority)
                     end
 
-                    if (other.props.territory > 0 and other.props.resource < 1 and other.props.base < 1 and other.props.lair < 1 and faction_options.territory_priority) then
+                    if warfare_utils.is_territory(other.props) and faction_options.territory_priority then
                         priority = priority + (other.props.territory * faction_options.territory_priority)
                     end
 
@@ -5813,8 +5810,8 @@ function find_random_patrol_target(smart, faction, sid)
                         end
                     end
 
-                    -- heavily de-prioritize pure lairs
-                    if (other.props.resource < 1 and other.props.base < 1 and other.props.territory < 1) then
+                    -- heavily de-prioritize lairs and role-less smarts
+                    if not is_valuable(other.props) then
                         priority = -1000
                     end
 
