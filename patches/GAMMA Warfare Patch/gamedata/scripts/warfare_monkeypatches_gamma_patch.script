@@ -1,26 +1,22 @@
-local old_emission_guard_patch_on_game_start = emission_guard_patch.on_game_start
-emission_guard_patch.on_game_start = function()
-    if _G.WARFARE then
+-- These mods stay out of warfare games. Their on_game_start only registers callbacks, and it runs
+-- before the mode of a loaded save is known, so it is deferred to on_game_load.
+local function outside_warfare(mod)
+    local on_game_start = mod and mod.on_game_start
+    if not on_game_start then
         return
     end
-    old_emission_guard_patch_on_game_start()
+    mod.on_game_start = function()
+        RegisterScriptCallback("on_game_load", function()
+            if not _G.WARFARE then
+                on_game_start()
+            end
+        end)
+    end
 end
 
-local old_grok_nes_on_game_start = grok_nes.on_game_start
-grok_nes.on_game_start = function()
-    if _G.WARFARE then
-        return
-    end
-    old_grok_nes_on_game_start()
-end
-
-local old_grok_no_north_faction_in_south_on_game_start = grok_no_north_faction_in_south.on_game_start
-grok_no_north_faction_in_south.on_game_start = function()
-    if _G.WARFARE then
-        return
-    end
-    old_grok_no_north_faction_in_south_on_game_start()
-end
+outside_warfare(emission_guard_patch)
+outside_warfare(grok_nes)
+outside_warfare(grok_no_north_faction_in_south)
 
 function get_random_faction(smart, guard)
     if _G.WARFARE and smart.owning_faction and smart.owning_faction ~= "none" then
@@ -34,6 +30,9 @@ end
 
 local old_guards_spawner_spawn_guard = guards_spawner.spawn_guard
 guards_spawner.spawn_guard = function()
+    if not _G.WARFARE then
+        return old_guards_spawner_spawn_guard()
+    end
     local cur_game_time = warfare.get_time_ref()
     if (guards_spawner.upd_tmr and guards_spawner.upd_tmr:diffSec(cur_game_time) > 0) then
         return

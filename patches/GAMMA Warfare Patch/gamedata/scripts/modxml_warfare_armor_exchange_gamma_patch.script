@@ -51,6 +51,8 @@ end
 
 function on_game_start()
     if exchange_installed() then
-        RegisterScriptCallback("on_specific_character_dialog_list", add_exchange_dialog)
+        warfare.on_enabled(function()
+            RegisterScriptCallback("on_specific_character_dialog_list", add_exchange_dialog)
+        end)
     end
 end
