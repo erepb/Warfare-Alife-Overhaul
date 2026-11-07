@@ -94,7 +94,7 @@ local function wrap_task_effect(name)
     return true
 end
 
-function on_game_start()
+local function install()
     warfare_log.debug("task_manager_warfare.on_game_start: registering callbacks")
     RegisterScriptCallback("npc_on_death_callback", npc_on_death_callback)
 
@@ -111,4 +111,8 @@ function on_game_start()
         end
     end
     warfare_log.debug("task_manager_warfare.on_game_start: splitting %s task goodwill effects", n)
+end
+
+function on_game_start()
+    warfare.on_enabled(install)
 end

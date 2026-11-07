@@ -261,56 +261,58 @@ end
 -- Hooks
 --------------------------------------------------------------------------------------
 
-local xr_conditions_toolkit_task_done = xr_conditions.toolkit_task_done
-function xr_conditions.toolkit_task_done(actor, npc, p)
-    local section = npc and npc:section()
-    if warfare_role(section) == "mechanic" then
-        local base = base_of(npc)
-        local tier = tonumber(p and p[1])
-        return (base ~= nil and tier ~= nil and effective_tier(base) >= tier)
+local function install_hooks()
+    local xr_conditions_toolkit_task_done = xr_conditions.toolkit_task_done
+    function xr_conditions.toolkit_task_done(actor, npc, p)
+        local section = npc and npc:section()
+        if warfare_role(section) == "mechanic" then
+            local base = base_of(npc)
+            local tier = tonumber(p and p[1])
+            return (base ~= nil and tier ~= nil and effective_tier(base) >= tier)
+        end
+        return xr_conditions_toolkit_task_done(actor, npc, p)
     end
-    return xr_conditions_toolkit_task_done(actor, npc, p)
-end
 
-local xr_conditions_drugkit_task_done = xr_conditions.drugkit_task_done
-function xr_conditions.drugkit_task_done(actor, npc, p)
-    local section = npc and npc:section()
-    if warfare_role(section) == "medic" then
-        local base = base_of(npc)
-        return base ~= nil and effective_drugkit(base)
+    local xr_conditions_drugkit_task_done = xr_conditions.drugkit_task_done
+    function xr_conditions.drugkit_task_done(actor, npc, p)
+        local section = npc and npc:section()
+        if warfare_role(section) == "medic" then
+            local base = base_of(npc)
+            return base ~= nil and effective_drugkit(base)
+        end
+        return xr_conditions_drugkit_task_done(actor, npc, p)
     end
-    return xr_conditions_drugkit_task_done(actor, npc, p)
-end
 
-local generate_available_tasks = axr_task_manager.generate_available_tasks
-function axr_task_manager.generate_available_tasks(npc, is_sim, ...)
-    sync(npc)
-    return generate_available_tasks(npc, is_sim, ...)
-end
-
-local task_callback = task_manager.task_callback
-function task_manager.task_callback(tsk, state, ...)
-    local id = _G.WARFARE and (state == task.completed) and tsk and tsk:get_id()
-    local rtask = id and task_manager.get_task_manager().task_info[id]
-    local giver_id = rtask and rtask.task_giver_id
-    local result = task_callback(tsk, state, ...)
-    if id then
-        capture(id, giver_id)
+    local generate_available_tasks = axr_task_manager.generate_available_tasks
+    function axr_task_manager.generate_available_tasks(npc, is_sim, ...)
+        sync(npc)
+        return generate_available_tasks(npc, is_sim, ...)
     end
-    return result
-end
 
-local get_workshop_ui = ui_workshop.get_workshop_ui
-function ui_workshop.get_workshop_ui(hud, mechanic, flags, ...)
-    local base = _G.WARFARE and type(flags) == "table" and vice_base(mechanic)
-    if base then
-        local tier = effective_tier(base)
-        flags[1], flags[2], flags[3] = tier >= 1, tier >= 2, tier >= 3
-        flags[4] = effective_drugkit(base)
-        warfare_log.info("warfare_tool_tiers: workbench base=%s owner=%s tier=%s drugkit=%s",
-            base, tostring(mechanic), tier, tostring(flags[4]))
+    local task_callback = task_manager.task_callback
+    function task_manager.task_callback(tsk, state, ...)
+        local id = _G.WARFARE and (state == task.completed) and tsk and tsk:get_id()
+        local rtask = id and task_manager.get_task_manager().task_info[id]
+        local giver_id = rtask and rtask.task_giver_id
+        local result = task_callback(tsk, state, ...)
+        if id then
+            capture(id, giver_id)
+        end
+        return result
     end
-    return get_workshop_ui(hud, mechanic, flags, ...)
+
+    local get_workshop_ui = ui_workshop.get_workshop_ui
+    function ui_workshop.get_workshop_ui(hud, mechanic, flags, ...)
+        local base = _G.WARFARE and type(flags) == "table" and vice_base(mechanic)
+        if base then
+            local tier = effective_tier(base)
+            flags[1], flags[2], flags[3] = tier >= 1, tier >= 2, tier >= 3
+            flags[4] = effective_drugkit(base)
+            warfare_log.info("warfare_tool_tiers: workbench base=%s owner=%s tier=%s drugkit=%s",
+                base, tostring(mechanic), tier, tostring(flags[4]))
+        end
+        return get_workshop_ui(hud, mechanic, flags, ...)
+    end
 end
 
 local function npc_on_use(npc, who)
@@ -318,12 +320,15 @@ local function npc_on_use(npc, who)
 end
 
 local function actor_on_first_update()
-    if IsWarfare() and not converted then
+    if not converted then
         convert()
     end
 end
 
 function on_game_start()
-    RegisterScriptCallback("npc_on_use", npc_on_use)
-    RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
+    warfare.on_enabled(install_hooks)
+    warfare.on_enabled(function()
+        RegisterScriptCallback("npc_on_use", npc_on_use)
+        RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
+    end)
 end

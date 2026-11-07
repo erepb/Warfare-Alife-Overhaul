@@ -521,7 +521,11 @@ function ui_options.init_opt_coder()
     end
 end
 
+local old_on_check_set_story = ui_mm_faction_select.UINewGame.OnCheckSetStory
 function ui_mm_faction_select.UINewGame:OnCheckSetStory()
+    if not (self.ck_warfare and self.ck_warfare:GetCheck()) then
+        return old_on_check_set_story(self)
+    end
     if (not self.access) then
         return
     end
@@ -536,7 +540,11 @@ function ui_mm_faction_select.UINewGame:OnCheckSetStory()
     self:LoadMap()
 end
 
+local old_on_check_set_warfare = ui_mm_faction_select.UINewGame.OnCheckSetWarfare
 function ui_mm_faction_select.UINewGame:OnCheckSetWarfare()
+    if not (self.ck_warfare and self.ck_warfare:GetCheck()) then
+        return old_on_check_set_warfare(self)
+    end
     if (not self.access) then
         return
     end
@@ -550,6 +558,9 @@ end
 
 local old_on_game_load = ui_mm_faction_select.on_game_load
 function ui_mm_faction_select.on_game_load(binder)
+    if not _G.WARFARE then
+        return old_on_game_load(binder)
+    end
     local config = axr_main.config
     if not (config) then
         warfare_log.warn("modxml_warfare.on_game_load: axr_main.config nil")
@@ -585,6 +596,9 @@ end
 
 local old_actor_on_first_update = ui_mm_faction_select.actor_on_first_update
 function ui_mm_faction_select.actor_on_first_update(binder, delta)
+    if not _G.WARFARE then
+        return old_actor_on_first_update(binder, delta)
+    end
     old_actor_on_first_update(binder, delta)
     -- Survival mode
     if (IsSurvivalMode()) then

@@ -59,7 +59,7 @@ end
 
 local function hq_of(faction)
     local hq = faction and hqs[faction]
-    if hq and IsWarfare() and (not hq.available or hq.available()) then
+    if hq and _G.WARFARE and (not hq.available or hq.available()) then
         return hq
     end
 end

@@ -2,11 +2,14 @@
 
 -- Scientist escort task patch for xr_conditions.script + xr_effects.script
 old_anomaly_task_cond = xr_conditions.has_task_target_anomaly
-function xr_conditions.has_task_target_anomaly()
-    old_anomaly_task_cond()
+function xr_conditions.has_task_target_anomaly(...)
+    if not _G.WARFARE then
+        return old_anomaly_task_cond(...)
+    end
+    old_anomaly_task_cond(...)
 
     local warfare_task = db.actor and load_var(db.actor, "warfare_escort_task_smart")
-    if IsWarfare() and warfare_task then
+    if warfare_task then
         warfare_log.trace("has_task_target_anomaly: warfare escort task path, smart=%s", tostring(warfare_task))
         return db.actor and load_var(db.actor, "task_target_anomaly_analyzed") == "not_analyzed"
     end
@@ -14,12 +17,15 @@ function xr_conditions.has_task_target_anomaly()
 end
 
 old_anomaly_task_effect = xr_effects.setup_task_target_anomaly
-function xr_effects.setup_task_target_anomaly()
-    old_anomaly_task_effect()
+function xr_effects.setup_task_target_anomaly(...)
+    if not _G.WARFARE then
+        return old_anomaly_task_effect(...)
+    end
+    old_anomaly_task_effect(...)
 
     local targets = {}
     local warfare_task = db.actor and load_var(db.actor, "warfare_escort_task_smart")
-    if IsWarfare() and warfare_task then
+    if warfare_task then
         local target_name
         target_name = level.name()
         warfare_log.debug("setup_task_target_anomaly: warfare escort, level=%s", tostring(target_name))
@@ -47,6 +53,9 @@ end
 -- Patch to fix jupiter escort quest completion when anomalous research is also active
 old_ecolog_companion_task_2_complete_task = dialogs_jupiter.ecolog_companion_task_2_complete_task
 function dialogs_jupiter.ecolog_companion_task_2_complete_task(a, b)
+    if not _G.WARFARE then
+        return old_ecolog_companion_task_2_complete_task(a, b)
+    end
     old_ecolog_companion_task_2_complete_task(a, b)
     warfare_log.debug("ecolog_companion_task_2_complete_task: invoked")
 
@@ -78,7 +87,7 @@ local pda_dynamic_tab_active = false
 if has_dynamic_pda_tabs() then
     local registered = false
     RegisterScriptCallback("actor_on_first_update", function()
-        if registered or not IsWarfare() then
+        if registered or not _G.WARFARE then
             return
         end
         registered = true
@@ -600,7 +609,7 @@ end
 -- (trader, mechanic, ...) get one NPC. Other games keep the installed create_npc.
 local sim_squad_scripted_create_npc = sim_squad_scripted.sim_squad_scripted.create_npc
 function sim_squad_scripted.sim_squad_scripted.create_npc(self, spawn_smart, pos, lvid, gvid)
-    if not IsWarfare() then
+    if not _G.WARFARE then
         return sim_squad_scripted_create_npc(self, spawn_smart, pos, lvid, gvid)
     end
 
@@ -841,6 +850,9 @@ local inherited_trade_goodwill = {}
 -- they test goodwill with the trader's own faction instead.
 local xr_conditions_actor_goodwill_ge = xr_conditions.actor_goodwill_ge
 function xr_conditions.actor_goodwill_ge(actor, npc, p)
+    if not _G.WARFARE then
+        return xr_conditions_actor_goodwill_ge(actor, npc, p)
+    end
     local id = npc and type(npc.id) == "function" and npc:id()
     local home = id and inherited_trade_goodwill[id]
     if home and p and p[1] == home then
@@ -958,13 +970,16 @@ end
 -- Position path (level_id set): no offset entry for that level_id.
 -- A missing offset is a property of the level, and a missing position a property of the object, so
 -- both repeat for as long as the condition lasts. Callers include per-squad loops over every smart
--- (sim_offline_combat.calculate_distance_combat_multiplier), which turns one broken level into
+-- (warfare_offline_combat.calculate_distance_combat_multiplier), which turns one broken level into
 -- thousands of identical lines, so each key is reported once per session.
 local warned_offset = {}
 local warned_object = {}
 
 local global_position_from = global_position.from
 global_position.from = function(object_or_position, level_id)
+    if not _G.WARFARE then
+        return global_position_from(object_or_position, level_id)
+    end
     if (level_id == nil) then
         local gp = global_position_from(object_or_position, level_id)
         if not (gp) then
@@ -1009,7 +1024,7 @@ end
 -- given the same warfare-aware treatment as generate_ongoing_tasks).
 local old_axr_generate_available_tasks = axr_task_manager.generate_available_tasks
 function axr_task_manager.generate_available_tasks(npc, is_sim)
-    if is_sim and IsWarfare() and warfare.is_warfare_trader(npc) then
+    if is_sim and _G.WARFARE and warfare.is_warfare_trader(npc) then
         warfare_log.trace("generate_available_tasks: forcing non-sim for warfare trader npc=%s", tostring(npc:name()))
         is_sim = false
     end
@@ -1018,7 +1033,7 @@ end
 
 local old_task_objects_cgeneraltask_check_task = task_objects.CGeneralTask.check_task
 function task_objects.CGeneralTask.check_task(self, tm)
-    if not IsWarfare() then
+    if not _G.WARFARE then
         old_task_objects_cgeneraltask_check_task(self, tm)
         return
     end
@@ -1052,6 +1067,9 @@ end
 -- warfare caches game time per frame; a time jump inside a frame must drop that cache
 local old_level_change_game_time = level.change_game_time
 function level.change_game_time(days, hours, minutes)
+    if not _G.WARFARE then
+        return old_level_change_game_time(days, hours, minutes)
+    end
     old_level_change_game_time(days, hours, minutes)
     warfare.reset_frame_clock()
 end
@@ -1060,8 +1078,11 @@ end
 -- by_id mirrors that array (first entry per id wins, as in the scan). register/unregister keep it
 -- current; if the array or its size changes any other way, the next lookup rebuilds it.
 -- Remove once the required engine/base scripts ship an indexed get_server_entity.
-local so = simulation_objects
-if type(so.object_registry) == "table" and type(so.object_registry_size) == "number" then
+local function install_server_entity_index()
+    local so = simulation_objects
+    if not (type(so.object_registry) == "table" and type(so.object_registry_size) == "number") then
+        return
+    end
     local by_id = {}
     local indexed_reg, indexed_size = nil, -1
     local drift_warned = false
@@ -1126,3 +1147,4 @@ if type(so.object_registry) == "table" and type(so.object_registry_size) == "num
         return by_id[id]
     end
 end
+warfare.on_enabled(install_server_entity_index)

@@ -102,7 +102,7 @@ end
 -- A shot-down player helicopter stops being the player's: the wreck can't be moved or block a purchase.
 local bind_heli_heli_die = bind_heli.heli_die
 function bind_heli.heli_die(obj)
-    if obj and player_heli == obj:id() then
+    if _G.WARFARE and obj and player_heli == obj:id() then
         warfare_log.info("faction_control: player heli id=%s destroyed", obj:id())
         player_heli = nil
     end
@@ -809,20 +809,14 @@ end
 
 function on_game_start()
     warfare_log.debug("warfare_faction_control.on_game_start")
-    local function on_game_load()
-        if alife_storage_manager.get_state().enable_warfare_mode then
-            warfare_log.info("faction_control: warfare enabled, registering map spot menu callbacks")
-            RegisterScriptCallback("map_spot_menu_add_property",map_spot_menu_add_property)
-            RegisterScriptCallback("map_spot_menu_property_clicked",map_spot_menu_property_clicked)
-            RegisterScriptCallback("on_map_right_click",map_right_click_global)
-        else
-            warfare_log.debug("faction_control: warfare not enabled, skipping map spot callbacks")
-        end
-    end
-    RegisterScriptCallback("on_game_load", on_game_load)
-    RegisterScriptCallback("on_localization_change",refresh_strings)
-
     refresh_strings()
+    warfare.on_enabled(function()
+        warfare_log.info("faction_control: warfare enabled, registering map spot menu callbacks")
+        RegisterScriptCallback("map_spot_menu_add_property",map_spot_menu_add_property)
+        RegisterScriptCallback("map_spot_menu_property_clicked",map_spot_menu_property_clicked)
+        RegisterScriptCallback("on_map_right_click",map_right_click_global)
+        RegisterScriptCallback("on_localization_change",refresh_strings)
+    end)
 end
 
 -- slightly modified from gamemode_azazel.script

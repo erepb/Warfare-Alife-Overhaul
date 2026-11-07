@@ -26,7 +26,7 @@ function moves_sin_base()
     return targets("kat_greh_trader_squad", "katacomb_smart_terrain")
 end
 
-function on_game_start()
+local function apply()
     for _, s in ipairs(service_bases) do
         if targets(s.squad, s.smart) then
             smart_terrain_warfare.set_main_base(s.smart, s.entry)
@@ -37,4 +37,8 @@ function on_game_start()
         smart_terrain_warfare.set_main_base(sin_camp, nil)
         warfare_log.info("redone: %s is no longer a greh main base", sin_camp)
     end
+end
+
+function on_game_start()
+    warfare.on_enabled(apply)
 end

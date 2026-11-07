@@ -1,6 +1,6 @@
 local sim_sq_script = sim_squad_scripted.sim_squad_scripted
 
-function on_game_start()
+local function install()
     warfare_log.debug("warfare_monkeypatches_sim_squad.on_game_start: patching sim_squad_scripted update/task fns")
     local orig_generic_update = sim_sq_script.generic_update
     local orig_specific_update = sim_sq_script.specific_update
@@ -39,4 +39,8 @@ function on_game_start()
         end
         return self:get_alife_task()
     end
+end
+
+function on_game_start()
+    warfare.on_enabled(install)
 end

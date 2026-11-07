@@ -132,29 +132,30 @@ function on_game_start()
         warfare_log.info("warfare_alifeplus: AlifePlus not present, interop disabled")
         return
     end
-    ap_enabled = true
-    warfare_log.info("warfare_alifeplus: AlifePlus detected, registering owner handler")
+    warfare.on_enabled(function()
+        ap_enabled = true
+        warfare_log.info("warfare_alifeplus: AlifePlus detected, registering owner handler")
 
-    ap_api.register_owner("warfare", function(squad)
-        if not squad then return false end
-        if squad.registered_with_warfare ~= true then return false end
-        return not is_lendable(squad)
-    end)
+        ap_api.register_owner("warfare", function(squad)
+            if not squad then return false end
+            if squad.registered_with_warfare ~= true then return false end
+            return not is_lendable(squad)
+        end)
 
-    RegisterScriptCallback("on_game_load", function()
-        local count = 0
-        for faction, squads in pairs(warfare.registered_squads) do
-            for sid in pairs(squads) do
-                local squad = alife_object(sid)
-                if squad and squad.scripted_target == "" then
-                    squad.scripted_target = nil
-                    count = count + 1
+        RegisterScriptCallback("on_game_load", function()
+            local count = 0
+            for faction, squads in pairs(warfare.registered_squads) do
+                for sid in pairs(squads) do
+                    local squad = alife_object(sid)
+                    if squad and squad.scripted_target == "" then
+                        squad.scripted_target = nil
+                        count = count + 1
+                    end
                 end
             end
-        end
-        if count > 0 then
-            warfare_log.info("warfare_alifeplus: on_game_load cleared empty-string scripted_target on %s squads", tostring(count))
-        end
+            if count > 0 then
+                warfare_log.info("warfare_alifeplus: on_game_load cleared empty-string scripted_target on %s squads", tostring(count))
+            end
+        end)
     end)
-
 end

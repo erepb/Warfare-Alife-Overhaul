@@ -803,7 +803,7 @@ end
 -- MAIN FUNCTION LOOP - EVERYTHING HAPPENS HERE --
 --------------------------------------------------
 function smart_terrain_on_update(smart)
-    if not (IsWarfare()) then
+    if not (_G.WARFARE) then
         return
     end
     if warfare_log.tracing() then
@@ -4369,7 +4369,7 @@ function smart_terrain.se_smart_terrain:show()
 
     local enemies = is_factions_enemies(warfare.actor_faction, faction)
 
-    if IsWarfare() then
+    if _G.WARFARE then
         -- fog of war
         if fog_active() then
             local lvl = game_graph():vertex(self.m_game_vertex_id):level_id()
@@ -6263,7 +6263,7 @@ end
 -- squad_on_npc_death: a member dying within its squad's smart's respawn_radius marks that smart
 -- contested.
 local function mark_contested(squad, se_npc)
-    if not (IsWarfare() and squad and squad.smart_id and se_npc) then
+    if not (_G.WARFARE and squad and squad.smart_id and se_npc) then
         return
     end
     local board = SIMBOARD.smarts[squad.smart_id]
@@ -6505,8 +6505,10 @@ function on_game_start()
     warfare_log.info("smart_terrain_warfare.on_game_start")
     refresh_strings()
 
-    RegisterScriptCallback("on_localization_change",refresh_strings)
-    RegisterScriptCallback("actor_on_update", reset_intel_memo)
-    RegisterScriptCallback("actor_on_update", watch_pda)
-    RegisterScriptCallback("squad_on_npc_death", mark_contested)
+    warfare.on_enabled(function()
+        RegisterScriptCallback("on_localization_change",refresh_strings)
+        RegisterScriptCallback("actor_on_update", reset_intel_memo)
+        RegisterScriptCallback("actor_on_update", watch_pda)
+        RegisterScriptCallback("squad_on_npc_death", mark_contested)
+    end)
 end

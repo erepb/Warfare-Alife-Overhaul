@@ -359,7 +359,7 @@ local function hint_text(self, k, i)
     return out
 end
 
-function on_game_start()
+local function install()
     -- A script class lives in its own module table; _G is the fallback modxml_portrait_cover uses.
     local cls = (ui_pda_relations_tab and ui_pda_relations_tab.pda_relations_tab)
         or _G.pda_relations_tab
@@ -440,4 +440,8 @@ function on_game_start()
         end
         return res
     end
+end
+
+function on_game_start()
+    warfare.on_enabled(install)
 end

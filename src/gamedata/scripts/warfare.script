@@ -338,14 +338,6 @@ end
 
 function actor_on_first_update()
     warfare_log.tr_begin("warfare/actor_on_first_update")
-    if not (IsWarfare()) then
-        if (_G.WARFARE) then
-            warfare_log.info("actor_on_first_update: IsWarfare() returned false, disabling _G.WARFARE")
-            _G.WARFARE = false
-        end
-        return
-    end
-
     actor_faction = get_actor_true_community() or alife():actor():community():sub(7)
     warfare_log.info("actor_on_first_update: actor_faction=%s", actor_faction)
     warfare_player_hqs.apply(actor_faction)
@@ -951,11 +943,6 @@ local COVERT_BASES = {
 function fill_start_position()
     warfare_log.info("fill_start_position: entry")
 
-    if (not IsWarfare()) then
-        warfare_log.info("fill_start_position: IsWarfare=false, skipping")
-        return
-    end
-
     if (SIMBOARD.start_position_filled) then
         warfare_log.debug("fill_start_position: SIMBOARD.start_position_filled already set, skipping")
         return
@@ -1492,20 +1479,50 @@ function squad_on_unregister(squad, type_name)
 end
 
 local function on_game_load()
-    warfare_log.info("on_game_load: priming ignore list and scheduling resetter")
+    warfare_log.info("on_game_load: priming ignore list")
     ignore = sim_offline_combat.get_ignore_list()
-    CreateTimeEvent(0, "reset_warfare_callbacks", 60, resetter)
 end
 
-function on_game_start()
-    warfare_log.banner("Warfare ALife Overhaul %s", VERSION)
-    warfare_log.info("on_game_start: registering warfare callbacks")
-    --_G.WARFARE = false
-    warfare_options.update_settings()
+-------------------------------
+-- Mode
+-------------------------------
+-- _G.WARFARE is the mode flag every warfare script reads. It is set at on_game_start (right for a
+-- new game) and again right before the load_state callbacks (right for a loaded save); objects
+-- load only after that.
+local enable_hooks = {}
+local enabled_ran = false
 
+-- fn runs once, as soon as the game is known to be a warfare game; never in a normal game.
+function on_enabled(fn)
+    enable_hooks[#enable_hooks + 1] = fn
+    if enabled_ran then
+        fn()
+    end
+end
+
+local function sync_mode(source)
+    _G.WARFARE = IsWarfare() == true
+    warfare_log.info("mode: warfare=%s source=%s", _G.WARFARE, source)
+    if _G.WARFARE and not enabled_ran then
+        enabled_ran = true
+        for i = 1, #enable_hooks do
+            enable_hooks[i]()
+        end
+    end
+end
+
+local function install_mode_sync()
+    local base = alife_storage_manager.on_before_load_state
+    alife_storage_manager.on_before_load_state = function()
+        base()
+        sync_mode("load_state")
+    end
+end
+
+local function register_callbacks()
+    warfare_log.info("on_game_start: registering warfare callbacks")
     RegisterScriptCallback("fill_start_position", fill_start_position)
     RegisterScriptCallback("load_state", load_state)
-    _G.WARFARE = true
     RegisterScriptCallback("smart_terrain_on_update", smart_terrain_warfare.smart_terrain_on_update)
     RegisterScriptCallback("squad_on_update", sim_squad_warfare.squad_on_update)
     RegisterScriptCallback("actor_on_update", reset_frame_clock)
@@ -1516,6 +1533,14 @@ function on_game_start()
     RegisterScriptCallback("server_entity_on_unregister", squad_on_unregister)
     RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
     RegisterScriptCallback("on_game_load", on_game_load)
+end
+
+function on_game_start()
+    warfare_log.banner("Warfare ALife Overhaul %s", VERSION)
+    warfare_options.update_settings()
+    on_enabled(register_callbacks)
+    install_mode_sync()
+    sync_mode("on_game_start")
 end
 
 function hash_table_to_array(tbl)
@@ -1738,24 +1763,4 @@ function snap()
         end
     end
     warfare_log.info("snap: complete zombified=%s killed=%s", zombified, killed)
-end
-
-function resetter()
-    if not (IsWarfare()) then
-        warfare_log.info("resetter: IsWarfare=false, unregistering warfare callbacks")
-        _G.WARFARE = false
-        UnregisterScriptCallback("fill_start_position", fill_start_position)
-        UnregisterScriptCallback("load_state", load_state)
-        UnregisterScriptCallback("smart_terrain_on_update", smart_terrain_warfare.smart_terrain_on_update)
-        UnregisterScriptCallback("squad_on_update", sim_squad_warfare.squad_on_update)
-        UnregisterScriptCallback("actor_on_update", actor_on_update)
-        UnregisterScriptCallback("actor_on_update", reset_frame_clock)
-        UnregisterScriptCallback("actor_on_net_destroy", reset_frame_clock)
-        UnregisterScriptCallback("save_state", save_state)
-        UnregisterScriptCallback("squad_on_npc_death", sim_squad_warfare.squad_on_npc_death)
-        UnregisterScriptCallback("server_entity_on_unregister", squad_on_unregister)
-        UnregisterScriptCallback("actor_on_first_update", actor_on_first_update)
-        UnregisterScriptCallback("on_game_load", on_game_load)
-    end
-    return true
 end
