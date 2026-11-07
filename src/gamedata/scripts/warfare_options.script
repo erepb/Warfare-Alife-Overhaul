@@ -439,6 +439,10 @@ function get_random_start_location()
     return start_location
 end
 
+-- Set by warfare_presim while the level switches online after a run (like a load, where the
+-- exclusion distance does not apply either).
+online_exclusion_paused = false
+
 function sim_squad_scripted.sim_squad_scripted.check_online_status(self)
     local b = nil
 
@@ -475,7 +479,7 @@ function sim_squad_scripted.sim_squad_scripted.check_online_status(self)
                 b = false
             end
         end
-    elseif (db.actor and not get_object_story_id(self.id) and not self.online) then
+    elseif (db.actor and not online_exclusion_paused and not get_object_story_id(self.id) and not self.online) then
         -- exclude from coming online except if already online or storied
         local dist = ui_options.get("alife/general/excl_dist")
         if (dist > 0 and not db.actor:has_info("actor_is_sleeping")) then

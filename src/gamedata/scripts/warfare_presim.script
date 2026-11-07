@@ -7,7 +7,8 @@
 -- mid-run heal the A-Life params it would otherwise keep (switch_distance is saved with the game).
 --
 -- Phases: nil (dialog pending) -> "asking" (dialog up, game frozen) -> "preparing" (black screen,
--- waiting for warfare's first tick and GAMMA's autosave) -> "running" -> done.
+-- waiting for warfare's first tick and GAMMA's autosave) -> "running" -> "arriving" (black screen
+-- while the level switches online) -> done.
 
 local PPE_ID = 31338
 local STORAGE_KEY = "warfare_presim"
@@ -19,6 +20,9 @@ local MAX_STEP_MIN = 59          -- warfare.actor_on_update treats a >1 h delta 
 local MAX_OVERRUN_MIN = 360      -- give up waiting on an emission/psi storm after 6 game hours
 local INVULNERABLE_MS = 60000    -- >7 s ahead also makes bind_stalker_ext refill the actor each frame
 local ARRIVAL_GRACE_MS = 5000
+local ARRIVAL_SWITCH_S = 3       -- black screen kept while the level switches online after a run
+-- vanilla bind_stalker sets 20 one second after the actor's first update; the engine has no getter
+local OBJECTS_PER_UPDATE = 20
 local FALLBACK_WAIT_MS = 8000
 local SETTLE_MS = 1000
 local ETA_MIN_STEPS = 20
@@ -150,10 +154,9 @@ local function show_overlay()
     update_overlay()
 end
 
-local function hide_overlay()
-    if run.overlay then
-        get_hud():RemoveDialogToRender(run.overlay)
-        run.overlay = nil
+local function hide_overlay(overlay)
+    if overlay then
+        get_hud():RemoveDialogToRender(overlay)
     end
     level.remove_pp_effector(PPE_ID)
     level.show_indicators()
@@ -167,14 +170,14 @@ end
 local function read_alife_params()
     return {
         dist = alife():switch_distance(),
-        opu = ini_sys:r_u32("alife", "objects_per_update"),
+        opu = OBJECTS_PER_UPDATE,
         opt = ini_sys:r_u32("alife", "process_time"),
     }
 end
 
 local function apply_alife_params(p)
     alife():set_switch_distance(p.dist)
-    alife():set_objects_per_update(p.opu)
+    alife():set_objects_per_update(OBJECTS_PER_UPDATE)
     alife():set_process_time(p.opt)
 end
 
@@ -268,19 +271,32 @@ end
 -- Run
 ----------------------------------------------------------------
 
+-- After a run every squad on the level is offline, the actor's own base included, and the online
+-- exclusion distance would keep those near the actor offline. Like a load: switch the level online
+-- behind the black screen with the exclusion paused, then hand back the normal A-Life params.
+local function arrive(r)
+    alife():set_objects_per_update(OBJECTS_PER_UPDATE)
+    alife():set_process_time(r.alife.opt)
+    warfare_options.online_exclusion_paused = false
+    hide_overlay(r.overlay)
+    phase = nil
+    warfare_log.info("warfare_presim: arrived, A-Life back to dist=%s opu=%s opt=%s", r.alife.dist, OBJECTS_PER_UPDATE, r.alife.opt)
+
+    CreateTimeEvent(0, "warfare_presim_save", 2, function()
+        exec_console_cmd("save " .. (user_name() or "") .. " - presim")
+        return true
+    end)
+    return true
+end
+
 local function finish(reason)
     if not run then
         return
     end
     local r = run
 
-    if r.alife then
-        apply_alife_params(r.alife)
-    end
     unhook_needs()
-    bind_stalker_ext.invulnerable_time = warfare.get_realtime() + ARRIVAL_GRACE_MS
     restore_sound()
-    hide_overlay()
     if npe_director and npe_director.Unregister_dialog then
         npe_director.Unregister_dialog()
     end
@@ -288,7 +304,12 @@ local function finish(reason)
     run = nil
     phase = nil
 
-    if not r.t0 then
+    if not (r.t0 and r.alife) then
+        if r.alife then
+            apply_alife_params(r.alife)
+        end
+        bind_stalker_ext.invulnerable_time = warfare.get_realtime() + ARRIVAL_GRACE_MS
+        hide_overlay(r.overlay)
         warfare_log.info("warfare_presim: ended before the run started (%s)", reason)
         return
     end
@@ -298,10 +319,11 @@ local function finish(reason)
         reason, r.elapsed - r.start_elapsed, r.target - r.start_elapsed, r.steps, total_ms, avg,
         r.min_ms or 0, r.max_ms or 0, warfare.get_time_ref():timeToString(game.CTime.TimeToMins))
 
-    CreateTimeEvent(0, "warfare_presim_save", 2, function()
-        exec_console_cmd("save " .. (user_name() or "") .. " - presim")
-        return true
-    end)
+    phase = "arriving"
+    bind_stalker_ext.invulnerable_time = warfare.get_realtime() + ARRIVAL_SWITCH_S * 1000 + ARRIVAL_GRACE_MS
+    warfare_options.online_exclusion_paused = true
+    alife():set_switch_distance(r.alife.dist)
+    CreateTimeEvent(0, "warfare_presim_arrival", ARRIVAL_SWITCH_S, arrive, r)
 end
 
 local function step_body()
