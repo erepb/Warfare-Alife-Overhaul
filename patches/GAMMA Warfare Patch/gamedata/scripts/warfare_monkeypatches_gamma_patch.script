@@ -121,6 +121,19 @@ if grok and grok.ads_npcs then
     end
 end
 
+-- Hernandez trades at the Jupiter depot (GAMMA's UNISG Trader Fix gives his job a trade profile), so
+-- he fills the depot's trader slot while the questline keeps him there, as Maus fills its mechanic
+-- slot (warfare_utils.CheckUniqueSquad matches service NPCs by name).
+local DEPOT_LEADER = "jup_depo_isg_leader"
+local depot_logic = ini_file("scripts\\jupiter\\jup_depo_isg_logic.ltx")
+if depot_logic:r_string_ex("logic@" .. DEPOT_LEADER, "trade") then
+    local unique = warfare_utils.CheckUniqueSquad
+    local is_npc_trader = unique.is_npc_trader
+    unique.is_npc_trader = function(self, squad_name)
+        return is_npc_trader(self, squad_name) or string.find(squad_name, DEPOT_LEADER, 1, true) ~= nil
+    end
+end
+
 local hxf = hxf_tough_important_npcs
 if hxf then
     if hxf.IMPORTANT_NPC_SECTIONS and hxf.PLAYER_IMPORTANT_DMG then
