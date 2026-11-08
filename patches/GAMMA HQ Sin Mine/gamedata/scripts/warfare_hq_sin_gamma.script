@@ -1,0 +1,14 @@
+-- GAMMA part of the "HQ Sin Mine" option, after GeroyAnekdotov's WALO SIN HQ 2.0.2: while the Sin HQ
+-- is the actor's, Sin traders sell from the HQ stock, GAMMA's Sin stock less the food and medicine
+-- the HQ's barman and medic sell.
+
+local GREH_STOCK = "items\\trade\\trade_greh.ltx"
+local HQ_STOCK = "items\\trade\\trade_greh_warfare_hq.ltx"
+
+local trade_init = trade_manager.trade_init
+function trade_manager.trade_init(npc, cfg, ...)
+    if _G.WARFARE and cfg and string.lower(cfg) == GREH_STOCK and warfare_player_hqs.current_hq() == "greh" then
+        cfg = HQ_STOCK
+    end
+    return trade_init(npc, cfg, ...)
+end

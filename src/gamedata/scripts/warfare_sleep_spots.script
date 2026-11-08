@@ -1,6 +1,7 @@
--- Sleep prompts at beds that are part of the level geometry, for bases that have no
--- all.spawn sleep zone. Near a spot the vanilla tutorial_sleep prompt is shown; its use
--- action calls ui_sleep_dialog.sleep_in_zone by name, which is wrapped to accept the spot.
+-- Sleep prompts at the installed HQs' beds (warfare_player_hqs sleep_spot), which have no all.spawn
+-- sleep zone. Near a spot the vanilla tutorial_sleep prompt is shown; its use action calls
+-- ui_sleep_dialog.sleep_in_zone by name, which is wrapped to accept the spot. With no HQ sleep spot
+-- installed this module installs nothing.
 --
 -- Each spot also gets a small space restrictor, created once the first time the actor is on its
 -- level (id kept in alife storage), that carries the PDA sleep map spot the way vanilla sleep
@@ -12,15 +13,6 @@ local MARKER_SECTION = "space_restrictor"
 local NOT_A_RESTRICTOR = 3
 local MAP_SPOT = "ui_pda2_actor_sleep_location"
 local MAP_HINT = "st_ui_pda_sleep_place"
-
--- smart name (resolves the level) -> bed position
-local spots = {
-    ["mar_smart_terrain_3_3"] = { -178.53926, 2.48696, 418.75180 },
-    -- the mine's own mattress; Sin HQ only (warfare_player_hqs)
-    ["red_smart_terrain_3_2"] = { -161.08794, 3.11622, -28.99401 },
-    -- warfare_base_props' mattress; UNISG HQ only
-    ["jup_b208"]              = { 384.28900, 4.40800, -130.07000 },
-}
 
 local level_spots -- positions on the current level, built on first update
 local near_spot = false
@@ -63,12 +55,13 @@ end
 local function build_level_spots()
     level_spots = {}
     local st = alife_storage_manager.get_state()
-    for smart_name, p in pairs(spots) do
-        local smart = warfare_utils.smart_on_actor_level(smart_name)
-        if smart and warfare_player_hqs.allows(smart_name) then
+    for _, hq in ipairs(warfare_player_hqs.active()) do
+        local p = hq.sleep_spot
+        local smart = p and warfare_utils.smart_on_actor_level(hq.smart)
+        if smart then
             local pos = vector():set(p[1], p[2], p[3])
             level_spots[#level_spots + 1] = pos
-            ensure_marker(st, smart_name, pos, smart.m_game_vertex_id)
+            ensure_marker(st, hq.smart, pos, smart.m_game_vertex_id)
         end
     end
 end
@@ -114,14 +107,16 @@ local function actor_on_update()
     end
 end
 
-local base_sleep_in_zone = ui_sleep_dialog.sleep_in_zone
-function ui_sleep_dialog.sleep_in_zone(actor, npc)
-    if near_spot then
-        give_info("sleep_active")
-        ui_sleep_dialog.sleep()
-        return
+local function patch_sleep_in_zone()
+    local base_sleep_in_zone = ui_sleep_dialog.sleep_in_zone
+    function ui_sleep_dialog.sleep_in_zone(actor, npc)
+        if near_spot then
+            give_info("sleep_active")
+            ui_sleep_dialog.sleep()
+            return
+        end
+        return base_sleep_in_zone(actor, npc)
     end
-    return base_sleep_in_zone(actor, npc)
 end
 
 local function actor_on_first_update()
@@ -131,6 +126,10 @@ local function actor_on_first_update()
 end
 
 function on_game_start()
+    if not warfare_player_hqs.any("sleep_spot") then
+        return
+    end
+    patch_sleep_in_zone()
     RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
     RegisterScriptCallback("actor_on_update", actor_on_update)
 end

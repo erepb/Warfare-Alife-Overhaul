@@ -1,16 +1,14 @@
--- GAMMA parts of the faction HQs (warfare_player_hqs), after GeroyAnekdotov's WALO SIN HQ 2.0.2 and
--- UNISG Command & Operations 1.0.3. Each applies only to the HQ of the actor's faction.
---   * Dynamic Anomalies Overhaul spawns no new anomaly inside the HQ (warfare_player_hqs.hazard_free),
---     nor GAMMA's Radiation Dynamic Areas a radiation field. Saved ones are left alone.
---   * Two campfires (Placeable Campfires' wood + a vanilla campfire zone) in the UNISG depot, in the
---     depot's campfire list so its NPCs light and use them.
---   * Sin traders sell from the HQ stock, GAMMA's Sin stock less the food and medicine the HQ's
---     barman and medic sell.
+-- GAMMA hazards inside the installed HQs (warfare_player_hqs.hazard_free), after GeroyAnekdotov's WALO
+-- SIN HQ 2.0.2 and UNISG Command & Operations 1.0.3: Dynamic Anomalies Overhaul spawns no new
+-- anomaly inside the actor's HQ, nor GAMMA's Radiation Dynamic Areas a radiation field. Saved ones
+-- are left alone. With no HQ hazard rows installed nothing is wrapped. The HQs' other GAMMA parts
+-- ship with their options (patches\GAMMA HQ *).
 
--- Dynamic anomalies ------------------------------------------------------------------------------
-
-local dao = drx_da_main
-if dao then
+local function install_dao_filter()
+    local dao = drx_da_main
+    if not dao then
+        return
+    end
     local spawn_anomaly_on_smart = dao.drx_da_spawn_anomaly_on_smart
     dao.drx_da_spawn_anomaly_on_smart = function(level_file, smart_name, anomaly_type, level_name, position_data)
         local _, smart = warfare_player_hqs.current_hq()
@@ -47,135 +45,10 @@ local function install_radiation_filter()
     end
 end
 
--- Campfires --------------------------------------------------------------------------------------
-
-local WOOD_SECTION = "ph_campfiremod"
-local FIRE_SECTION = "campfire"
-
--- smart -> key -> wood position and heading (the fire is radial)
-local campfires = {
-    jup_b208 = {
-        hall  = { pos = { 400.152, 4.279, -130.446 }, heading = 0.14130 },
-        hall2 = { pos = { 399.007, 4.279, -94.434 },  heading = 3.11059 },
-    },
-}
-
--- Same offset and zone shape as GAMMA's campfire_placeable.spawn_anomaly_campfire. The wood keeps its
--- section's own model, bones and logic.
-local function create_campfire(c, gvid)
-    local p = c.pos
-    local pos = vector():set(p[1], p[2], p[3])
-    local lvid = warfare_utils.nearest_lvid(pos)
-    local wood = lvid and alife_create(WOOD_SECTION, pos, lvid, gvid)
-    if not wood then
-        return
-    end
-    wood.angle = vector():set(0, c.heading, 0)
-
-    local fire_pos = vector():set(p[1] - 0.05, p[2] + 0.20, p[3] + 0.05)
-    local fire_lvid = warfare_utils.nearest_lvid(fire_pos)
-    local fire = fire_lvid and alife_create(FIRE_SECTION, fire_pos, fire_lvid, gvid)
-    if not fire then
-        alife_release(wood)
-        return
-    end
-    local data = utils_stpk.get_anom_zone_data(fire)
-    data.shapes = { { shtype = 0, offset = vector():set(0, 10, 0), center = vector():set(0, 0, 0), radius = 0.85 } }
-    utils_stpk.set_anom_zone_data(data, fire)
-    return { wood = wood.id, fire = fire.id }
-end
-
-local function exists(id, section)
-    local se_obj = id and alife_object(id)
-    return se_obj and se_obj:section_name() == section
-end
-
-local function place_campfires()
-    if not ini_sys:section_exist(WOOD_SECTION) then
-        return
-    end
-    local st = alife_storage_manager.get_state()
-    for smart_name, list in pairs(campfires) do
-        local smart = warfare_utils.smart_on_actor_level(smart_name)
-        if smart and warfare_player_hqs.allows(smart_name) then
-            st.warfare_hq_campfires = st.warfare_hq_campfires or {}
-            local ids = st.warfare_hq_campfires[smart_name] or {}
-            for key, c in pairs(list) do
-                local rec = ids[key]
-                if not (rec and exists(rec.wood, WOOD_SECTION) and exists(rec.fire, FIRE_SECTION)) then
-                    if rec and exists(rec.wood, WOOD_SECTION) then
-                        alife_release(alife_object(rec.wood))
-                    end
-                    if rec and exists(rec.fire, FIRE_SECTION) then
-                        alife_release(alife_object(rec.fire))
-                    end
-                    ids[key] = create_campfire(c, smart.m_game_vertex_id)
-                    warfare_log.info("warfare_player_hqs_gamma_patch: campfire smart=%s key=%s created=%s", smart_name, key, ids[key] ~= nil)
-                end
-            end
-            st.warfare_hq_campfires[smart_name] = ids
-        end
-    end
-end
-
--- bind_campfire lists a fire under the smart its name starts with; these are named after their id.
-local function hq_fire_smart(id)
-    local st = alife_storage_manager.get_state()
-    for smart_name, ids in pairs(st.warfare_hq_campfires or {}) do
-        for _, rec in pairs(ids) do
-            if rec.fire == id then
-                return smart_name
-            end
-        end
-    end
-end
-
-local function install_campfire_registry()
-    local binder = bind_campfire and bind_campfire.campfire_binder
-    if not binder then
-        return
-    end
-    local net_spawn, net_destroy = binder.net_spawn, binder.net_destroy
-    function binder:net_spawn(se_abstract)
-        if not net_spawn(self, se_abstract) then
-            return false
-        end
-        local id = self.object:id()
-        local smart_name = hq_fire_smart(id)
-        if smart_name then
-            db.campfire_table_by_smart_names[smart_name] = db.campfire_table_by_smart_names[smart_name] or {}
-            db.campfire_table_by_smart_names[smart_name][id] = self
-        end
-        return true
-    end
-    function binder:net_destroy(...)
-        local id = self.object:id()
-        local smart_name = hq_fire_smart(id)
-        local fires = smart_name and db.campfire_table_by_smart_names[smart_name]
-        if fires then
-            fires[id] = nil
-        end
-        return net_destroy(self, ...)
-    end
-end
-
--- Sin HQ trader stock ----------------------------------------------------------------------------
-
-local GREH_STOCK = "items\\trade\\trade_greh.ltx"
-local HQ_STOCK = "items\\trade\\trade_greh_warfare_hq.ltx"
-
-local trade_init = trade_manager.trade_init
-function trade_manager.trade_init(npc, cfg, ...)
-    if _G.WARFARE and cfg and string.lower(cfg) == GREH_STOCK and warfare_player_hqs.current_hq() == "greh" then
-        cfg = HQ_STOCK
-    end
-    return trade_init(npc, cfg, ...)
-end
-
 function on_game_start()
-    warfare.on_enabled(function()
-        install_radiation_filter()
-        install_campfire_registry()
-        RegisterScriptCallback("actor_on_first_update", place_campfires)
-    end)
+    if not warfare_player_hqs.any("hazard_free") then
+        return
+    end
+    install_dao_filter()
+    warfare.on_enabled(install_radiation_filter)
 end

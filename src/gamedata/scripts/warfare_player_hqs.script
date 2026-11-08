@@ -1,80 +1,137 @@
--- Faction headquarters that exist only while the actor plays that faction: the Sin mine in the Red
--- Forest and the UNISG depot on Jupiter, after GeroyAnekdotov's WALO SIN HQ and UNISG Command &
--- Operations. The story-mode flag plays no part. For any other player faction the world stays as
--- warfare_smarts.ltx and smart_terrain_warfare.uniques describe it.
+-- Faction headquarters, each one a FOMOD option. An option ships the HQ's data module (one of
+-- MODULES) and the config hooks that spawn and employ its crew; an HQ whose option is left out
+-- has no module, and nothing of it exists. The choice is per playthrough.
+--
+-- A data module defines `hq`:
+--   id, smart      the HQ smart
+--   gate           "always" (every game), or the actor faction the HQ is for (warfare only)
+--   available      optional function; false keeps the HQ out of the world
+--   warfare        optional, applied by apply(): entry (main_base_data row), replaces (a main base of
+--                  the same faction that stops being one), props, uniques, capacity, seed
+--                  ({ section, count } warfare-owned guards), service (ignore-listed crew squads
+--                  that find the smart by their target_smart), seed_start (the only new-game start
+--                  location that seeds the HQ)
+--   pieces         warfare_base_props pieces
+--   anchors        warfare_job_anchors rows: { job, pos, seat }
+--   sleep_spot     warfare_sleep_spots bed position
+--   hazard_free    where no anomaly may be generated while the HQ is active: boxes as
+--                  { x1, y1, z1, x2, y2, z2 }, points for single rows of plugins\dynamic_anomalies.ltx
 --
 -- apply() rewrites main_base_data, uniques and the smarts' props and capacity, recording every value
 -- it replaces, and undoes the previous application first. warfare calls it in fill_start_position
 -- (before the starting squads are placed) and in actor_on_first_update (before the first warfare
 -- update), so a load or a switch to another faction's save within one session starts from the
--- untouched tables. The HQ's furniture, sleep spot and seat anchors live in warfare_base_props,
--- warfare_sleep_spots and warfare_job_anchors, gated by allows(); its jobs in the smart's
--- *_warfare_logic.ltx.
---
--- hazard_free is where no anomaly may be generated while the HQ is the actor's: boxes as
--- { x1, y1, z1, x2, y2, z2 }, and points for single rows of plugins\dynamic_anomalies.ltx.
+-- untouched tables.
 
-local hqs = {
-    greh = {
-        smart    = "red_smart_terrain_3_2",                     -- the old mine
-        entry    = { faction = "greh", protect = true, resurrect = true },
-        replaces = "red_smart_terrain_4_2",                     -- the surface camp
-        -- the faction key also marks the base as the faction's own for GAMMA's campfire saving (YACS)
-        props    = {
-            red_smart_terrain_3_2 = { base = 1, resource = 0, territory = 0, lair = 0, greh = 1 },
-            red_smart_terrain_4_2 = { base = 0, resource = 1, territory = 0, lair = 0 },
-        },
-        uniques  = { 1, 1, 1, 1, 0 },                           -- trader, mechanic, medic, barman
-        capacity = 4,
-        -- squad_descr_warfare.ltx; the trader and the mechanic are simulation.ltx's story squads
-        service  = { "red_smart_terrain_3_2_greh_medic_squad", "red_smart_terrain_3_2_greh_barman_squad" },
-        hazard_free = { level = "l10_red_forest", boxes = { { -173.5, 0, -46, -144, 6, -15 } } },
-        available = function()
-            return not warfare_redone_patch.moves_sin_base()
-        end,
-    },
-    isg = {
-        smart    = "jup_b208",                                  -- the depot
-        entry    = { faction = "isg", resurrect = true },
-        props    = {
-            jup_b208 = { base = 1, isg = 1 },
-        },
-        uniques  = { 1, 1, 1, 1, 0 },
-        capacity = 4,
-        seed     = { section = "isg_sim_squad_novice", count = 2 },
-        service  = { "jup_b208_isg_trader_squad", "jup_b208_isg_mechanic_squad",
-                     "jup_b208_isg_medic_squad", "jup_b208_isg_barman_squad" },
-        -- new_game_start_locations.ltx: from any other start the depot is left empty to be captured
-        seed_start = "yanov_depo_monolith",
-        -- the hall, the room by the exit and the stair footprint (all.spawn's jup_b208_burers_restr
-        -- and jup_surge_hide_b208_2, as measured by UNISG Command & Operations 1.2.0); ano_jup_158 at
-        -- the exit
-        hazard_free = { level = "jupiter",
-            boxes  = { { 387.01551, -0.42500, -137.64774, 417.83971, 14.31620, -85.44132 },
-                       { 424.26614,  3.67648,  -74.18181, 429.32694, 11.96648, -67.25081 },
-                       { 417.33313,  4.27900, -109.72678, 420.59033,  7.63307, -100.76898 } },
-            points = { { 421.97360, 4.45509, -73.03874 } } },
-    },
-}
+local MODULES = { "warfare_hq_renegade", "warfare_hq_sin", "warfare_hq_unisg" }
 
-local hq_faction_by_smart = {}
-for faction, hq in pairs(hqs) do
-    hq_faction_by_smart[hq.smart] = faction
-end
-
-local active -- the applied HQ, or nil
-local undo   -- what the applied HQ replaced
+local registry      -- installed HQs, read on first use
+local applied = {}  -- what apply() set up, one record per HQ
 
 local function smart_by_name(name)
     return SIMBOARD and SIMBOARD.smarts_by_names[name]
 end
 
-local function hq_of(faction)
-    local hq = faction and hqs[faction]
-    if hq and _G.WARFARE and (not hq.available or hq.available()) then
-        return hq
+--- Every installed HQ.
+function registered()
+    if not registry then
+        registry = {}
+        local ids = {}
+        for _, name in ipairs(MODULES) do
+            local module = _G[name]
+            local hq = module and module.hq
+            if hq then
+                registry[#registry + 1] = hq
+                ids[#ids + 1] = hq.id
+            end
+        end
+        local installed = "none"
+        if #ids > 0 then
+            installed = table.concat(ids, ",")
+        end
+        warfare_log.info("warfare_player_hqs: installed=%s", installed)
+    end
+    return registry
+end
+
+--- True when an installed HQ has `field`.
+function any(field)
+    for _, hq in ipairs(registered()) do
+        if hq[field] then
+            return true
+        end
+    end
+    return false
+end
+
+-- Whether hq is in the world for an actor of `faction` (nil before the actor exists).
+local function passes(hq, faction)
+    if hq.available and not hq.available() then
+        return false
+    end
+    if hq.gate == "always" then
+        return true
+    end
+    if not _G.WARFARE then
+        return false
+    end
+    return faction ~= nil and hq.gate == faction
+end
+
+local function actor_faction()
+    return db.actor and get_actor_true_community()
+end
+
+--- The installed HQs in the world now.
+function active()
+    local faction = actor_faction()
+    local list = {}
+    for _, hq in ipairs(registered()) do
+        if passes(hq, faction) then
+            list[#list + 1] = hq
+        end
+    end
+    return list
+end
+
+--- The actor's faction HQ (gate and smart name), or nil. It doesn't wait for apply(), so it holds
+--- for callers that run before warfare's first update.
+function current_hq()
+    local faction = actor_faction()
+    for _, hq in ipairs(registered()) do
+        if hq.gate ~= "always" and passes(hq, faction) then
+            return hq.gate, hq.smart
+        end
     end
 end
+
+local POINT_RADIUS = 0.01
+
+--- True when pos on level_name lies where an active HQ allows no anomaly.
+function hazard_free(level_name, pos)
+    if not (pos and level_name) then
+        return false
+    end
+    for _, hq in ipairs(active()) do
+        local area = hq.hazard_free
+        if area and level_name == area.level then
+            for _, b in ipairs(area.boxes or {}) do
+                if pos.x >= b[1] and pos.x <= b[4] and pos.y >= b[2] and pos.y <= b[5]
+                    and pos.z >= b[3] and pos.z <= b[6] then
+                    return true
+                end
+            end
+            for _, p in ipairs(area.points or {}) do
+                if pos:distance_to(vector():set(p[1], p[2], p[3])) < POINT_RADIUS then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- Main bases, uniques, props, capacity -------------------------------------------------------
 
 -- bootstrap_smart copies max_population into default_max_population and scales it by the pop
 -- factor, so before the bootstrap the raw value goes into max_population.
@@ -91,165 +148,142 @@ local function set_capacity(smart, cap)
     end
 end
 
-local function replace_base(name, entry)
-    undo.bases[name] = { entry = smart_terrain_warfare.get_main_base(name) }
+local function replace_base(rec, name, entry)
+    rec.bases[name] = { entry = smart_terrain_warfare.get_main_base(name) }
     smart_terrain_warfare.set_main_base(name, entry)
 end
 
+local function apply_one(hq, smart)
+    local w = hq.warfare
+    local rec = { hq = hq, bases = {}, props = {} }
+
+    if w.entry then
+        replace_base(rec, hq.smart, w.entry)
+        if w.replaces and smart_terrain_warfare.get_main_base_faction(w.replaces) == w.entry.faction then
+            replace_base(rec, w.replaces, nil)
+        end
+    end
+
+    if w.uniques then
+        rec.uniques = { name = hq.smart, row = smart_terrain_warfare.uniques[hq.smart] }
+        smart_terrain_warfare.uniques[hq.smart] = { unpack(w.uniques) }
+    end
+
+    for name, values in pairs(w.props or {}) do
+        local s = smart_by_name(name)
+        if s then
+            if not s.props then
+                simulation_objects.get_props(s)
+            end
+            local old, absent = {}, {}
+            for k, v in pairs(values) do
+                if s.props[k] == nil then
+                    absent[k] = true
+                end
+                old[k] = s.props[k]
+                s.props[k] = v
+            end
+            rec.props[name] = { smart = s, values = old, absent = absent }
+        end
+    end
+
+    -- after the props: set_max_population scales a base by the stalker factor, a lair by the mutant one
+    if w.capacity then
+        local raw = raw_capacity(smart)
+        rec.capacity = { name = hq.smart, smart = smart, raw = raw }
+        set_capacity(smart, math.max(raw or 0, w.capacity))
+    end
+
+    warfare_log.info("warfare_player_hqs: applied hq=%s smart=%s capacity=%s", hq.id, hq.smart, raw_capacity(smart))
+    return rec
+end
+
 -- Smart objects from a previous save are only compared against, never touched.
-local function revert()
-    if not undo then
-        return
+local function revert_one(rec)
+    for name, b in pairs(rec.bases) do
+        smart_terrain_warfare.set_main_base(name, b.entry)
     end
-    for name, rec in pairs(undo.bases) do
-        smart_terrain_warfare.set_main_base(name, rec.entry)
+    if rec.uniques then
+        smart_terrain_warfare.uniques[rec.uniques.name] = rec.uniques.row
     end
-    if undo.uniques then
-        smart_terrain_warfare.uniques[undo.uniques.name] = undo.uniques.row
-    end
-    for name, rec in pairs(undo.props) do
+    for name, p in pairs(rec.props) do
         local smart = smart_by_name(name)
-        if smart and smart == rec.smart and smart.props then
-            for k, v in pairs(rec.values) do
+        if smart and smart == p.smart and smart.props then
+            for k, v in pairs(p.values) do
                 smart.props[k] = v
+            end
+            for k in pairs(p.absent) do
+                smart.props[k] = nil
             end
         end
     end
-    local cap = undo.capacity
+    local cap = rec.capacity
     if cap then
         local smart = smart_by_name(cap.name)
         if smart and smart == cap.smart then
             set_capacity(smart, cap.raw)
         end
     end
-    warfare_log.info("warfare_player_hqs: reverted smart=%s", active and active.smart)
-    undo, active = nil, nil
+    warfare_log.info("warfare_player_hqs: reverted hq=%s", rec.hq.id)
 end
 
---- Makes the HQ of `faction` (the actor's) the faction's main base, or only undoes the previous one.
+--- Applies the warfare part of every HQ in the world for an actor of `faction`, after undoing the
+--- previous application.
 function apply(faction)
-    revert()
-    local hq = hq_of(faction)
-    if not hq then
-        return
+    for i = #applied, 1, -1 do
+        revert_one(applied[i])
     end
-    local smart = smart_by_name(hq.smart)
-    if not smart then
-        warfare_log.warn("warfare_player_hqs: smart=%s not found, faction=%s keeps its stock bases", hq.smart, faction)
-        return
-    end
-
-    undo = { bases = {}, props = {} }
-    replace_base(hq.smart, hq.entry)
-    if hq.replaces and smart_terrain_warfare.get_main_base_faction(hq.replaces) == faction then
-        replace_base(hq.replaces, nil)
-    end
-
-    local row = smart_terrain_warfare.uniques[hq.smart]
-    undo.uniques = { name = hq.smart, row = row }
-    smart_terrain_warfare.uniques[hq.smart] = { unpack(hq.uniques) }
-
-    for name, values in pairs(hq.props or {}) do
-        local s = smart_by_name(name)
-        if s then
-            if not s.props then
-                simulation_objects.get_props(s)
+    applied = {}
+    for _, hq in ipairs(registered()) do
+        if hq.warfare and passes(hq, faction) then
+            local smart = smart_by_name(hq.smart)
+            if smart then
+                applied[#applied + 1] = apply_one(hq, smart)
+            else
+                warfare_log.warn("warfare_player_hqs: smart=%s not found, hq=%s not applied", hq.smart, hq.id)
             end
-            local old = {}
-            for k, v in pairs(values) do
-                old[k] = s.props[k]
-                s.props[k] = v
-            end
-            undo.props[name] = { smart = s, values = old }
         end
     end
-
-    -- after the props: set_max_population scales a base by the stalker factor, a lair by the mutant one
-    local raw = raw_capacity(smart)
-    undo.capacity = { name = hq.smart, smart = smart, raw = raw }
-    set_capacity(smart, math.max(raw or 0, hq.capacity))
-
-    active = hq
-    warfare_log.info("warfare_player_hqs: applied faction=%s smart=%s capacity=%s", faction, hq.smart, raw_capacity(smart))
 end
 
---- The applied HQ's faction and smart name, or nil.
-function active_hq()
-    if active then
-        return active.entry.faction, active.smart
-    end
-end
-
---- The applied HQ's new-game squads, or nil: { smart, faction, section, count, service }.
+--- The applied faction HQ's new-game squads, or nil: { smart, faction, section, count, service }.
 --- section/count are the warfare-owned guards (section nil when none); service lists the
 --- ignore-listed unique NPC squads, which find the smart by their target_smart.
 --- `start` is the chosen new-game start location; an HQ with a seed_start other than it gets nil.
 function new_game_seed(start)
-    local smart = active and smart_by_name(active.smart)
-    if not smart then
-        return
-    end
-    if active.seed_start and active.seed_start ~= start then
-        warfare_log.info("warfare_player_hqs: start=%s is not %s, smart=%s starts empty", start, active.seed_start, active.smart)
-        return
-    end
-    local seed = active.seed or {}
-    return {
-        smart   = smart,
-        faction = active.entry.faction,
-        section = seed.section,
-        count   = seed.count or 0,
-        service = active.service or {},
-    }
-end
-
---- False for a faction HQ smart that is not the actor's HQ: its furniture, sleep spot and seat
---- anchors stay out of the world.
-function allows(smart_name)
-    local faction = hq_faction_by_smart[smart_name]
-    if not faction then
-        return true
-    end
-    return db.actor ~= nil and hq_of(get_actor_true_community()) == hqs[faction]
-end
-
---- The actor's HQ faction and smart name, or nil. Unlike active_hq() it doesn't wait for apply(),
---- so it holds for callers that run before warfare's first update.
-function current_hq()
-    local hq = db.actor and hq_of(get_actor_true_community())
-    if hq then
-        return hq.entry.faction, hq.smart
-    end
-end
-
-local POINT_RADIUS = 0.01
-
---- True when pos on level_name lies where the actor's HQ allows no anomaly.
-function hazard_free(level_name, pos)
-    local hq = db.actor and hq_of(get_actor_true_community())
-    local area = hq and hq.hazard_free
-    if not (area and pos and level_name == area.level) then
-        return false
-    end
-    for _, b in ipairs(area.boxes or {}) do
-        if pos.x >= b[1] and pos.x <= b[4] and pos.y >= b[2] and pos.y <= b[5]
-            and pos.z >= b[3] and pos.z <= b[6] then
-            return true
+    for _, rec in ipairs(applied) do
+        local hq = rec.hq
+        local w = hq.warfare
+        if hq.gate ~= "always" and (w.seed or w.service) then
+            local smart = smart_by_name(hq.smart)
+            if not smart then
+                return
+            end
+            if w.seed_start and w.seed_start ~= start then
+                warfare_log.info("warfare_player_hqs: start=%s is not %s, smart=%s starts empty", start, w.seed_start, hq.smart)
+                return
+            end
+            local seed = w.seed or {}
+            local faction = hq.gate
+            if w.entry and w.entry.faction then
+                faction = w.entry.faction
+            end
+            return {
+                smart   = smart,
+                faction = faction,
+                section = seed.section,
+                count   = seed.count or 0,
+                service = w.service or {},
+            }
         end
     end
-    for _, p in ipairs(area.points or {}) do
-        if pos:distance_to(vector():set(p[1], p[2], p[3])) < POINT_RADIUS then
-            return true
-        end
-    end
-    return false
 end
 
 -- Dynamic anomalies ------------------------------------------------------------------------------
 
 local ANOMALY_TABLE = "plugins\\dynamic_anomalies.ltx"
 
--- bind_anomaly_field's coordinate table, with the rows inside the actor's HQ read as its "NA" skip.
+-- bind_anomaly_field's coordinate table, with the rows inside an active HQ read as its "NA" skip.
 local function anomaly_table(path)
     local ini = ini_file(path)
     if path ~= ANOMALY_TABLE then
@@ -289,5 +323,7 @@ local function install_anomaly_filter()
 end
 
 function on_game_start()
-    warfare.on_enabled(install_anomaly_filter)
+    if any("hazard_free") then
+        warfare.on_enabled(install_anomaly_filter)
+    end
 end

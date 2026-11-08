@@ -25,6 +25,8 @@ How to contribute:
    feat!: replace static squad tables with dynamic config
    ```
 
+3) Each faction HQ (renegade base, Sin mine, UNISG depot) is a FOMOD option in `optionals/HQ *`, with its GAMMA parts in `patches/GAMMA HQ *`. An option ships only what switches the HQ on: its data module `warfare_hq_<id>.script` (read by `warfare_player_hqs`), its `simulation.ltx` rows and its smart `![exclusive]` job hooks. Squad sections, `[ignore_list]` rows, job logic files and `meshes/dynamics/warfare_props` stay in `src`, so a save never loses a definition it holds. With an option unchecked the game must behave as if that HQ was never written. HQ options are chosen per playthrough.
+
 Changelog:
 Fixes after 1.5 version from discord:
 

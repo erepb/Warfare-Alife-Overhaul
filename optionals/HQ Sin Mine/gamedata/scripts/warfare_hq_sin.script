@@ -1,0 +1,88 @@
+-- Install option "HQ Sin Mine", after GeroyAnekdotov's WALO SIN HQ: while the actor plays Sin in
+-- warfare, the Red Forest mine red_smart_terrain_3_2 replaces the surface camp as the Sin main base
+-- and gets a medic and barman (jobs in mod_red_smart_terrain_3_2_warfare.ltx; the trader and the
+-- mechanic are simulation.ltx's story squads, replaced through mod_red_greh_*_warfare.ltx), a
+-- workbench, medic corner, bar and sleep spot. Not under ReDone, which moves the Sin base.
+-- Read by warfare_player_hqs.
+
+local k = warfare_base_props.kit
+
+hq = {
+    id    = "sin",
+    smart = "red_smart_terrain_3_2",                            -- the old mine
+    gate  = "greh",
+    available = function()
+        return not warfare_redone_patch.moves_sin_base()
+    end,
+
+    warfare = {
+        entry    = { faction = "greh", protect = true, resurrect = true },
+        replaces = "red_smart_terrain_4_2",                     -- the surface camp
+        -- the faction key also marks the base as the faction's own for GAMMA's campfire saving (YACS)
+        props    = {
+            red_smart_terrain_3_2 = { base = 1, resource = 0, territory = 0, lair = 0, greh = 1 },
+            red_smart_terrain_4_2 = { base = 0, resource = 1, territory = 0, lair = 0 },
+        },
+        uniques  = { 1, 1, 1, 1, 0 },                           -- trader, mechanic, medic, barman
+        capacity = 4,
+        -- squad_descr_warfare.ltx
+        service  = { "red_smart_terrain_3_2_greh_medic_squad", "red_smart_terrain_3_2_greh_barman_squad" },
+    },
+
+    -- Laid out by SIN HQ 2.0.2: the renegade workbench pair, medic corner and bar items moved here.
+    pieces = {
+        { key = "table", section = k.PHYSIC_OBJECT, visual = k.TABLE, fixed_bones = "link",
+          pos = { -156.07967, 2.17797, -25.93725 }, heading = 3.15066 },
+        { key = "vice", section = "awr_tiski", ini = k.VICE_INI,
+          pos = { -156.09188, 3.02932, -25.71644 }, heading = 1.57910 },
+
+        -- Medic corner: he sits facing the table. The chair stands where the sit animation settles him
+        -- (red_smart_terrain_3_2_warfare_logic.ltx animpoint, the medic anchor's seat below).
+        { key = "medic_table", section = k.PHYSIC_OBJECT, visual = k.TABLE, fixed_bones = "link", ini = k.TABLE_TOP_INI,
+          pos = { -156.22121, 2.17840, -36.33188 }, heading = 4.68457 },
+        { key = "medic_chair", section = k.PHYSIC_OBJECT, visual = k.CHAIR, fixed_bones = "link",
+          pos = { -157.27080, 2.18006, -36.30268 }, heading = 1.54298 },
+        { key = "medic_medkit", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "dev_aptechka_low",
+          fixed_bones = "bone01", ini = k.TABLE_ITEM_INI, pos = { -156.08596, 3.03141, -35.78543 }, heading = 4.98457 },
+        { key = "medic_bandage", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "dev_bandage",
+          fixed_bones = "bone01", ini = k.TABLE_ITEM_INI, pos = { -156.03238, 3.04441, -36.01701 }, heading = 4.18457 },
+        { key = "medic_stim", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "stim1",
+          fixed_bones = "bone01", ini = k.TABLE_ITEM_INI, pos = { -156.28950, 3.04541, -35.90982 }, heading = 5.88457 },
+        { key = "medic_kit", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "item_aptechka2",
+          fixed_bones = "link", ini = k.TABLE_ITEM_INI, pos = { -156.11655, 3.03241, -36.88500 }, heading = 4.48457 },
+
+        -- Bar: two barrels in front of the barman, plate and mug on one, the vodka crate on the other.
+        { key = "barrel_left", section = k.PHYSIC_OBJECT, visual = k.BARREL, fixed_bones = "barrel",
+          pos = { -152.35210, 2.20186, -19.60422 }, heading = 3.09450 },
+        { key = "barrel_right", section = k.PHYSIC_OBJECT, visual = k.BARREL, fixed_bones = "barrel",
+          pos = { -153.09328, 2.20186, -19.56930 }, heading = 3.09450 },
+        { key = "bar_plate", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "kitchen_tarelka1",
+          fixed_bones = "link", pos = { -152.43201, 3.29213, -19.60046 }, heading = 3.09450 },
+        { key = "bar_mug", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "kitchen_krujka",
+          fixed_bones = "bone01", pos = { -152.16478, 3.29213, -19.45288 }, heading = 3.09450 },
+        { key = "bar_bottles", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "box_bottle_1",
+          fixed_bones = "link", pos = { -153.09328, 3.29213, -19.56930 }, heading = 3.09450 },
+        { key = "bar_vodka_1", section = k.PHYSIC_OBJECT, visual = k.VODKA, fixed_bones = "bone01",
+          pos = { -152.91923, 3.31213, -19.48739 }, heading = 3.49450 },
+        { key = "bar_vodka_2", section = k.PHYSIC_OBJECT, visual = k.VODKA, fixed_bones = "bone01",
+          pos = { -153.03862, 3.31213, -19.47176 }, heading = 4.99450 },
+        { key = "bar_vodka_3", section = k.PHYSIC_OBJECT, visual = k.VODKA, fixed_bones = "bone01",
+          pos = { -153.16989, 3.31213, -19.49561 }, heading = 2.29450 },
+        { key = "bar_vodka_4", section = k.PHYSIC_OBJECT, visual = k.VODKA, fixed_bones = "bone01",
+          pos = { -152.98717, 3.31213, -19.65439 }, heading = 5.79450 },
+        { key = "bar_vodka_5", section = k.PHYSIC_OBJECT, visual = k.VODKA, fixed_bones = "bone01",
+          pos = { -153.12796, 3.31213, -19.66777 }, heading = 4.19450 },
+    },
+
+    anchors = {
+        -- seat = the medic_chair piece
+        { job = "red_smart_terrain_3_2_warfare_medic", pos = { -156.97092, 2.17706, -36.31102 },
+          seat = { -157.27080, 2.18006, -36.30268 } },
+        { job = "red_smart_terrain_3_2_warfare_barman", pos = { -152.677971, 2.200348, -18.637812 } },
+    },
+
+    -- the mine's own mattress
+    sleep_spot = { -161.08794, 3.11622, -28.99401 },
+
+    hazard_free = { level = "l10_red_forest", boxes = { { -173.5, 0, -46, -144, 6, -15 } } },
+}

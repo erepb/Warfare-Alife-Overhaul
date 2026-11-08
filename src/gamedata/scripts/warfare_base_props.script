@@ -1,46 +1,59 @@
--- Static props Warfare adds to bases that have none in all.spawn (workbench, bar counter, medic corner,
--- lamps). Each piece is created once, the first time the actor is on the smart's level, and its object
--- id is kept in alife storage. A stored piece that is no longer listed is released; one whose listed
--- pose, model or custom data changed is released and recreated. Every piece is pinned by a bone and
--- ignores static geometry, so it can't be pushed and doesn't spam impact sounds.
+-- Static props for the installed HQs (warfare_player_hqs): workbench, bar counter, medic corner, beds,
+-- lamps. Each piece is created once, the first time the actor is on the HQ smart's level, and its
+-- object id is kept in alife storage. A stored piece that is no longer listed is released; one whose
+-- listed pose, model or custom data changed is released and recreated. Every piece is pinned by a
+-- bone and ignores static geometry, so it can't be pushed and doesn't spam impact sounds. With no
+-- HQ installed this module installs nothing.
 --
 -- Models are Warfare's own copies of vanilla ones (meshes\dynamics\warfare_props): the engine aborts on
 -- a fixed bone the model lacks, and other mods replace the vanilla paths with differently-boned models.
 --
 -- AI paths ignore physics objects, so a smart's obstacle pieces are also fenced off by one default IN
--- space restrictor (every NPC on the level stays out of it), listed as the smart's ai_blocker piece.
+-- space restrictor (every NPC on the level stays out of it), stored as the smart's ai_blocker piece.
 --
 -- The vice's name (awr_tiski<id>) is what bind_awr and zz_warfare_mech_fix match on.
+--
+-- A piece: key names it in storage; pos is the model origin, heading in radians (engine getH
+-- convention), optional bank rolls the model about its forward axis. visual / fixed_bones override
+-- the section's own; ini is the custom data (default kit.COLLIDE_INI). obstacle is the radius NPCs
+-- are kept away from its pos by. A lamp piece carries its hanging-lamp properties in lamp; pos is
+-- the ceiling point it hangs from.
 
-local PHYSIC_OBJECT = "physic_object"
-local HANGING_LAMP = "lights_hanging_lamp"
 local SPACE_RESTRICTOR = "space_restrictor"
 local DEFAULT_IN_RESTRICTOR = 2
 
+-- Sections, models and custom data the HQ data modules build their pieces from.
+kit = {}
+kit.PHYSIC_OBJECT = "physic_object"
+kit.HANGING_LAMP = "lights_hanging_lamp"
+
 -- Pinned bodies otherwise keep colliding with the floor they stand on.
-local COLLIDE_INI = "[collide]\nignore_static\n"
+kit.COLLIDE_INI = "[collide]\nignore_static\n"
 
 -- Pinned bodies still yield to steady contact, so a table carrying pinned items sinks unless the two
 -- don't collide: items are small objects and the table ignores small objects.
-local TABLE_TOP_INI = "[collide]\nignore_static\nignore_small_objects\n"
-local TABLE_ITEM_INI = "[collide]\nignore_static\nsmall_object\n"
+kit.TABLE_TOP_INI = "[collide]\nignore_static\nignore_small_objects\n"
+kit.TABLE_ITEM_INI = "[collide]\nignore_static\nsmall_object\n"
 
 -- Same as all.spawn's scripts\marsh\tiski_01.ltx once access is granted. Without [logic],
 -- bind_physic_object leaves the object unbound and it never gets a use callback.
-local VICE_INI = "[logic]\nactive = ph_idle@warfare_vice\n\n[ph_idle@warfare_vice]\ntips = st_tiski\n\n" .. COLLIDE_INI
+kit.VICE_INI = "[logic]\nactive = ph_idle@warfare_vice\n\n[ph_idle@warfare_vice]\ntips = st_tiski\n\n" .. kit.COLLIDE_INI
 
-local PROPS = [[dynamics\warfare_props\]]
+kit.PROPS = [[dynamics\warfare_props\]]
 
-local TABLE  = PROPS .. "awr_stol_9a_mini" -- 1.52 x 0.65, top 0.851 above its origin
-local BARREL = PROPS .. "bochka_close_1"
--- A level vertex is blocked when a corner of its cell is inside. The barman's cell has no cells north
--- of it, so this must stay below 0.28 to keep the two cells west of it open as his way in.
-local BARREL_RADIUS = 0.25
-local VODKA  = PROPS .. "dev_vodka"
+kit.TABLE  = kit.PROPS .. "awr_stol_9a_mini" -- 1.52 x 0.65, top 0.851 above its origin
+kit.BARREL = kit.PROPS .. "bochka_close_1"
+kit.VODKA  = kit.PROPS .. "dev_vodka"
+kit.CHAIR  = kit.PROPS .. "stul_wood_01"
+kit.MATTRESS = kit.PROPS .. "mattress02"   -- 2.04 x 0.94, 0.11 thick, origin at its underside
+kit.MATTRESS_BONES = "bone01_(1),bone01_(2),bone01_(3),bone02_(1),bone02_(2),bone02_(3),bone03"
+kit.TROLLEY = kit.PROPS .. "med_stolik_01" -- 0.65 x 0.87, tray 0.91 above its origin
+kit.TROLLEY_BONES = "link,korpus_1,korpus_2,other,stoyka_left_1,stoyka_left_2,stoyka_right_1,stoyka_right_2,"
+    .. "wheel_left_1,wheel_left_2,wheel_right_1,wheel_right_2"
 
 -- Vanilla all.spawn light_wire_1 (bare bulb on a wire). flags 42 = cast shadow + R2 + point ambient.
-local WIRE_LAMP = {
-    visual_name = PROPS .. "light_wire_1_glass",
+kit.WIRE_LAMP = {
+    visual_name = kit.PROPS .. "light_wire_1_glass",
     main_color = 0xffffffff, main_brightness = 0.8, main_color_animator = [[light\light_omni_white_idle]],
     main_range = 8, light_flags = 42, lamp_fixed_bones = "link", health = 100,
     main_virtual_size = 0.1, ambient_radius = 2, ambient_power = 0.1, ambient_texture = "", main_texture = "",
@@ -49,153 +62,12 @@ local WIRE_LAMP = {
 
 -- Vanilla desk lamp (table_lamp_01) as a hanging lamp, standing on a trolley. It has no bone_omni,
 -- so the ambient light uses bone_lamp too; every bone is pinned so the arm can't fold.
-local DESK_LAMP = {
-    visual_name = PROPS .. "table_lamp_01",
+kit.DESK_LAMP = {
+    visual_name = kit.PROPS .. "table_lamp_01",
     main_color = 0xffffffff, main_brightness = 0.7, main_color_animator = [[light\light_omni_white_idle]],
     main_range = 6, light_flags = 42, lamp_fixed_bones = "link,leg1,leg2,in_,out_,bone_lamp,konus", health = 100,
     main_virtual_size = 0.1, ambient_radius = 2, ambient_power = 0.1, ambient_texture = "", main_texture = "",
     main_bone = "bone_lamp", main_cone_angle = 2.094, glow_texture = "", glow_radius = 0.5, ambient_bone = "bone_lamp",
-}
-
-local CHAIR    = PROPS .. "stul_wood_01"
-local MATTRESS = PROPS .. "mattress02"   -- 2.04 x 0.94, 0.11 thick, origin at its underside
-local MATTRESS_BONES = "bone01_(1),bone01_(2),bone01_(3),bone02_(1),bone02_(2),bone02_(3),bone03"
-local TROLLEY  = PROPS .. "med_stolik_01" -- 0.65 x 0.87, tray 0.91 above its origin
-local TROLLEY_BONES = "link,korpus_1,korpus_2,other,stoyka_left_1,stoyka_left_2,stoyka_right_1,stoyka_right_2,"
-    .. "wheel_left_1,wheel_left_2,wheel_right_1,wheel_right_2"
-
--- smart name -> pieces. key names the piece in storage. pos is the model origin, heading in radians
--- (engine getH convention), optional bank rolls the model about its forward axis.
--- visual / fixed_bones override the section's own; ini is the custom data (default COLLIDE_INI).
--- obstacle is the radius NPCs are kept away from its pos by.
--- A lamp piece carries its hanging-lamp properties in lamp; pos is the ceiling point it hangs from.
-local pieces = {
-    ["mar_smart_terrain_3_3"] = {
-        -- Workbench: the Clear Sky base pair (mar_awr_stol_1 + mar_awr_tiski_01) rotated so the table's
-        -- working side faces the mechanic.
-        { key = "table", section = PHYSIC_OBJECT, visual = TABLE, fixed_bones = "link",
-          pos = { -205.03261, 0.60585, 404.34882 }, heading = 0.90970 },
-        { key = "vice", section = "awr_tiski", ini = VICE_INI,
-          pos = { -204.85197, 1.45720, 404.22124 }, heading = 5.62133 },
-
-        -- Bar: barrels (0.742 wide, 1.09 tall) in an L in front of and left of the barman's cell
-        -- (-173.6, 1.316, 411.6), props on top.
-        { key = "barrel_front_r", section = PHYSIC_OBJECT, visual = BARREL, fixed_bones = "barrel",
-          obstacle = BARREL_RADIUS, pos = { -174.46908, 1.3, 411.03993 }, heading = 2.94367 },
-        { key = "barrel_front_c", section = PHYSIC_OBJECT, visual = BARREL, fixed_bones = "barrel",
-          obstacle = BARREL_RADIUS, pos = { -173.74156, 1.3, 410.89403 }, heading = 2.94367 },
-        { key = "barrel_front_l", section = PHYSIC_OBJECT, visual = BARREL, fixed_bones = "barrel",
-          obstacle = BARREL_RADIUS, pos = { -173.01405, 1.3, 410.74813 }, heading = 2.94367 },
-        { key = "barrel_side", section = PHYSIC_OBJECT, visual = BARREL, fixed_bones = "barrel",
-          obstacle = BARREL_RADIUS, pos = { -172.86815, 1.3, 411.47565 }, heading = 2.94367 },
-        { key = "bar_plate", section = PHYSIC_OBJECT, visual = PROPS .. "kitchen_tarelka1",
-          fixed_bones = "link", pos = { -173.82, 2.39027, 410.90976 }, heading = 2.94367 },
-        { key = "bar_mug", section = PHYSIC_OBJECT, visual = PROPS .. "kitchen_krujka",
-          fixed_bones = "bone01", pos = { -173.53362, 2.39027, 411.01551 }, heading = 2.94367 },
-        { key = "bar_pot", section = PHYSIC_OBJECT, visual = PROPS .. "kitchen_kastrula_up",
-          fixed_bones = "link", pos = { -174.46908, 2.39027, 411.03993 }, heading = 2.94367 },
-        { key = "bar_bottles", section = PHYSIC_OBJECT, visual = PROPS .. "box_bottle_1",
-          fixed_bones = "link", pos = { -172.86815, 2.39027, 411.47565 }, heading = 2.94367 },
-        -- vodka (0.066 wide, 0.27 tall) in the crate: staggered rows of 3 + 2, one corner left empty,
-        -- each turned differently
-        { key = "bar_vodka_1", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
-          pos = { -172.68377, 2.41027, 411.53047 }, heading = 3.34367 },
-        { key = "bar_vodka_2", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
-          pos = { -172.79946, 2.41027, 411.56387 }, heading = 4.84367 },
-        { key = "bar_vodka_3", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
-          pos = { -172.93282, 2.41027, 411.56001 }, heading = 2.14367 },
-        { key = "bar_vodka_4", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
-          pos = { -172.77603, 2.41027, 411.37558 }, heading = 5.64367 },
-        { key = "bar_vodka_5", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
-          pos = { -172.91723, 2.41027, 411.38350 }, heading = 4.04367 },
-
-        -- Medic corner. The chair faces his way (the model's front is its -z, so heading is his + pi) and
-        -- stands where the sit animation settles him, 0.5 m behind his animpoint. Moving it means moving
-        -- the animpoint (mar_smart_terrain_3_3_warfare_logic.ltx), the table and the seat in
-        -- warfare_job_anchors with it.
-        { key = "medic_chair", section = PHYSIC_OBJECT, visual = PROPS .. "stul_wood_01", fixed_bones = "link",
-          pos = { -171.74308, 2.48869, 415.71453 }, heading = 3.23391 },
-        -- turned like the workbench (table heading = the facing of whoever works at it), kept clear of his
-        -- seated body: characters collide with props
-        { key = "medic_table", section = PHYSIC_OBJECT, visual = TABLE, fixed_bones = "link", ini = TABLE_TOP_INI,
-          pos = { -171.83988, 2.43069, 416.76006 }, heading = 0.09232 },
-        -- on the table: medkit, bandage, stim on his left; kit on his right
-        { key = "medic_medkit", section = PHYSIC_OBJECT, visual = PROPS .. "dev_aptechka_low",
-          fixed_bones = "bone01", ini = TABLE_ITEM_INI, pos = { -172.39860, 3.2837, 416.82884 }, heading = 0.39232 },
-        { key = "medic_bandage", section = PHYSIC_OBJECT, visual = PROPS .. "dev_bandage",
-          fixed_bones = "bone01", ini = TABLE_ITEM_INI, pos = { -172.17511, 3.2967, 416.90979 }, heading = -0.40768 },
-        { key = "medic_stim", section = PHYSIC_OBJECT, visual = PROPS .. "stim1",
-          fixed_bones = "bone01", ini = TABLE_ITEM_INI, pos = { -172.25072, 3.2977, 416.64168 }, heading = 1.29232 },
-        { key = "medic_kit", section = PHYSIC_OBJECT, visual = PROPS .. "item_aptechka2",
-          fixed_bones = "link", ini = TABLE_ITEM_INI, pos = { -171.30329, 3.2847, 416.93025 }, heading = -0.10768 },
-        -- 2 m to his left
-        { key = "medic_freezer", section = PHYSIC_OBJECT, visual = PROPS .. "freezer", fixed_bones = "root",
-          pos = { -173.73508, 2.48869, 415.53053 }, heading = 3.23391 },
-        { key = "lamp_medic", section = HANGING_LAMP, lamp = WIRE_LAMP,
-          pos = { -171.59898, 4.85432, 417.12808 }, heading = 0, bank = math.pi },
-    },
-
-    -- Sin HQ in the Red Forest mine (warfare_player_hqs), laid out by SIN HQ 2.0.2: the renegade
-    -- workbench pair, medic corner and bar items moved here.
-    ["red_smart_terrain_3_2"] = {
-        { key = "table", section = PHYSIC_OBJECT, visual = TABLE, fixed_bones = "link",
-          pos = { -156.07967, 2.17797, -25.93725 }, heading = 3.15066 },
-        { key = "vice", section = "awr_tiski", ini = VICE_INI,
-          pos = { -156.09188, 3.02932, -25.71644 }, heading = 1.57910 },
-
-        -- Medic corner: he sits facing the table. The chair stands where the sit animation settles him
-        -- (red_smart_terrain_3_2_warfare_logic.ltx animpoint, warfare_job_anchors seat).
-        { key = "medic_table", section = PHYSIC_OBJECT, visual = TABLE, fixed_bones = "link", ini = TABLE_TOP_INI,
-          pos = { -156.22121, 2.17840, -36.33188 }, heading = 4.68457 },
-        { key = "medic_chair", section = PHYSIC_OBJECT, visual = CHAIR, fixed_bones = "link",
-          pos = { -157.27080, 2.18006, -36.30268 }, heading = 1.54298 },
-        { key = "medic_medkit", section = PHYSIC_OBJECT, visual = PROPS .. "dev_aptechka_low",
-          fixed_bones = "bone01", ini = TABLE_ITEM_INI, pos = { -156.08596, 3.03141, -35.78543 }, heading = 4.98457 },
-        { key = "medic_bandage", section = PHYSIC_OBJECT, visual = PROPS .. "dev_bandage",
-          fixed_bones = "bone01", ini = TABLE_ITEM_INI, pos = { -156.03238, 3.04441, -36.01701 }, heading = 4.18457 },
-        { key = "medic_stim", section = PHYSIC_OBJECT, visual = PROPS .. "stim1",
-          fixed_bones = "bone01", ini = TABLE_ITEM_INI, pos = { -156.28950, 3.04541, -35.90982 }, heading = 5.88457 },
-        { key = "medic_kit", section = PHYSIC_OBJECT, visual = PROPS .. "item_aptechka2",
-          fixed_bones = "link", ini = TABLE_ITEM_INI, pos = { -156.11655, 3.03241, -36.88500 }, heading = 4.48457 },
-
-        -- Bar: two barrels in front of the barman, plate and mug on one, the vodka crate on the other.
-        { key = "barrel_left", section = PHYSIC_OBJECT, visual = BARREL, fixed_bones = "barrel",
-          pos = { -152.35210, 2.20186, -19.60422 }, heading = 3.09450 },
-        { key = "barrel_right", section = PHYSIC_OBJECT, visual = BARREL, fixed_bones = "barrel",
-          pos = { -153.09328, 2.20186, -19.56930 }, heading = 3.09450 },
-        { key = "bar_plate", section = PHYSIC_OBJECT, visual = PROPS .. "kitchen_tarelka1",
-          fixed_bones = "link", pos = { -152.43201, 3.29213, -19.60046 }, heading = 3.09450 },
-        { key = "bar_mug", section = PHYSIC_OBJECT, visual = PROPS .. "kitchen_krujka",
-          fixed_bones = "bone01", pos = { -152.16478, 3.29213, -19.45288 }, heading = 3.09450 },
-        { key = "bar_bottles", section = PHYSIC_OBJECT, visual = PROPS .. "box_bottle_1",
-          fixed_bones = "link", pos = { -153.09328, 3.29213, -19.56930 }, heading = 3.09450 },
-        { key = "bar_vodka_1", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
-          pos = { -152.91923, 3.31213, -19.48739 }, heading = 3.49450 },
-        { key = "bar_vodka_2", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
-          pos = { -153.03862, 3.31213, -19.47176 }, heading = 4.99450 },
-        { key = "bar_vodka_3", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
-          pos = { -153.16989, 3.31213, -19.49561 }, heading = 2.29450 },
-        { key = "bar_vodka_4", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
-          pos = { -152.98717, 3.31213, -19.65439 }, heading = 5.79450 },
-        { key = "bar_vodka_5", section = PHYSIC_OBJECT, visual = VODKA, fixed_bones = "bone01",
-          pos = { -153.12796, 3.31213, -19.66777 }, heading = 4.19450 },
-    },
-
-    -- UNISG HQ in the Jupiter depot (warfare_player_hqs), laid out by UNISG Command & Operations 1.0.3:
-    -- the medic's and barman's chairs, and an infirmary bed, trolley and lamp in vanilla models.
-    ["jup_b208"] = {
-        { key = "medic_chair", section = PHYSIC_OBJECT, visual = CHAIR, fixed_bones = "link",
-          pos = { 386.95700, 4.27900, -125.72850 }, heading = 1.55380 },
-        { key = "barman_chair", section = PHYSIC_OBJECT, visual = CHAIR, fixed_bones = "link",
-          pos = { 425.18500, 9.95400, -81.68050 }, heading = 4.72739 },
-        -- the sleep spot (warfare_sleep_spots) is on it
-        { key = "bed", section = PHYSIC_OBJECT, visual = MATTRESS, fixed_bones = MATTRESS_BONES,
-          pos = { 384.28900, 4.41100, -130.07000 }, heading = 3.19864 },
-        { key = "trolley", section = PHYSIC_OBJECT, visual = TROLLEY, fixed_bones = TROLLEY_BONES, ini = TABLE_TOP_INI,
-          pos = { 382.96600, 4.42600, -128.72800 }, heading = 3.51523 },
-        { key = "lamp_trolley", section = HANGING_LAMP, lamp = DESK_LAMP,
-          pos = { 382.96600, 5.34600, -128.72800 }, heading = 3.51523 },
-    },
 }
 
 -- The restrictor piece covering a list's obstacles: one sphere per obstacle, offset from the first.
@@ -211,11 +83,22 @@ local function blocker_piece(list)
     return blocker
 end
 
-for _, list in pairs(pieces) do
-    local blocker = blocker_piece(list)
-    if blocker then
-        list[#list + 1] = blocker
+local lists = {} -- HQ -> its pieces plus the ai_blocker piece
+
+local function pieces_of(hq)
+    local list = lists[hq]
+    if not list then
+        list = {}
+        for i, piece in ipairs(hq.pieces) do
+            list[i] = piece
+        end
+        local blocker = blocker_piece(list)
+        if blocker then
+            list[#list + 1] = blocker
+        end
+        lists[hq] = list
     end
+    return list
 end
 
 -- What a piece was created with, compared against the list rather than the live object: the engine may
@@ -292,7 +175,7 @@ local function create(piece, gvid)
     if piece.fixed_bones then
         data.fixed_bones = piece.fixed_bones
     end
-    data.custom_data = piece.ini or COLLIDE_INI
+    data.custom_data = piece.ini or kit.COLLIDE_INI
     utils_stpk.set_physic_data(data, se_obj)
     return se_obj.id
 end
@@ -315,16 +198,18 @@ local function release_unlisted(smart_name, list, ids, signatures)
     end
 end
 
--- Runs in every game: the renegade base's service squads spawn in every game (simulation.ltx), and
--- warfare_player_hqs.allows keeps the faction HQs to warfare games.
+-- Runs in every game: the renegade base exists in every game, and warfare_player_hqs.active keeps
+-- the faction HQs to warfare games.
 local function actor_on_first_update()
     local st = alife_storage_manager.get_state()
     st.warfare_base_props = st.warfare_base_props or {}
     st.warfare_base_props_poses = st.warfare_base_props_poses or {}
 
-    for smart_name, list in pairs(pieces) do
-        local smart = warfare_utils.smart_on_actor_level(smart_name)
-        if smart and warfare_player_hqs.allows(smart_name) then
+    for _, hq in ipairs(warfare_player_hqs.active()) do
+        local smart_name = hq.smart
+        local smart = hq.pieces and warfare_utils.smart_on_actor_level(smart_name)
+        if smart then
+            local list = pieces_of(hq)
             local ids = st.warfare_base_props[smart_name] or {}
             local signatures = st.warfare_base_props_poses[smart_name] or {}
             release_unlisted(smart_name, list, ids, signatures)
@@ -381,32 +266,51 @@ local function service_mechanic(smart)
     end
 end
 
--- A Warfare-created vice has no [workshop_angles] row, which bind_awr.access indexes outside warfare.
-local bind_awr_access = bind_awr.access
-function bind_awr.access(obj)
-    if obj and smart_of_vice(obj:id()) then
-        return true
-    end
-    return bind_awr_access(obj)
-end
-
--- Outside warfare bind_awr opens a Warfare-created vice with no owner; it answers to the base's
--- mechanic, with the tiers his infoportions record (warfare_tool_tiers owns this in warfare).
-local get_workshop_ui = ui_workshop.get_workshop_ui
-function ui_workshop.get_workshop_ui(hud, mechanic, flags, ...)
-    if not (_G.WARFARE or mechanic) and type(flags) == "table" then
-        local smart = vice_near_actor()
-        mechanic = smart and service_mechanic(smart)
-        if mechanic then
-            for tier = 1, 3 do
-                flags[tier] = has_alife_info(mechanic .. "_upgrade_tier_" .. tier)
+local function has_vice()
+    for _, hq in ipairs(warfare_player_hqs.registered()) do
+        for _, piece in ipairs(hq.pieces or {}) do
+            if piece.key == "vice" then
+                return true
             end
-            warfare_log.info("warfare_base_props: workbench smart=%s owner=%s", smart:name(), mechanic)
         end
     end
-    return get_workshop_ui(hud, mechanic, flags, ...)
+    return false
+end
+
+local function install_workbench()
+    -- A Warfare-created vice has no [workshop_angles] row, which bind_awr.access indexes outside warfare.
+    local bind_awr_access = bind_awr.access
+    function bind_awr.access(obj)
+        if obj and smart_of_vice(obj:id()) then
+            return true
+        end
+        return bind_awr_access(obj)
+    end
+
+    -- Outside warfare bind_awr opens a Warfare-created vice with no owner; it answers to the base's
+    -- mechanic, with the tiers his infoportions record (warfare_tool_tiers owns this in warfare).
+    local get_workshop_ui = ui_workshop.get_workshop_ui
+    function ui_workshop.get_workshop_ui(hud, mechanic, flags, ...)
+        if not (_G.WARFARE or mechanic) and type(flags) == "table" then
+            local smart = vice_near_actor()
+            mechanic = smart and service_mechanic(smart)
+            if mechanic then
+                for tier = 1, 3 do
+                    flags[tier] = has_alife_info(mechanic .. "_upgrade_tier_" .. tier)
+                end
+                warfare_log.info("warfare_base_props: workbench smart=%s owner=%s", smart:name(), mechanic)
+            end
+        end
+        return get_workshop_ui(hud, mechanic, flags, ...)
+    end
 end
 
 function on_game_start()
+    if not warfare_player_hqs.any("pieces") then
+        return
+    end
+    if has_vice() then
+        install_workbench()
+    end
     RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
 end

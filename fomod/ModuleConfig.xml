@@ -25,6 +25,67 @@ NOTE ABOUT PATCHES: If you use any of the patches below, this addon must be load
                     </plugins>
                     <!--<designer.metadata.do.not.edit> {"name":"Main Files"}-->
                 </group>
+                <group name="Faction HQs" type="SelectAny">
+                    <plugins order="Explicit">
+                        <plugin name="HQ Renegade Base">
+                            <description>
+The renegade base in the Marsh (mar_smart_terrain_3_3) gets a trader, mechanic, barman and medic, a workbench, a bar, a medic corner and a sleep spot, in every game.
+
+Uncheck it if another addon furnishes this base, for example Renegade Restoration.
+
+HQ choices are per playthrough: start a new game after changing them.
+                            </description>
+                            <files>
+                                <folder source="optionals\HQ Renegade Base" destination="" priority="0"
+                                        alwaysInstall="false" installIfUsable="false"/>
+                            </files>
+                            <conditionFlags>
+                                <flag name="hq_renegade">On</flag>
+                            </conditionFlags>
+                            <typeDescriptor>
+                                <type name="Recommended"/>
+                            </typeDescriptor>
+                        </plugin>
+                        <plugin name="HQ Sin Mine">
+                            <description>
+Playing Sin in Warfare, the Red Forest mine (red_smart_terrain_3_2) becomes your faction's HQ instead of the surface camp, with a medic and barman next to the Sin trader and mechanic, a workbench, a medic corner, a bar and a sleep spot. Not available with ReDone, which moves the Sin base.
+
+Uncheck it if another addon furnishes this base.
+
+HQ choices are per playthrough: start a new game after changing them.
+                            </description>
+                            <files>
+                                <folder source="optionals\HQ Sin Mine" destination="" priority="0"
+                                        alwaysInstall="false" installIfUsable="false"/>
+                            </files>
+                            <conditionFlags>
+                                <flag name="hq_sin">On</flag>
+                            </conditionFlags>
+                            <typeDescriptor>
+                                <type name="Recommended"/>
+                            </typeDescriptor>
+                        </plugin>
+                        <plugin name="HQ UNISG Depot">
+                            <description>
+Playing UNISG in Warfare, the Jupiter depot (jup_b208) becomes your faction's HQ, with a trader, mechanic, medic and barman, an infirmary and a sleep spot. It is occupied at the start only when you start at the depot; from any other start it stands empty for you to capture.
+
+Uncheck it if another addon furnishes this base.
+
+HQ choices are per playthrough: start a new game after changing them.
+                            </description>
+                            <files>
+                                <folder source="optionals\HQ UNISG Depot" destination="" priority="0"
+                                        alwaysInstall="false" installIfUsable="false"/>
+                            </files>
+                            <conditionFlags>
+                                <flag name="hq_unisg">On</flag>
+                            </conditionFlags>
+                            <typeDescriptor>
+                                <type name="Recommended"/>
+                            </typeDescriptor>
+                        </plugin>
+                    </plugins>
+                </group>
                 <group name="Optionals" type="SelectAny">
                     <!--<designer.metadata.do.not.edit> {"name":"Optionals"}-->
                     <plugins order="Ascending">
@@ -87,6 +148,9 @@ Contains all patches for Gamma modpack compatibility.
                                 <folder source="patches\GAMMA Warfare Patch"
                                         destination="" priority="0" alwaysInstall="false" installIfUsable="false"/>
                             </files>
+                            <conditionFlags>
+                                <flag name="gamma">On</flag>
+                            </conditionFlags>
                             <typeDescriptor>
                                 <type name="Optional"/>
                             </typeDescriptor>
@@ -116,4 +180,26 @@ Requires the New Levels addon.
             </optionalFileGroups>
         </installStep>
     </installSteps>
+    <conditionalFileInstalls>
+        <patterns>
+            <pattern>
+                <dependencies operator="And">
+                    <flagDependency flag="gamma" value="On"/>
+                    <flagDependency flag="hq_sin" value="On"/>
+                </dependencies>
+                <files>
+                    <folder source="patches\GAMMA HQ Sin Mine" destination="" priority="0"/>
+                </files>
+            </pattern>
+            <pattern>
+                <dependencies operator="And">
+                    <flagDependency flag="gamma" value="On"/>
+                    <flagDependency flag="hq_unisg" value="On"/>
+                </dependencies>
+                <files>
+                    <folder source="patches\GAMMA HQ UNISG Depot" destination="" priority="0"/>
+                </files>
+            </pattern>
+        </patterns>
+    </conditionalFileInstalls>
 </config>

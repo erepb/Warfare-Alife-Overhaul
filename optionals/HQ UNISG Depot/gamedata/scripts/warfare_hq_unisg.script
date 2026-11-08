@@ -1,0 +1,61 @@
+-- Install option "HQ UNISG Depot", after GeroyAnekdotov's WALO UNISG Command & Operations: while the
+-- actor plays UNISG in warfare, the Jupiter depot jup_b208 is the UNISG main base, with a trader,
+-- mechanic, medic and barman (jobs in mod_jup_b208_warfare.ltx), chairs, an infirmary and a sleep
+-- spot. Read by warfare_player_hqs.
+
+local k = warfare_base_props.kit
+
+hq = {
+    id    = "unisg",
+    smart = "jup_b208",                                         -- the depot
+    gate  = "isg",
+
+    warfare = {
+        entry    = { faction = "isg", resurrect = true },
+        props    = {
+            jup_b208 = { base = 1, isg = 1 },
+        },
+        uniques  = { 1, 1, 1, 1, 0 },                           -- trader, mechanic, medic, barman
+        capacity = 4,
+        seed     = { section = "isg_sim_squad_novice", count = 2 },
+        -- squad_descr_warfare.ltx
+        service  = { "jup_b208_isg_trader_squad", "jup_b208_isg_mechanic_squad",
+                     "jup_b208_isg_medic_squad", "jup_b208_isg_barman_squad" },
+        -- new_game_start_locations.ltx: from any other start the depot is left empty to be captured
+        seed_start = "yanov_depo_monolith",
+    },
+
+    -- Laid out by UNISG Command & Operations 1.0.3: the medic's and barman's chairs, and an infirmary
+    -- bed, trolley and lamp in vanilla models.
+    pieces = {
+        { key = "medic_chair", section = k.PHYSIC_OBJECT, visual = k.CHAIR, fixed_bones = "link",
+          pos = { 386.95700, 4.27900, -125.72850 }, heading = 1.55380 },
+        { key = "barman_chair", section = k.PHYSIC_OBJECT, visual = k.CHAIR, fixed_bones = "link",
+          pos = { 425.18500, 9.95400, -81.68050 }, heading = 4.72739 },
+        -- the sleep spot is on it
+        { key = "bed", section = k.PHYSIC_OBJECT, visual = k.MATTRESS, fixed_bones = k.MATTRESS_BONES,
+          pos = { 384.28900, 4.41100, -130.07000 }, heading = 3.19864 },
+        { key = "trolley", section = k.PHYSIC_OBJECT, visual = k.TROLLEY, fixed_bones = k.TROLLEY_BONES, ini = k.TABLE_TOP_INI,
+          pos = { 382.96600, 4.42600, -128.72800 }, heading = 3.51523 },
+        { key = "lamp_trolley", section = k.HANGING_LAMP, lamp = k.DESK_LAMP,
+          pos = { 382.96600, 5.34600, -128.72800 }, heading = 3.51523 },
+    },
+
+    -- seats = the chair pieces
+    anchors = {
+        { job = "jup_b208_warfare_medic", pos = { 387.757, 4.279, -125.742 }, seat = { 386.95700, 4.27900, -125.72850 } },
+        { job = "jup_b208_warfare_barman", pos = { 424.385, 9.954, -81.692 }, seat = { 425.18500, 9.95400, -81.68050 } },
+        { job = "jup_b208_warfare_trader", pos = { 416.335, 9.851, -86.489 } },
+        { job = "jup_b208_warfare_mechanic", pos = { 422.943, 10, -92.1 } },
+    },
+
+    sleep_spot = { 384.28900, 4.40800, -130.07000 },
+
+    -- the hall, the room by the exit and the stair footprint (all.spawn's jup_b208_burers_restr and
+    -- jup_surge_hide_b208_2, as measured by UNISG Command & Operations 1.2.0); ano_jup_158 at the exit
+    hazard_free = { level = "jupiter",
+        boxes  = { { 387.01551, -0.42500, -137.64774, 417.83971, 14.31620, -85.44132 },
+                   { 424.26614,  3.67648,  -74.18181, 429.32694, 11.96648, -67.25081 },
+                   { 417.33313,  4.27900, -109.72678, 420.59033,  7.63307, -100.76898 } },
+        points = { { 421.97360, 4.45509, -73.03874 } } },
+}

@@ -1,0 +1,96 @@
+-- Install option "HQ Renegade Base": the renegade base mar_smart_terrain_3_3, in every game, gets a
+-- trader, mechanic, barman and medic (mod_simulation_warfare_hq_renegade.ltx, jobs in
+-- mod_mar_smart_terrain_3_3_warfare.ltx), a workbench, bar, medic corner and sleep spot.
+-- Read by warfare_player_hqs.
+
+local k = warfare_base_props.kit
+
+-- A level vertex is blocked when a corner of its cell is inside. The barman's cell has no cells north
+-- of it, so this must stay below 0.28 to keep the two cells west of it open as his way in.
+local BARREL_RADIUS = 0.25
+
+hq = {
+    id    = "renegade",
+    smart = "mar_smart_terrain_3_3",
+    gate  = "always",
+
+    warfare = {
+        uniques = { 1, 1, 1, 1, 0 },                            -- trader, mechanic, medic, barman
+    },
+
+    pieces = {
+        -- Workbench: the Clear Sky base pair (mar_awr_stol_1 + mar_awr_tiski_01) rotated so the table's
+        -- working side faces the mechanic.
+        { key = "table", section = k.PHYSIC_OBJECT, visual = k.TABLE, fixed_bones = "link",
+          pos = { -205.03261, 0.60585, 404.34882 }, heading = 0.90970 },
+        { key = "vice", section = "awr_tiski", ini = k.VICE_INI,
+          pos = { -204.85197, 1.45720, 404.22124 }, heading = 5.62133 },
+
+        -- Bar: barrels (0.742 wide, 1.09 tall) in an L in front of and left of the barman's cell
+        -- (-173.6, 1.316, 411.6), props on top.
+        { key = "barrel_front_r", section = k.PHYSIC_OBJECT, visual = k.BARREL, fixed_bones = "barrel",
+          obstacle = BARREL_RADIUS, pos = { -174.46908, 1.3, 411.03993 }, heading = 2.94367 },
+        { key = "barrel_front_c", section = k.PHYSIC_OBJECT, visual = k.BARREL, fixed_bones = "barrel",
+          obstacle = BARREL_RADIUS, pos = { -173.74156, 1.3, 410.89403 }, heading = 2.94367 },
+        { key = "barrel_front_l", section = k.PHYSIC_OBJECT, visual = k.BARREL, fixed_bones = "barrel",
+          obstacle = BARREL_RADIUS, pos = { -173.01405, 1.3, 410.74813 }, heading = 2.94367 },
+        { key = "barrel_side", section = k.PHYSIC_OBJECT, visual = k.BARREL, fixed_bones = "barrel",
+          obstacle = BARREL_RADIUS, pos = { -172.86815, 1.3, 411.47565 }, heading = 2.94367 },
+        { key = "bar_plate", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "kitchen_tarelka1",
+          fixed_bones = "link", pos = { -173.82, 2.39027, 410.90976 }, heading = 2.94367 },
+        { key = "bar_mug", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "kitchen_krujka",
+          fixed_bones = "bone01", pos = { -173.53362, 2.39027, 411.01551 }, heading = 2.94367 },
+        { key = "bar_pot", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "kitchen_kastrula_up",
+          fixed_bones = "link", pos = { -174.46908, 2.39027, 411.03993 }, heading = 2.94367 },
+        { key = "bar_bottles", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "box_bottle_1",
+          fixed_bones = "link", pos = { -172.86815, 2.39027, 411.47565 }, heading = 2.94367 },
+        -- vodka (0.066 wide, 0.27 tall) in the crate: staggered rows of 3 + 2, one corner left empty,
+        -- each turned differently
+        { key = "bar_vodka_1", section = k.PHYSIC_OBJECT, visual = k.VODKA, fixed_bones = "bone01",
+          pos = { -172.68377, 2.41027, 411.53047 }, heading = 3.34367 },
+        { key = "bar_vodka_2", section = k.PHYSIC_OBJECT, visual = k.VODKA, fixed_bones = "bone01",
+          pos = { -172.79946, 2.41027, 411.56387 }, heading = 4.84367 },
+        { key = "bar_vodka_3", section = k.PHYSIC_OBJECT, visual = k.VODKA, fixed_bones = "bone01",
+          pos = { -172.93282, 2.41027, 411.56001 }, heading = 2.14367 },
+        { key = "bar_vodka_4", section = k.PHYSIC_OBJECT, visual = k.VODKA, fixed_bones = "bone01",
+          pos = { -172.77603, 2.41027, 411.37558 }, heading = 5.64367 },
+        { key = "bar_vodka_5", section = k.PHYSIC_OBJECT, visual = k.VODKA, fixed_bones = "bone01",
+          pos = { -172.91723, 2.41027, 411.38350 }, heading = 4.04367 },
+
+        -- Medic corner. The chair faces his way (the model's front is its -z, so heading is his + pi) and
+        -- stands where the sit animation settles him, 0.5 m behind his animpoint. Moving it means moving
+        -- the animpoint (mar_smart_terrain_3_3_warfare_logic.ltx), the table and the medic anchor's seat
+        -- below with it.
+        { key = "medic_chair", section = k.PHYSIC_OBJECT, visual = k.CHAIR, fixed_bones = "link",
+          pos = { -171.74308, 2.48869, 415.71453 }, heading = 3.23391 },
+        -- turned like the workbench (table heading = the facing of whoever works at it), kept clear of his
+        -- seated body: characters collide with props
+        { key = "medic_table", section = k.PHYSIC_OBJECT, visual = k.TABLE, fixed_bones = "link", ini = k.TABLE_TOP_INI,
+          pos = { -171.83988, 2.43069, 416.76006 }, heading = 0.09232 },
+        -- on the table: medkit, bandage, stim on his left; kit on his right
+        { key = "medic_medkit", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "dev_aptechka_low",
+          fixed_bones = "bone01", ini = k.TABLE_ITEM_INI, pos = { -172.39860, 3.2837, 416.82884 }, heading = 0.39232 },
+        { key = "medic_bandage", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "dev_bandage",
+          fixed_bones = "bone01", ini = k.TABLE_ITEM_INI, pos = { -172.17511, 3.2967, 416.90979 }, heading = -0.40768 },
+        { key = "medic_stim", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "stim1",
+          fixed_bones = "bone01", ini = k.TABLE_ITEM_INI, pos = { -172.25072, 3.2977, 416.64168 }, heading = 1.29232 },
+        { key = "medic_kit", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "item_aptechka2",
+          fixed_bones = "link", ini = k.TABLE_ITEM_INI, pos = { -171.30329, 3.2847, 416.93025 }, heading = -0.10768 },
+        -- 2 m to his left
+        { key = "medic_freezer", section = k.PHYSIC_OBJECT, visual = k.PROPS .. "freezer", fixed_bones = "root",
+          pos = { -173.73508, 2.48869, 415.53053 }, heading = 3.23391 },
+        { key = "lamp_medic", section = k.HANGING_LAMP, lamp = k.WIRE_LAMP,
+          pos = { -171.59898, 4.85432, 417.12808 }, heading = 0, bank = math.pi },
+    },
+
+    anchors = {
+        { job = "mar_smart_terrain_3_3_warfare_trader", pos = { -166.64095, 1.21425, 404.41220 } },
+        { job = "mar_smart_terrain_3_3_warfare_mechanic", pos = { -202.38124, 0.66409, 402.19968 } },
+        { job = "mar_smart_terrain_3_3_warfare_barman", pos = { -173.29501, 1.33117, 411.64044 } },
+        -- seat = the medic_chair piece
+        { job = "mar_smart_terrain_3_3_warfare_medic", pos = { -171.5, 2.50729, 416.5 },
+          seat = { -171.74308, 2.48869, 415.71453 } },
+    },
+
+    sleep_spot = { -178.53926, 2.48696, 418.75180 },
+}
