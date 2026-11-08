@@ -1,8 +1,6 @@
 ; UNISG HQ services at the Jupiter depot. Positions from UNISG Command & Operations 1.0.3.
 ; The medic and barman exist only while the actor plays UNISG (warfare_player_hqs); the trader and
 ; mechanic whenever warfare spawns one here.
-; The animpoints keep the default reach_distance (0.8): an NPC within reach_distance plays the
-; animation where it stands.
 
 ; Warfare-spawned trader, upstairs. The cover by the entrance stays the story leader's: prior must
 ; stay above vanilla's jup_depo_isg_leader job there, which accepts any trader. trade only has to be
@@ -16,27 +14,17 @@ can_select_weapon = {=is_warfare} true, false
 dont_keep_items = true
 level_spot = trader
 
-; Warfare-spawned mechanic, on the cover vanilla gives the depot's story mechanic.
+; Warfare-spawned mechanic, on the spot of the cover vanilla gives the depot's story mechanic
+; (mechanic_monolith_jup_depo_plase). A beh point, not the cover: the cover's game vertex in
+; all.spawn lies across Jupiter, and a cover job sends the offline NPC there.
 [logic@jup_b208_warfare_mechanic]
 suitable = {=check_npc_mechanic} true
 trade = items\trade\trade_generic_mechanic.ltx
 prior = 200
-active = animpoint@jup_b208_warfare_mechanic
+active = beh@jup_b208_warfare_mechanic
 can_select_weapon = {=is_warfare} true, false
 dont_keep_items = true
 level_spot = mechanic
-
-[animpoint@jup_b208_warfare_mechanic]
-cover_name = mechanic_monolith_jup_depo_plase
-avail_animations = animpoint_sit_normal
-use_camp = false
-meet = meet
-combat_ignore_cond = {=is_warfare} false, {=actor_enemy =check_enemy_name(actor)} false, true
-combat_ignore_keep_when_attacked = {=is_warfare} false, true
-invulnerable = {=is_warfare} false, {!actor_enemy} true, false
-gather_items_enabled = false
-help_wounded_enabled = false
-corpse_detection_enabled = false
 
 ; Warfare-spawned medic and barman, each sitting on a chair created by warfare_base_props.script.
 ; warfare_job_anchors keeps beh from standing them up there (its anchor seats).
@@ -78,6 +66,10 @@ corpse_detection_enabled = false
 
 [beh@jup_b208_warfare_medic]:beh@general
 pt1 = 1000000000,animpoint_sit_normal | pos:387.757,4.279,-125.742 animpoint:387.457,4.279,-125.737,-1.000,0.000,0.017
+path_end = loop
+
+[beh@jup_b208_warfare_mechanic]:beh@general
+pt1 = 1000000000,animpoint_sit_normal | pos:422.943,10,-92.1 animpoint:422.943,10,-92.1,-0.141,0.000,-0.990
 path_end = loop
 
 [beh@jup_b208_warfare_trader]:beh@general
