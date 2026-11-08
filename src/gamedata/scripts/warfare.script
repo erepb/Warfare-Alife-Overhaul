@@ -1148,10 +1148,12 @@ function fill_start_position()
         end
     end)
 
-    -- The actor's faction HQ (warfare_player_hqs) gets its own squads, unless simulation.ltx already
+    -- The faction HQs (warfare_player_hqs) get their own squads, unless simulation.ltx already
     -- placed another faction there.
-    local hq = warfare_player_hqs.new_game_seed(new_game_config and new_game_config:r_value("character_creation", "new_game_map", 3))
-    if hq then
+    local seeds = warfare_player_hqs.new_game_seed(
+        new_game_config and new_game_config:r_value("character_creation", "new_game_map", 3),
+        new_game_config and new_game_config:r_value("character_creation", "new_game_faction", 3))
+    for _, hq in ipairs(seeds) do
         local hq_smart, faction = hq.smart, hq.faction
         local occupied = false
         for community in pairs(spawned_by_faction[hq_smart.id] or {}) do

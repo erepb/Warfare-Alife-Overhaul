@@ -14,8 +14,8 @@ local service_bases = {
       entry = { faction = "renegade", protect = true, resurrect = false } },
 }
 
--- ReDone North closes the old Sin camp to every faction (all = 0).
-local sin_camp = "red_smart_terrain_4_2"
+-- the Sin main base in misc\warfare_smarts.ltx
+local sin_mine = "red_smart_terrain_3_2"
 
 local function targets(squad, smart)
     return ini_sys:section_exist(squad) and ini_sys:r_string_ex(squad, "target_smart") == smart
@@ -26,16 +26,17 @@ function moves_sin_base()
     return targets("kat_greh_trader_squad", "katacomb_smart_terrain")
 end
 
+-- The mine stops being the Sin base first: North gives it to the Monolith trader.
 local function apply()
+    if moves_sin_base() then
+        smart_terrain_warfare.set_main_base(sin_mine, nil)
+        warfare_log.info("redone: %s is no longer a greh main base", sin_mine)
+    end
     for _, s in ipairs(service_bases) do
         if targets(s.squad, s.smart) then
             smart_terrain_warfare.set_main_base(s.smart, s.entry)
             warfare_log.info("redone: %s is now a %s main base", s.smart, s.entry.faction)
         end
-    end
-    if moves_sin_base() then
-        smart_terrain_warfare.set_main_base(sin_camp, nil)
-        warfare_log.info("redone: %s is no longer a greh main base", sin_camp)
     end
 end
 

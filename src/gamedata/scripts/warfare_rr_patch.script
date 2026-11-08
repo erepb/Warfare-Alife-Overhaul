@@ -34,12 +34,12 @@ end
 
 if installed() then
     hqs = {
-        { id = "rr_renegade_base", smart = OLD_BASE, gate = "always",
+        { id = "rr_renegade_base", smart = OLD_BASE, faction = "renegade", gate = "always",
           available = function()
               return not base_taken()
           end,
           warfare = { capacity = 3 } },
-        { id = "rr_csky_base", smart = CSKY_BASE, gate = "always",
+        { id = "rr_csky_base", smart = CSKY_BASE, faction = "renegade", gate = "always",
           available = base_taken,
           warfare = { entry    = { faction = "renegade", protect = true, resurrect = true },
                       replaces = OLD_BASE,

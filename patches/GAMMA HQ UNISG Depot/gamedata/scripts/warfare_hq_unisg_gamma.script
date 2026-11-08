@@ -1,6 +1,6 @@
 -- GAMMA part of the "HQ UNISG Depot" option, after GeroyAnekdotov's UNISG Command & Operations 1.0.3:
--- two campfires (Placeable Campfires' wood + a vanilla campfire zone) in the depot while it is the
--- actor's HQ, in the depot's campfire list so its NPCs light and use them, and the conditions of the
+-- two campfires (Placeable Campfires' wood + a vanilla campfire zone) in the depot while the HQ is in
+-- the world, in the depot's campfire list so its NPCs light and use them, and the conditions of the
 -- seats by them (from 1.2.0).
 
 local WOOD_SECTION = "ph_campfiremod"

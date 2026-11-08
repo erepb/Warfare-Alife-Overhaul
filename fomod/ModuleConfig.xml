@@ -48,7 +48,7 @@ HQ choices are per playthrough: start a new game after changing them.
                         </plugin>
                         <plugin name="HQ Sin Mine">
                             <description>
-Playing Sin in Warfare, the Red Forest mine (red_smart_terrain_3_2) becomes your faction's HQ instead of the surface camp, with a medic and barman next to the Sin trader and mechanic, a workbench, a medic corner, a bar and a sleep spot. Not available with ReDone, which moves the Sin base.
+In Warfare, whatever faction you play, the Sin base in the Red Forest mine (red_smart_terrain_3_2) becomes a furnished HQ, with a medic and barman next to the Sin trader and mechanic, a workbench, a medic corner, a bar and a sleep spot. Not available with ReDone, which moves the Sin base.
 
 Uncheck it if another addon furnishes this base.
 
@@ -67,7 +67,7 @@ HQ choices are per playthrough: start a new game after changing them.
                         </plugin>
                         <plugin name="HQ UNISG Depot">
                             <description>
-Playing UNISG in Warfare, the Jupiter depot (jup_b208) becomes your faction's HQ, with a trader, mechanic, medic and barman, an infirmary and a sleep spot. It is occupied at the start only when you start at the depot; from any other start it stands empty for you to capture.
+In Warfare, whatever faction you play, the Jupiter depot (jup_b208) becomes the UNISG HQ, with a trader, mechanic, medic and barman, an infirmary and a sleep spot. Playing UNISG, it is protected like other factions' main bases, and occupied at the start only when you start at the depot; otherwise it starts empty, to be captured.
 
 Uncheck it if another addon furnishes this base.
 

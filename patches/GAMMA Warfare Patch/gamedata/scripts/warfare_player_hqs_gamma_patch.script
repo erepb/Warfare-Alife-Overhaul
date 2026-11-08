@@ -1,6 +1,6 @@
 -- GAMMA hazards inside the installed HQs (warfare_player_hqs.hazard_free), after GeroyAnekdotov's WALO
 -- SIN HQ 2.0.2 and UNISG Command & Operations 1.0.3: Dynamic Anomalies Overhaul spawns no new
--- anomaly inside the actor's HQ, nor GAMMA's Radiation Dynamic Areas a radiation field. Saved ones
+-- anomaly inside an HQ, nor GAMMA's Radiation Dynamic Areas a radiation field. Saved ones
 -- are left alone. With no HQ hazard rows installed nothing is wrapped. The HQs' other GAMMA parts
 -- ship with their options (patches\GAMMA HQ *).
 
@@ -11,8 +11,8 @@ local function install_dao_filter()
     end
     local spawn_anomaly_on_smart = dao.drx_da_spawn_anomaly_on_smart
     dao.drx_da_spawn_anomaly_on_smart = function(level_file, smart_name, anomaly_type, level_name, position_data)
-        local _, smart = warfare_player_hqs.current_hq()
-        if smart and smart == smart_name then
+        local hq = warfare_player_hqs.at_smart(smart_name)
+        if hq and hq.hazard_free then
             return false
         end
         return spawn_anomaly_on_smart(level_file, smart_name, anomaly_type, level_name, position_data)

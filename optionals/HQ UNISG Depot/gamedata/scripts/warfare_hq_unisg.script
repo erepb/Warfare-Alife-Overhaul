@@ -1,17 +1,18 @@
--- Install option "HQ UNISG Depot", after GeroyAnekdotov's WALO UNISG Command & Operations: while the
--- actor plays UNISG in warfare, the Jupiter depot jup_b208 is the UNISG main base, with a trader,
--- mechanic, medic and barman (jobs in mod_jup_b208_warfare.ltx), chairs, an infirmary and a sleep
--- spot. Read by warfare_player_hqs.
+-- Install option "HQ UNISG Depot", after GeroyAnekdotov's WALO UNISG Command & Operations: in full
+-- warfare, whoever the actor plays, the Jupiter depot jup_b208 is a UNISG main base, protected only
+-- for a UNISG actor, with a trader, mechanic, medic and barman (jobs in mod_jup_b208_warfare.ltx),
+-- chairs, an infirmary and a sleep spot. Read by warfare_player_hqs.
 
 local k = warfare_base_props.kit
 
 hq = {
-    id    = "unisg",
-    smart = "jup_b208",                                         -- the depot
-    gate  = "isg",
+    id      = "unisg",
+    smart   = "jup_b208",                                       -- the depot
+    faction = "isg",
+    gate    = "warfare",
 
     warfare = {
-        entry    = { faction = "isg", resurrect = true },
+        entry    = { faction = "isg", protect = "actor", resurrect = true },
         props    = {
             jup_b208 = { base = 1, isg = 1 },
         },
@@ -21,7 +22,8 @@ hq = {
         -- squad_descr_warfare.ltx
         service  = { "jup_b208_isg_trader_squad", "jup_b208_isg_mechanic_squad",
                      "jup_b208_isg_medic_squad", "jup_b208_isg_barman_squad" },
-        -- new_game_start_locations.ltx: from any other start the depot is left empty to be captured
+        -- new_game_start_locations.ltx: from any other start, or for another faction, the depot is
+        -- left empty to be captured
         seed_start = "yanov_depo_monolith",
     },
 

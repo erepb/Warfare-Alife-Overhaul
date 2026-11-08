@@ -1,23 +1,23 @@
--- Install option "HQ Sin Mine", after GeroyAnekdotov's WALO SIN HQ: while the actor plays Sin in
--- warfare, the Red Forest mine red_smart_terrain_3_2 replaces the surface camp as the Sin main base
--- and gets a medic and barman (jobs in mod_red_smart_terrain_3_2_warfare.ltx; the trader and the
--- mechanic are simulation.ltx's story squads, replaced through mod_red_greh_*_warfare.ltx), a
--- workbench, medic corner, bar and sleep spot. Not under ReDone, which moves the Sin base.
+-- Install option "HQ Sin Mine", after GeroyAnekdotov's WALO SIN HQ: in full warfare, whoever the
+-- actor plays, the Red Forest mine red_smart_terrain_3_2 (the Sin main base, warfare_smarts.ltx) gets
+-- a medic and barman (jobs in mod_red_smart_terrain_3_2_warfare.ltx; the trader and the mechanic are
+-- simulation.ltx's story squads, replaced through mod_red_greh_*_warfare.ltx), a workbench, medic
+-- corner, bar and sleep spot. Not under ReDone, which moves the Sin base.
 -- Read by warfare_player_hqs.
 
 local k = warfare_base_props.kit
 
 hq = {
-    id    = "sin",
-    smart = "red_smart_terrain_3_2",                            -- the old mine
-    gate  = "greh",
+    id      = "sin",
+    smart   = "red_smart_terrain_3_2",                          -- the old mine
+    faction = "greh",
+    gate    = "warfare",
     available = function()
         return not warfare_redone_patch.moves_sin_base()
     end,
 
     warfare = {
-        entry    = { faction = "greh", protect = true, resurrect = true },
-        replaces = "red_smart_terrain_4_2",                     -- the surface camp
+        -- the camp by the mine entrance (red_smart_terrain_4_2) stops being a base
         -- the faction key also marks the base as the faction's own for GAMMA's campfire saving (YACS)
         props    = {
             red_smart_terrain_3_2 = { base = 1, resource = 0, territory = 0, lair = 0, greh = 1 },

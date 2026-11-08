@@ -4,13 +4,15 @@
 --
 -- A data module defines `hq`:
 --   id, smart      the HQ smart
---   gate           "always" (every game), or the actor faction the HQ is for (warfare only)
+--   faction        whose HQ it is; its new-game squads are that faction's
+--   gate           "always" (every game) or "warfare" (full warfare games)
 --   available      optional function; false keeps the HQ out of the world
---   warfare        optional, applied by apply(): entry (main_base_data row), replaces (a main base of
---                  the same faction that stops being one), props, uniques, capacity, seed
---                  ({ section, count } warfare-owned guards), service (ignore-listed crew squads
---                  that find the smart by their target_smart), seed_start (the only new-game start
---                  location that seeds the HQ)
+--   warfare        optional, applied by apply(): entry (main_base_data row; protect = "actor" protects
+--                  it only while the actor plays its faction), replaces (a main base of the same
+--                  faction that stops being one), props, uniques, capacity, seed ({ section, count }
+--                  warfare-owned guards), service (ignore-listed crew squads that find the smart by
+--                  their target_smart), seed_start (the new-game start location that alone seeds the
+--                  HQ, and only for an actor of its faction)
 --   pieces         warfare_base_props pieces
 --   anchors        warfare_job_anchors rows: { job, pos, seat }
 --   sleep_spot     warfare_sleep_spots bed position
@@ -67,43 +69,44 @@ function any(field)
     return false
 end
 
--- Whether hq is in the world for an actor of `faction` (nil before the actor exists).
-local function passes(hq, faction)
+-- Whether hq is in the world in this game.
+local function passes(hq)
     if hq.available and not hq.available() then
         return false
     end
     if hq.gate == "always" then
         return true
     end
-    if not _G.WARFARE then
-        return false
-    end
-    return faction ~= nil and hq.gate == faction
+    return hq.gate == "warfare" and _G.WARFARE == true
 end
 
-local function actor_faction()
-    return db.actor and get_actor_true_community()
-end
-
---- The installed HQs in the world now.
+--- The installed HQs in the world now. It doesn't wait for apply(), so it holds for callers that
+--- run before warfare's first update.
 function active()
-    local faction = actor_faction()
     local list = {}
     for _, hq in ipairs(registered()) do
-        if passes(hq, faction) then
+        if passes(hq) then
             list[#list + 1] = hq
         end
     end
     return list
 end
 
---- The actor's faction HQ (gate and smart name), or nil. It doesn't wait for apply(), so it holds
---- for callers that run before warfare's first update.
-function current_hq()
-    local faction = actor_faction()
-    for _, hq in ipairs(registered()) do
-        if hq.gate ~= "always" and passes(hq, faction) then
-            return hq.gate, hq.smart
+--- True when the HQ with this id is in the world.
+function is_active(id)
+    for _, hq in ipairs(active()) do
+        if hq.id == id then
+            return true
+        end
+    end
+    return false
+end
+
+--- The HQ in the world at this smart, or nil.
+function at_smart(smart_name)
+    for _, hq in ipairs(active()) do
+        if hq.smart == smart_name then
+            return hq
         end
     end
 end
@@ -156,12 +159,25 @@ local function replace_base(rec, name, entry)
     smart_terrain_warfare.set_main_base(name, entry)
 end
 
-local function apply_one(hq, smart)
+-- entry with protect = "actor" resolved for an actor of `faction`
+local function resolve_entry(entry, faction)
+    if entry.protect ~= "actor" then
+        return entry
+    end
+    local resolved = {}
+    for k, v in pairs(entry) do
+        resolved[k] = v
+    end
+    resolved.protect = faction ~= nil and faction == entry.faction
+    return resolved
+end
+
+local function apply_one(hq, smart, faction)
     local w = hq.warfare
     local rec = { hq = hq, bases = {}, props = {} }
 
     if w.entry then
-        replace_base(rec, hq.smart, w.entry)
+        replace_base(rec, hq.smart, resolve_entry(w.entry, faction))
         if w.replaces and smart_terrain_warfare.get_main_base_faction(w.replaces) == w.entry.faction then
             replace_base(rec, w.replaces, nil)
         end
@@ -238,10 +254,10 @@ function apply(faction)
     end
     applied = {}
     for _, hq in ipairs(registered()) do
-        if hq.warfare and passes(hq, faction) then
+        if hq.warfare and passes(hq) then
             local smart = smart_by_name(hq.smart)
             if smart then
-                applied[#applied + 1] = apply_one(hq, smart)
+                applied[#applied + 1] = apply_one(hq, smart, faction)
             else
                 warfare_log.warn("warfare_player_hqs: smart=%s not found, hq=%s not applied", hq.smart, hq.id)
             end
@@ -249,37 +265,33 @@ function apply(faction)
     end
 end
 
---- The applied faction HQ's new-game squads, or nil: { smart, faction, section, count, service }.
+--- The applied HQs' new-game squads, a list of { smart, faction, section, count, service }.
 --- section/count are the warfare-owned guards (section nil when none); service lists the
 --- ignore-listed unique NPC squads, which find the smart by their target_smart.
---- `start` is the chosen new-game start location; an HQ with a seed_start other than it gets nil.
-function new_game_seed(start)
+--- `start` is the chosen new-game start location and `actor_faction` the actor's: an HQ with a
+--- seed_start is seeded only for an actor of its faction starting there.
+function new_game_seed(start, actor_faction)
+    local list = {}
     for _, rec in ipairs(applied) do
         local hq = rec.hq
         local w = hq.warfare
-        if hq.gate ~= "always" and (w.seed or w.service) then
-            local smart = smart_by_name(hq.smart)
-            if not smart then
-                return
+        local smart = (w.seed or w.service) and smart_by_name(hq.smart)
+        if smart then
+            if w.seed_start and not (w.seed_start == start and actor_faction == hq.faction) then
+                warfare_log.info("warfare_player_hqs: start=%s faction=%s, smart=%s starts empty", start, actor_faction, hq.smart)
+            else
+                local seed = w.seed or {}
+                list[#list + 1] = {
+                    smart   = smart,
+                    faction = hq.faction,
+                    section = seed.section,
+                    count   = seed.count or 0,
+                    service = w.service or {},
+                }
             end
-            if w.seed_start and w.seed_start ~= start then
-                warfare_log.info("warfare_player_hqs: start=%s is not %s, smart=%s starts empty", start, w.seed_start, hq.smart)
-                return
-            end
-            local seed = w.seed or {}
-            local faction = hq.gate
-            if w.entry and w.entry.faction then
-                faction = w.entry.faction
-            end
-            return {
-                smart   = smart,
-                faction = faction,
-                section = seed.section,
-                count   = seed.count or 0,
-                service = w.service or {},
-            }
         end
     end
+    return list
 end
 
 -- Dynamic anomalies ------------------------------------------------------------------------------
