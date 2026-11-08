@@ -1,0 +1,45 @@
+; Seats by the two depot campfires of warfare_hq_unisg_gamma, from UNISG Command & Operations 1.2.0
+; (GeroyAnekdotov). prior stays above the smart's campfire_point jobs (10). A sitter whose fire is out
+; switches to remark, where turn_on_campfire lets him relight it, and sits down again once it burns.
+
+[logic@jup_b208_warfare_fire_base]
+prior = 11
+
+[beh@jup_b208_warfare_fire_base]
+behavior_state = beh_move
+target = waypoint
+walk_dist = 100
+jog_dist = 220
+wait_anim = guard
+walk_anim = patrol
+jog_anim = patrol
+run_anim = rush
+delay_anim = guard
+path_end = loop
+turn_on_campfire = true
+
+[remark@jup_b208_warfare_fire_base]
+anim = guard
+turn_on_campfire = true
+
+[logic@jup_b208_warfare_fire_hall]:logic@jup_b208_warfare_fire_base
+suitable = {!surge_started =warfare_hq_campfire_seat(jup_b208:hall) =npc_community(isg) !check_npc_trader !check_npc_mechanic !check_npc_medic !check_npc_barman} true, false
+active = beh@jup_b208_warfare_fire_hall
+
+[beh@jup_b208_warfare_fire_hall]:beh@jup_b208_warfare_fire_base
+pt1 = 1000000000,sit | pos:400.4,4.2678,-132.3 look:400.102,4.479,-130.396
+on_info = {=warfare_hq_campfire_unlit(jup_b208:hall)} remark@jup_b208_warfare_fire_hall
+
+[remark@jup_b208_warfare_fire_hall]:remark@jup_b208_warfare_fire_base
+on_info = {!warfare_hq_campfire_unlit(jup_b208:hall)} beh@jup_b208_warfare_fire_hall
+
+[logic@jup_b208_warfare_fire_hall2]:logic@jup_b208_warfare_fire_base
+suitable = {!surge_started =warfare_hq_campfire_seat(jup_b208:hall2) =npc_community(isg) !check_npc_trader !check_npc_mechanic !check_npc_medic !check_npc_barman} true, false
+active = beh@jup_b208_warfare_fire_hall2
+
+[beh@jup_b208_warfare_fire_hall2]:beh@jup_b208_warfare_fire_base
+pt1 = 1000000000,sit | pos:399.7,4.2678,-92.4 look:398.957,4.479,-94.384
+on_info = {=warfare_hq_campfire_unlit(jup_b208:hall2)} remark@jup_b208_warfare_fire_hall2
+
+[remark@jup_b208_warfare_fire_hall2]:remark@jup_b208_warfare_fire_base
+on_info = {!warfare_hq_campfire_unlit(jup_b208:hall2)} beh@jup_b208_warfare_fire_hall2

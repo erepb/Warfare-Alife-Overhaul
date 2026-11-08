@@ -1,6 +1,7 @@
 -- GAMMA part of the "HQ UNISG Depot" option, after GeroyAnekdotov's UNISG Command & Operations 1.0.3:
 -- two campfires (Placeable Campfires' wood + a vanilla campfire zone) in the depot while it is the
--- actor's HQ, in the depot's campfire list so its NPCs light and use them.
+-- actor's HQ, in the depot's campfire list so its NPCs light and use them, and the conditions of the
+-- seats by them (from 1.2.0).
 
 local WOOD_SECTION = "ph_campfiremod"
 local FIRE_SECTION = "campfire"
@@ -121,7 +122,78 @@ local function install_campfire_registry()
     end
 end
 
+-- smart -> campfire key -> the seat by that fire (jup_b208_warfare_campfire_logic.ltx): its level
+-- vertex and position
+local seats = {
+    jup_b208 = {
+        hall  = { vertex = 1346838, pos = { 400.4, 4.2678, -132.3 } },
+        hall2 = { vertex = 1345732, pos = { 399.7, 4.2678, -92.4 } },
+    },
+}
+local SEAT_FREE_RADIUS = 0.85
+
+local function online_fire(smart_name, key)
+    local st = alife_storage_manager.get_state()
+    local ids = st.warfare_hq_campfires and st.warfare_hq_campfires[smart_name]
+    local id = ids and ids[key] and ids[key].fire
+    local fires = id and db.campfire_table_by_smart_names[smart_name]
+    local binder = fires and fires[id]
+    return binder and binder.campfire and binder
+end
+
+-- suitable of a seat job, params smart:key. Its fire is online, and the seat is reachable and not
+-- taken by another NPC, a vertex claim or a campfire_point job.
+local function campfire_seat(actor, npc, p)
+    local smart_name, key = p[1], p[2]
+    local seat = seats[smart_name] and seats[smart_name][key]
+    if not (seat and online_fire(smart_name, key)) then
+        return false
+    end
+    local id = type(npc.id) == "function" and npc:id() or npc.id
+    local obj = level.object_by_id(id)
+    if not (obj and obj:alive()) or obj:best_enemy() or xr_danger.has_danger(obj)
+            or obj:has_info("npcx_is_companion") then
+        return false
+    end
+
+    local pos = vector():set(seat.pos[1], seat.pos[2], seat.pos[3])
+    local vertex = seat.vertex
+    local claim = db.used_level_vertex_ids[vertex]
+    if level.vertex_id(pos) ~= vertex or (claim and claim ~= id) or not obj:accessible(vertex) then
+        return false
+    end
+    local smart = SIMBOARD.smarts_by_names[smart_name]
+    for other in pairs(smart and smart.npc_info or {}) do
+        local st = db.storage[other]
+        local camp = other ~= id and st and st.active_scheme == "campfire_point" and st.campfire_point
+        if camp and camp.vid == vertex then
+            return false
+        end
+    end
+
+    local free = true
+    level.iterate_nearest(pos, SEAT_FREE_RADIUS, function(o)
+        if o:id() ~= id and o:position():distance_to_sqr(pos) <= SEAT_FREE_RADIUS * SEAT_FREE_RADIUS then
+            free = false
+            return true
+        end
+    end)
+    return free
+end
+
+-- params smart:key: the seat's fire is online and out
+local function campfire_unlit(actor, npc, p)
+    local binder = online_fire(p[1], p[2])
+    if not binder then
+        return false
+    end
+    return not binder.campfire:is_on()
+end
+
 function on_game_start()
+    -- the seat jobs are in the depot's config in every game, so their conditions must always exist
+    xr_conditions.warfare_hq_campfire_seat = campfire_seat
+    xr_conditions.warfare_hq_campfire_unlit = campfire_unlit
     warfare.on_enabled(function()
         install_campfire_registry()
         RegisterScriptCallback("actor_on_first_update", place_campfires)
