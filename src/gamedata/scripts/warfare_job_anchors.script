@@ -1,7 +1,11 @@
--- Keeps Warfare base NPCs on beh job spots that props wall in (warfare_base_props).
+-- Keeps Warfare base NPCs on their beh job spots.
 --
--- AI paths ignore physics objects, so an NPC walks into them and gets stuck. An NPC on an anchored job
--- that is walking within range of its spot is placed on the job's beh cell (pos). A standing NPC is
+-- Off the actor's level a smart has no jobs, so A-Life holds its NPCs at the smart's centre and they
+-- come online there. An NPC on an anchored job is placed on the job's beh cell (pos) once, within
+-- PLACE_MS of the anchor first seeing it online, when it is farther than RANGE from it.
+--
+-- AI paths ignore physics objects (warfare_base_props), so an NPC walks into them and gets stuck. An NPC
+-- on an anchored job that is walking within range of its spot is placed on pos. A standing NPC is
 -- never moved, nor one within SEAT_RADIUS of its seat.
 --
 -- seat is where an animpoint animation settles the NPC. beh counts it arrived only while its level
@@ -13,25 +17,39 @@ local RANGE = 1.5
 local SNAP = 0.5
 local SEAT_RADIUS = 0.8
 local UPDATE_MS = 250
+local PLACE_MS = 10000
 
 -- job is the smart job section; its logic is logic@<job> and its beh section beh@<job>.
 -- pos is the beh point's pos.
 local anchors = {
+    { smart = "mar_smart_terrain_3_3", job = "mar_smart_terrain_3_3_warfare_trader",
+      pos = { -166.64095, 1.21425, 404.41220 } },
+    { smart = "mar_smart_terrain_3_3", job = "mar_smart_terrain_3_3_warfare_mechanic",
+      pos = { -202.38124, 0.66409, 402.19968 } },
+    { smart = "mar_smart_terrain_3_3", job = "mar_smart_terrain_3_3_warfare_barman",
+      pos = { -173.29501, 1.33117, 411.64044 } },
     -- seat = warfare_base_props' medic_chair
     { smart = "mar_smart_terrain_3_3", job = "mar_smart_terrain_3_3_warfare_medic",
       pos = { -171.5, 2.50729, 416.5 }, seat = { -171.74308, 2.48869, 415.71453 } },
     -- the faction HQs (warfare_player_hqs); seats = warfare_base_props' chairs
     { smart = "red_smart_terrain_3_2", job = "red_smart_terrain_3_2_warfare_medic",
       pos = { -156.97092, 2.17706, -36.31102 }, seat = { -157.27080, 2.18006, -36.30268 } },
+    { smart = "red_smart_terrain_3_2", job = "red_smart_terrain_3_2_warfare_barman",
+      pos = { -152.677971, 2.200348, -18.637812 } },
     { smart = "jup_b208", job = "jup_b208_warfare_medic",
       pos = { 387.757, 4.279, -125.742 }, seat = { 386.95700, 4.27900, -125.72850 } },
     { smart = "jup_b208", job = "jup_b208_warfare_barman",
       pos = { 424.385, 9.954, -81.692 }, seat = { 425.18500, 9.95400, -81.68050 } },
+    { smart = "jup_b208", job = "jup_b208_warfare_trader",
+      pos = { 416.335, 9.851, -86.489 } },
+    { smart = "jup_b208", job = "jup_b208_warfare_mechanic",
+      pos = { 422.943, 10, -92.1 } },
 }
 
 local level_anchors -- anchors on the current level, built on first update
 local seats = {}    -- beh section -> seat, for the anchors on the current level
 local next_update = 0
+local came_online = {} -- npc id -> true from net_spawn, then the time an anchor first saw it online
 
 local function to_vector(p)
     return vector():set(p[1], p[2], p[3])
@@ -86,6 +104,23 @@ local function actor_on_update()
         local id = a.smart.npc_by_job_section and a.smart.npc_by_job_section[a.logic]
         local npc = id and level.object_by_id(id)
         local st = npc and db.storage[id]
+
+        if npc and came_online[id] then
+            if came_online[id] == true then
+                came_online[id] = now
+            end
+            if now - came_online[id] > PLACE_MS then
+                came_online[id] = nil
+            elseif st and st.active_section == a.beh and npc:alive() and not npc:best_enemy() then
+                came_online[id] = nil
+                local dist = npc:position():distance_to(a.pos)
+                if dist > RANGE then
+                    npc:set_npc_position(a.pos)
+                    warfare_log.info("warfare_job_anchors: placed npc=%s job=%s from dist=%s", npc:name(), a.logic, dist)
+                end
+            end
+        end
+
         local state = st and st.state_mgr and state_lib.states[st.state_mgr.target_state]
         if state and npc:alive() and st.active_section == a.beh and not npc:best_enemy()
                 and state.movement ~= move.stand then
@@ -104,8 +139,18 @@ local function actor_on_update()
     end
 end
 
+local function npc_on_net_spawn(npc)
+    came_online[npc:id()] = true
+end
+
+local function npc_on_net_destroy(npc)
+    came_online[npc:id()] = nil
+end
+
 function on_game_start()
     patch_beh_arrival()
     RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
     RegisterScriptCallback("actor_on_update", actor_on_update)
+    RegisterScriptCallback("npc_on_net_spawn", npc_on_net_spawn)
+    RegisterScriptCallback("npc_on_net_destroy", npc_on_net_destroy)
 end
