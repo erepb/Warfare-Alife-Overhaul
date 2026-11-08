@@ -22,8 +22,11 @@
 -- (before the starting squads are placed) and in actor_on_first_update (before the first warfare
 -- update), so a load or a switch to another faction's save within one session starts from the
 -- untouched tables.
+--
+-- A compatibility module may define `hqs`, a list of such tables, for a base another addon runs
+-- (warfare_rr_patch).
 
-local MODULES = { "warfare_hq_renegade", "warfare_hq_sin", "warfare_hq_unisg" }
+local MODULES = { "warfare_hq_renegade", "warfare_hq_sin", "warfare_hq_unisg", "warfare_rr_patch" }
 
 local registry      -- installed HQs, read on first use
 local applied = {}  -- what apply() set up, one record per HQ
@@ -39,8 +42,8 @@ function registered()
         local ids = {}
         for _, name in ipairs(MODULES) do
             local module = _G[name]
-            local hq = module and module.hq
-            if hq then
+            local list = module and (module.hqs or { module.hq })
+            for _, hq in ipairs(list or {}) do
                 registry[#registry + 1] = hq
                 ids[#ids + 1] = hq.id
             end

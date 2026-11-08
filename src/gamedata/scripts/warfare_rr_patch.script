@@ -1,0 +1,73 @@
+-- Renegade Restoration compatibility. Inert unless it is installed (its rr_renegade_base script).
+--
+-- RR runs the renegade base at mar_smart_terrain_3_3 with its own crew, so the "HQ Renegade Base"
+-- option must be left out. RR's smart file lowers the base's max_population to 1; warfare gets
+-- vanilla's 3 back.
+--
+-- Once Scolopendra takes the Clear Sky base, RR moves its base and crew there and removes Clear Sky
+-- squads while the actor is on the Marsh. Warfare follows: that smart becomes the renegade main
+-- base in place of the old one, and warfare spawns no service NPCs there.
+--
+-- hqs is read by warfare_player_hqs like an install option's hq.
+
+local OLD_BASE  = "mar_smart_terrain_3_3"
+local CSKY_BASE = "mar_smart_terrain_base"
+
+-- rr_renegade_base.q9_base_taken
+local BASE_TAKEN = { "rr_scol_marsh_9_base_taken", "rr_scol_marsh_9_done" }
+
+-- common = true, so warfare would own it and send it away from RR's slave work
+local SLAVERY_GUARDS = "rr_slavery_guard_squad"
+
+function installed()
+    return _G.rr_renegade_base ~= nil
+end
+
+local function base_taken()
+    for _, info in ipairs(BASE_TAKEN) do
+        if has_alife_info(info) then
+            return true
+        end
+    end
+    return false
+end
+
+if installed() then
+    hqs = {
+        { id = "rr_renegade_base", smart = OLD_BASE, gate = "always",
+          available = function()
+              return not base_taken()
+          end,
+          warfare = { capacity = 3 } },
+        { id = "rr_csky_base", smart = CSKY_BASE, gate = "always",
+          available = base_taken,
+          warfare = { entry    = { faction = "renegade", protect = true, resurrect = true },
+                      replaces = OLD_BASE,
+                      uniques  = { 0, 0, 0, 0, 0 } } },
+    }
+end
+
+local function actor_on_info_callback(npc, info_id)
+    for _, info in ipairs(BASE_TAKEN) do
+        if info_id == info then
+            warfare_log.info("rr: info=%s, %s becomes the renegade main base", info_id, CSKY_BASE)
+            warfare_player_hqs.apply(get_actor_true_community())
+            return
+        end
+    end
+end
+
+local function ignore_slavery_guards()
+    sim_offline_combat.get_ignore_list()[SLAVERY_GUARDS] = true
+end
+
+function on_game_start()
+    if not installed() then
+        return
+    end
+    warfare_log.info("rr: Renegade Restoration installed")
+    warfare.on_sim(function()
+        ignore_slavery_guards()
+        RegisterScriptCallback("actor_on_info_callback", actor_on_info_callback)
+    end)
+end
