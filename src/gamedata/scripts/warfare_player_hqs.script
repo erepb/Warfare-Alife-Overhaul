@@ -10,6 +10,9 @@
 -- untouched tables. The HQ's furniture, sleep spot and seat anchors live in warfare_base_props,
 -- warfare_sleep_spots and warfare_job_anchors, gated by allows(); its jobs in the smart's
 -- *_warfare_logic.ltx.
+--
+-- hazard_free is where no anomaly may be generated while the HQ is the actor's: boxes as
+-- { x1, y1, z1, x2, y2, z2 }, and points for single rows of plugins\dynamic_anomalies.ltx.
 
 local hqs = {
     greh = {
@@ -25,6 +28,7 @@ local hqs = {
         capacity = 4,
         -- squad_descr_warfare.ltx; the trader and the mechanic are simulation.ltx's story squads
         service  = { "red_smart_terrain_3_2_greh_medic_squad", "red_smart_terrain_3_2_greh_barman_squad" },
+        hazard_free = { level = "l10_red_forest", boxes = { { -173.5, 0, -46, -144, 6, -15 } } },
         available = function()
             return not warfare_redone_patch.moves_sin_base()
         end,
@@ -42,6 +46,14 @@ local hqs = {
                      "jup_b208_isg_medic_squad", "jup_b208_isg_barman_squad" },
         -- new_game_start_locations.ltx: from any other start the depot is left empty to be captured
         seed_start = "yanov_depo_monolith",
+        -- the hall, the room by the exit and the stair footprint (all.spawn's jup_b208_burers_restr
+        -- and jup_surge_hide_b208_2, as measured by UNISG Command & Operations 1.2.0); ano_jup_158 at
+        -- the exit
+        hazard_free = { level = "jupiter",
+            boxes  = { { 387.01551, -0.42500, -137.64774, 417.83971, 14.31620, -85.44132 },
+                       { 424.26614,  3.67648,  -74.18181, 429.32694, 11.96648, -67.25081 },
+                       { 417.33313,  4.27900, -109.72678, 420.59033,  7.63307, -100.76898 } },
+            points = { { 421.97360, 4.45509, -73.03874 } } },
     },
 }
 
@@ -208,4 +220,74 @@ function current_hq()
     if hq then
         return hq.entry.faction, hq.smart
     end
+end
+
+local POINT_RADIUS = 0.01
+
+--- True when pos on level_name lies where the actor's HQ allows no anomaly.
+function hazard_free(level_name, pos)
+    local hq = db.actor and hq_of(get_actor_true_community())
+    local area = hq and hq.hazard_free
+    if not (area and pos and level_name == area.level) then
+        return false
+    end
+    for _, b in ipairs(area.boxes or {}) do
+        if pos.x >= b[1] and pos.x <= b[4] and pos.y >= b[2] and pos.y <= b[5]
+            and pos.z >= b[3] and pos.z <= b[6] then
+            return true
+        end
+    end
+    for _, p in ipairs(area.points or {}) do
+        if pos:distance_to(vector():set(p[1], p[2], p[3])) < POINT_RADIUS then
+            return true
+        end
+    end
+    return false
+end
+
+-- Dynamic anomalies ------------------------------------------------------------------------------
+
+local ANOMALY_TABLE = "plugins\\dynamic_anomalies.ltx"
+
+-- bind_anomaly_field's coordinate table, with the rows inside the actor's HQ read as its "NA" skip.
+local function anomaly_table(path)
+    local ini = ini_file(path)
+    if path ~= ANOMALY_TABLE then
+        return ini
+    end
+    local proxy = {}
+    function proxy:line_count(section)
+        return ini:line_count(section)
+    end
+    function proxy:r_line_ex(section, i, ...)
+        local result, name, value = ini:r_line_ex(section, i, ...)
+        local t = value and str_explode(value, ",")
+        local x, y, z = t and tonumber(t[2]), t and tonumber(t[3]), t and tonumber(t[4])
+        if t and #t == 6 and x and y and z and hazard_free(section, vector():set(x, y, z)) then
+            warfare_log.info("warfare_player_hqs: no dynamic anomaly row=%s level=%s, inside the HQ", name, section)
+            value = "NA"
+        end
+        return result, name, value
+    end
+    return proxy
+end
+
+local function install_anomaly_filter()
+    local module = bind_anomaly_field
+    local ini_settings = module and module.ini_settings
+    if type(ini_settings) ~= "function" then
+        return
+    end
+    module.ini_settings = function(...)
+        module.ini_file = anomaly_table
+        local ok, err = pcall(ini_settings, ...)
+        module.ini_file = nil
+        if not ok then
+            error(err, 0)
+        end
+    end
+end
+
+function on_game_start()
+    warfare.on_enabled(install_anomaly_filter)
 end
