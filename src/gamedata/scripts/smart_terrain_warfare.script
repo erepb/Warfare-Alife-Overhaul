@@ -2164,7 +2164,8 @@ function surge_behavior(smart)
                     local squad = resolve_roster_squad(smart.id, sid)
                     local faction = squad and squad:get_squad_community()
 
-                    if (squad) and (faction ~= "monolith") and (faction ~= "monster") and (faction ~= "zombied") and not (axr_companions.companion_squads[sid]) then    -- ignore mutants and zombified, and companion squads
+                    -- warfare's own squads only: set_target would register another script's squad
+                    if (squad) and warfare.is_owned(squad) and (faction ~= "monolith") and (faction ~= "monster") and (faction ~= "zombied") and not (axr_companions.companion_squads[sid]) then    -- ignore mutants and zombified, and companion squads
                         original_target[squad.id] = smart.id    -- store original target of squad
 
                         if not (#shelter_targets > 0) then        -- find a shelter target only once for this particular terrain
