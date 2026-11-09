@@ -277,7 +277,7 @@ local function smart_terrain_on_update(smart)
             local community_1 = squad_1:get_squad_community()
             if (community_1 == "monster" and (not can_fight_mutant)) then
                 warfare_log.trace("smart_terrain_on_update: skip monster (can_fight_mutant=off) squad=%s", id_1)
-                return
+                goto next_squad
             end
 
             lid_1 = lid_1 or game_graph():vertex(squad_1.m_game_vertex_id):level_id()
@@ -320,6 +320,7 @@ local function smart_terrain_on_update(smart)
                 --                end
             end
         end
+        ::next_squad::
     end
 end
 
