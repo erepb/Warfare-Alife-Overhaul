@@ -3302,6 +3302,11 @@ function spawn_defense(smart)
         return
     end
 
+    if is_south_spawn_locked(smart) then
+        warfare_log.debug("spawn_defense: south lock smart=%s faction=%s", smart:name(), smart.owning_faction)
+        return
+    end
+
     if (is_factions_enemies(smart.owning_faction, warfare.actor_faction) and smart.is_on_actor_level and smart.dist_to_actor) then
         if (smart.dist_to_actor < smart.respawn_radius) then
             return
@@ -3360,6 +3365,11 @@ function spawn_patrols(smart)
     elseif (time_ref():diffSec(patrol_timers[smart.id]) > respawn) then
         patrol_timers[smart.id] = warfare_utils.add_time(patrol_timers[smart.id],  respawn)
     else
+        return
+    end
+
+    if is_south_spawn_locked(smart) then
+        warfare_log.debug("spawn_patrols: south lock smart=%s faction=%s", smart:name(), smart.owning_faction)
         return
     end
 
@@ -5751,6 +5761,18 @@ local function is_miracle_machine_blocked(source_level, target_level, faction, s
     return false
 end
 
+-- Monolith south lock: while the Brain Scorcher runs, Monolith reaches only Army Warehouses (9)
+-- south of it, and a base it takes there spawns nothing. Exempt when it is the actor's own faction --
+-- that is about who is playing, not the faction.
+function is_monolith_south_locked(faction)
+    return (faction == "monolith") and IsStoryMode() and (faction ~= warfare.actor_faction)
+       and not has_alife_info("bar_deactivate_radar_done")
+end
+
+function is_south_spawn_locked(smart)
+    return is_monolith_south_locked(smart.owning_faction) and is_south_level(smart.level_id)
+end
+
 -- Check if travel/targeting from source_level to target_level is allowed for faction.
 -- source_level may be nil (e.g. during squad spawning); directional checks are skipped in that case.
 -- Covers: underground exclusion, Brain Scorcher, Miracle Machine, Monolith south restriction.
@@ -5778,13 +5800,8 @@ function is_travel_allowed(source_level, target_level, faction)
         return false
     end
 
-    -- Monolith south lock: while the scorcher is active, only Army Warehouses (9) is reachable south.
-    -- Exempt when it is the actor's own faction -- that is about who is playing, not the faction.
-    if (faction == "monolith") and IsStoryMode() and (faction ~= warfare.actor_faction)
-       and not has_alife_info("bar_deactivate_radar_done") then
-        if is_south_level(target_level) and (target_level ~= 9) then
-            return false
-        end
+    if is_monolith_south_locked(faction) and is_south_level(target_level) and (target_level ~= 9) then
+        return false
     end
 
     return true
